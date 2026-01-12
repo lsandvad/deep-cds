@@ -10,7 +10,7 @@ README.txt
 **/.DS_Store
 
 # Ignore JSON
-/src_dev/**/.json
+/src_dev/**/*.json
 
 #Ignore txt
-/src_dev/**/.txt
+/src_dev/**/*.txt
