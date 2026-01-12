@@ -1,1 +1,9 @@
 README.txt
+
+# Ignore everything recursively in src_dev
+/src_dev/**
+
+# Except Python and shell scripts
+!/src_dev/**/*.py
+!/src_dev/**/*.sh
+!/src_dev/**/*.ipynb
