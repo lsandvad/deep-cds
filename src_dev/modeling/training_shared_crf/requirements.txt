@@ -1,0 +1,7 @@
+numpy==2.4.0
+optuna==4.3.0
+pandas==2.3.3
+pytorch_crf==0.7.2
+scikit_learn==1.8.0
+torch==2.7.1
+transformers==4.36.0

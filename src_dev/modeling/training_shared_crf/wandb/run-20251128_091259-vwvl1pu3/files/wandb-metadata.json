@@ -1,0 +1,12 @@
+{
+  "os":  "macOS-26.1-arm64-arm-64bit",
+  "python":  "CPython 3.12.2",
+  "startedAt":  "2025-11-28T08:13:00.171053Z",
+  "program":  "/Users/nrt204/Desktop/FragmentPredictor/scripts/modeling/training_shared_crf/./train_with_errors_nt_encoding.py",
+  "codePath":  "train_with_errors_nt_encoding.py",
+  "email":  "linesandvad@hotmail.com",
+  "root":  "/Users/nrt204/Desktop/FragmentPredictor/scripts/modeling/training_shared_crf",
+  "host":  "SCI1029363",
+  "executable":  "/Users/nrt204/miniconda3/bin/python3",
+  "codePathLocal":  "train_with_errors_nt_encoding.py"
+}

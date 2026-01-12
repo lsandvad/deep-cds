@@ -1,9 +1,16 @@
 README.txt
 
-# Ignore everything recursively in src_dev
-/src_dev/**
+# Ignore wandb outputs
+/src_dev/**/*.wandb
 
-# Except Python and shell scripts
-!/src_dev/**/*.py
-!/src_dev/**/*.sh
-!/src_dev/**/*.ipynb
+# Ignore log files
+/src_dev/**/*.log
+
+# Ignore macOS DS_Store files
+**/.DS_Store
+
+# Ignore JSON
+/src_dev/**/.json
+
+#Ignore txt
+/src_dev/**/.txt
