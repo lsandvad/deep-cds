@@ -64,6 +64,7 @@ Project workspace for DeepCDS project
 
 
 ### Project structure
+```
 ├── data/                           # Data directory
 │   ├── processed_data/
 │   |   ├── taxonomy                # Taxonomical distribution overview, processed
@@ -91,3 +92,4 @@ Project workspace for DeepCDS project
 ├── README.md                       # Project README
 ├── requirements.txt                # Project requirements: FILL OUT
 ├── requirements_dev.txt            # Development requirements: FILL OUT
+```
