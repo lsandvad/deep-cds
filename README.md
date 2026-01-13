@@ -1,8 +1,10 @@
 # DeepCDS
 Project workspace for DeepCDS project
 
-### Make Public - notes
-- [] Use ```pipreqs <dir>``` on both ```src_dev``` and ```src``` to get out required packages and versions (requirements and requirements_dev.txt). UPDATE THIS IN THE END!!! Does not take into account notebooks. 
+### Make public - notes
+- [ ] Use ```pipreqs <dir>``` on both ```src_dev``` and ```src``` to get out required packages and versions (requirements and requirements_dev.txt). UPDATE THIS IN THE END!!! Does not take into account notebooks. 
+- [ ] Write tool versions used for development + benchmark (Mason, FGS, MetaProdigal?)
+
 
 ### Scripts in development - A status
 
@@ -17,10 +19,10 @@ Project workspace for DeepCDS project
     - [] Test data: 60 bp reads
     - [] Test data: 75 bp reads
     - [] Test data: 100 bp reads
-    - [] Test data: 150 bp reads
-    - [] Test data: 300 bp reads
-    - [] Test data: 700 bp reads
-    - [] Test data: 1000 bp reads
+    - [x] Test data: 150 bp reads
+    - [x] Test data: 300 bp reads
+    - [x] Test data: 700 bp reads
+    - [x] Test data: 1000 bp reads
 - [x] 5. scripts/data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
     - [x] Train and val data
     - [] Test data: 30 bp reads
