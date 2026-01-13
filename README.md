@@ -1,6 +1,9 @@
 # DeepCDS
 Project workspace for DeepCDS project
 
+### Make Public - notes
+- [] Use ```pipreqs <dir>``` on both ```src_dev``` and ```src``` to get out required packages and versions (requirements and requirements_dev.txt). UPDATE THIS IN THE END!!! Does not take into account notebooks. 
+
 ### Scripts in development - A status
 
 #### Data preprocessing
