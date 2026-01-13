@@ -1,7 +1,6 @@
 # DeepCDS
 Project workspace for DeepCDS project
 
-
 ### Scripts in development - A status
 
 #### Data preprocessing
@@ -10,8 +9,35 @@ Project workspace for DeepCDS project
 - [x] 3. /data_preprocessing/partition_genomes.py (partition genomes into test, val and train set based on pre-defined procedure)
 - [ ] 4. /data_preprocessing/extract_smaller_training_sets.py
 - [x] 4. scripts/data_preprocessing/simulate_reads.ipynb (simulate reads of user-defined coverage and length on both template and complement strands)
+    - [x] Train and val data
+    - [] Test data: 30 bp reads
+    - [] Test data: 60 bp reads
+    - [] Test data: 75 bp reads
+    - [] Test data: 100 bp reads
+    - [] Test data: 150 bp reads
+    - [] Test data: 300 bp reads
+    - [] Test data: 700 bp reads
+    - [] Test data: 1000 bp reads
 - [x] 5. scripts/data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
+    - [x] Train and val data
+    - [] Test data: 30 bp reads
+    - [] Test data: 60 bp reads
+    - [] Test data: 75 bp reads
+    - [] Test data: 100 bp reads
+    - [] Test data: 150 bp reads
+    - [] Test data: 300 bp reads
+    - [] Test data: 700 bp reads
+    - [] Test data: 1000 bp reads
 - [x] 5. scripts/data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
+    - [x] Train and val data
+    - [] Test data: 30 bp reads
+    - [] Test data: 60 bp reads
+    - [] Test data: 75 bp reads
+    - [] Test data: 100 bp reads
+    - [] Test data: 150 bp reads
+    - [] Test data: 300 bp reads
+    - [] Test data: 700 bp reads
+    - [] Test data: 1000 bp reads
 - [ ] 6. scripts/data_preprocessing/get_label_encodings.ipynb (map class labels to 3d vectors; use for model that processes all 3 reading frames)
 - [ ] 7. scripts/data_preprocessing/prepare_model_datasets.ipynb (creates datasets specific for model input for each of the train, val and test splits)
 - [ ] 7. scripts/data_preprocessing/prepare_model_datasets_shared.ipynb (creates datasets specific for model input for each of the train, val and test splits)
@@ -34,3 +60,34 @@ Project workspace for DeepCDS project
 - [ ] 2. /postprocess_preds/postprocess_model_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_prodigal_predictions.ipynb (Postprocess testset)
+
+
+
+### Project structure
+├── data/                           # Data directory
+│   ├── processed_data/
+│   |   ├── taxonomy                # Taxonomical distribution overview, processed
+│   |   ├── dataset_information     # Taxonomical information & summary statistics for genomes
+│   |   ├── genome_partitions       # Genome files distributed in train, val & test partitions
+│   |   ├── simulated_reads         # Reads simulated with Mason
+│   |   ├── processed_reads         # Processed reads with labelled positions and additional info
+│   |   ├── model_data              # All data related to modeling
+│   |   ├── predictions             # Predictions from DeepCDS, ablations and benchmark models
+│   |   ├── testset_processed       # Testset processed to match format of prediction files #MOVE?
+│   └── raw_data/
+│   |   ├── genome_data             # Genome datasets (genome fasta files, gff3 annotation data)
+│   |   ├── genome_data_info        # Genome datasets summary information
+│   |   ├── taxonomy_data           # Taxonomical data from NCBI Taxonomy Database
+├── models/                         # Trained models: NOT DEVELOPED: WANT THIS SEPERATELY PLACED HERE?
+|
+├── src_dev/                        # Source code
+│   ├── data_preprocessing          #WRITE HERE!
+│   ├── data_analysis
+│   ├── modeling
+│   ├── benchmark
+|
+├── .gitignore
+├── pyproject.toml                  # Python project file
+├── README.md                       # Project README
+├── requirements.txt                # Project requirements: FILL OUT
+├── requirements_dev.txt            # Development requirements: FILL OUT

@@ -21,3 +21,5 @@ pyproject.toml
 /src_dev/**/*.json
 #Ignore txt
 /src_dev/**/*.txt
+#Ignore fasta
+/src_dev/**/*.fasta*
