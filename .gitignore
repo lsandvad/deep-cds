@@ -1,8 +1,14 @@
 ###Ignore private readme
 README.txt
 
+###Ignore pyproject.tomal for now
+pyproject.toml
+
 ###Ignore all datafiles
 /data/**
+
+###Ignore all illustrations
+/illustrations/**
 
 ###Ignore logfiles created in src dirs###
 # Ignore wandb outputs
