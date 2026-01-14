@@ -7,6 +7,7 @@ Project workspace for DeepCDS project
 - [ ] Check up on substitution errors full model training convergence
 - [ ] Simulate all test data
 - [ ] Process all simulated reads (testset)
+- [ ] Make plots nicer with scienceplots
 
 ### Scripts in development - A status
 #### Data preprocessing
@@ -18,7 +19,7 @@ Project workspace for DeepCDS project
     - [x] Train and val data
     - [] Test data: 30 bp reads
     - [] Test data: 60 bp reads
-    - [] Test data: 75 bp reads
+    - [x] Test data: 75 bp reads
     - [] Test data: 100 bp reads
     - [x] Test data: 150 bp reads
     - [x] Test data: 300 bp reads
