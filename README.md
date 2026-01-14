@@ -15,7 +15,7 @@ Project workspace for DeepCDS project
 - [x] 2. /data_preprocessing/collect_genomic_information.py (merge taxonomic information for each organism with genomic statistical information and remove organisms with no family-level classification)
 - [x] 3. /data_preprocessing/partition_genomes.py (partition genomes into test, val and train set based on pre-defined procedure)
 - [ ] 4. /data_preprocessing/extract_smaller_training_sets.py
-- [x] 4. scripts/data_preprocessing/simulate_reads.ipynb (simulate reads of user-defined coverage and length on both template and complement strands)
+- [x] 4. scripts/data_preprocessing/simulate_reads.py (simulate reads of user-defined coverage and length on both template and complement strands)
     - [x] Train and val data
     - [] Test data: 30 bp reads
     - [] Test data: 60 bp reads
@@ -25,7 +25,7 @@ Project workspace for DeepCDS project
     - [x] Test data: 300 bp reads
     - [x] Test data: 700 bp reads
     - [x] Test data: 1000 bp reads
-- [x] 5. scripts/data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
+- [ ] 5. scripts/data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
     - [x] Train and val data
     - [] Test data: 30 bp reads
     - [] Test data: 60 bp reads
@@ -35,7 +35,7 @@ Project workspace for DeepCDS project
     - [] Test data: 300 bp reads
     - [] Test data: 700 bp reads
     - [] Test data: 1000 bp reads
-- [x] 5. scripts/data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
+- [ ] 5. scripts/data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
     - [x] Train and val data
     - [] Test data: 30 bp reads
     - [] Test data: 60 bp reads

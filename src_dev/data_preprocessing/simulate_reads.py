@@ -1,7 +1,8 @@
 import os
+
 import numpy as np
-from tqdm import tqdm
 from Bio import SeqIO
+from tqdm import tqdm
 
 accessions_train = open("../../data/processed_data/genome_partitions/train_partition_accessions.txt").read().splitlines()
 accessions_val = open("../../data/processed_data/genome_partitions/val_partition_accessions.txt").read().splitlines()
@@ -111,7 +112,8 @@ def simulate_reads(accession, read_length, coverage, substitution_error_rate, in
     if with_errors:
         # Simulate reads for template strand
         os.system(
-            f"mason_simulator -ir ../../data/raw_data/genome_data/{accession}/{genome_fasta_file} -n {num_reads} --illumina-read-length {read_length} --illumina-prob-insert {indel_error_rates} --illumina-prob-deletion {indel_error_rates} --illumina-prob-mismatch {substitution_error_rate} \
+            f"mason_simulator -ir ../../data/raw_data/genome_data/{accession}/{genome_fasta_file} -n {num_reads} --illumina-read-length {read_length} \
+                --illumina-prob-insert {indel_error_rates} --illumina-prob-deletion {indel_error_rates} --illumina-prob-mismatch {substitution_error_rate} \
                 -o {base}/template_strand/reads/{accession}_simulated_reads.fasta.gz -oa {base}/template_strand/alignments/{accession}_alignments.bam \
                 --fragment-mean-size {fragment_mean_size} --seed 42  --seq-strands forward --read-name-prefix {accession}_simulated_reads_template"
         )
@@ -122,7 +124,8 @@ def simulate_reads(accession, read_length, coverage, substitution_error_rate, in
 
         # Simulate reads for complement strand
         os.system(
-            f"mason_simulator -ir {accession}_reverse_complement.fasta -n {num_reads} --illumina-read-length {read_length} --illumina-prob-insert {indel_error_rates} --illumina-prob-deletion {indel_error_rates} --illumina-prob-mismatch {substitution_error_rate} \
+            f"mason_simulator -ir {accession}_reverse_complement.fasta -n {num_reads} --illumina-read-length {read_length} --illumina-prob-insert {indel_error_rates} \
+                --illumina-prob-deletion {indel_error_rates} --illumina-prob-mismatch {substitution_error_rate} \
                 -o {base}/complement_strand/reads/{accession}_simulated_reads.fasta.gz -oa {base}/complement_strand/alignments/{accession}_alignments.bam \
                 --fragment-mean-size {fragment_mean_size} --seed 42  --seq-strands forward --read-name-prefix {accession}_simulated_reads_complement"
         )
@@ -130,8 +133,9 @@ def simulate_reads(accession, read_length, coverage, substitution_error_rate, in
     else:
         # Run Mason to simulate reads
         os.system(
-            f"mason_simulator -ir ../../data/raw_data/genome_data/{accession}/{genome_fasta_file} -n {num_reads} --illumina-read-length {read_length} --illumina-prob-insert 0.0 --illumina-prob-deletion 0.0  --illumina-prob-mismatch 0.0 \
-                  --illumina-prob-mismatch-begin 0.0 --illumina-prob-mismatch-end 0.0 \
+            f"mason_simulator -ir ../../data/raw_data/genome_data/{accession}/{genome_fasta_file} -n {num_reads} --illumina-read-length {read_length} \
+                --illumina-prob-insert 0.0 --illumina-prob-deletion 0.0  --illumina-prob-mismatch 0.0 \
+                --illumina-prob-mismatch-begin 0.0 --illumina-prob-mismatch-end 0.0 \
                 -o {base}/template_strand/reads/{accession}_simulated_reads.fasta.gz -oa {base}/template_strand/alignments/{accession}_alignments.bam \
                 --fragment-mean-size {fragment_mean_size} --seed 42  --seq-strands forward --read-name-prefix {accession}_simulated_reads_template"
         )
@@ -142,8 +146,9 @@ def simulate_reads(accession, read_length, coverage, substitution_error_rate, in
 
         # Simulate reads for complement strand
         os.system(
-            f"mason_simulator -ir {accession}_reverse_complement.fasta -n {num_reads} --illumina-read-length {read_length} --illumina-prob-insert 0.0 --illumina-prob-deletion 0.0  --illumina-prob-mismatch 0.0 \
-                  --illumina-prob-mismatch-begin 0.0 --illumina-prob-mismatch-end 0.0 \
+            f"mason_simulator -ir {accession}_reverse_complement.fasta -n {num_reads} --illumina-read-length {read_length} \
+                --illumina-prob-insert 0.0 --illumina-prob-deletion 0.0  --illumina-prob-mismatch 0.0 \
+                --illumina-prob-mismatch-begin 0.0 --illumina-prob-mismatch-end 0.0 \
                 -o {base}/complement_strand/reads/{accession}_simulated_reads.fasta.gz -oa {base}/complement_strand/alignments/{accession}_alignments.bam \
                 --fragment-mean-size {fragment_mean_size} --seed 42  --seq-strands forward --read-name-prefix {accession}_simulated_reads_complement"
         )
@@ -243,16 +248,13 @@ if __name__ == "__main__":
     # simulate_training_validation_reads(accessions_train, accessions_val)
 
     # Simulate reads for test genomes
-    # for read_length in [30, 60, 75, 100, 150, 300]:
-    #    print(f"Simulating test reads with length {read_length}")
-    #    simulate_test_reads(accessions_test, read_length)
+    #for read_length in [30, 60, 75, 100, 150, 300]:
+    #   print(f"Simulating test reads with length {read_length}")
+    #   simulate_test_reads(accessions_test, read_length)
+
+        # Simulate reads for test genomes
+    #for read_length in [700, 1000]:
+    #   print(f"Simulating test reads with length {read_length}")
+    #   simulate_test_reads(accessions_test, read_length, fragment_mean_size=read_length + 500)
 
     simulate_test_reads(accessions_test, 60)
-
-    # read_length = 700
-    # print(f"Simulating test reads with length {read_length}")
-    # simulate_test_reads(accessions_test, read_length, fragment_mean_size=read_length + 500)
-
-    # read_length = 1000
-    # print(f"Simulating test reads with length {read_length}")
-    # simulate_test_reads(accessions_test, read_length, fragment_mean_size=read_length + 500)
