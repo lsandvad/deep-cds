@@ -20,7 +20,7 @@ Project workspace for DeepCDS project
     - [] Test data: 30 bp reads
     - [] Test data: 60 bp reads
     - [x] Test data: 75 bp reads
-    - [] Test data: 100 bp reads
+    - [x] Test data: 100 bp reads
     - [x] Test data: 150 bp reads
     - [x] Test data: 300 bp reads
     - [x] Test data: 700 bp reads
