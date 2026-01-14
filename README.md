@@ -5,9 +5,32 @@ Project workspace for DeepCDS project
 - [x] Make script to check number of reads in each length test set -> matches for all read lengths
 - [ ] Define nt encoding full model (check d_model)
 - [ ] Check up on substitution errors full model training convergence (running)
-- [ ] Simulate all test data
+- [x] Simulate all test data
 - [ ] Process all simulated reads (testset)
 - [ ] Make plots nicer with scienceplots
+
+### Data moved to ERDA:
+- [x] Raw data ALL
+- [ ] Processed data: Simulated reads
+    - [ ] Train/val
+    - [] Test data: 30 bp reads
+    - [] Test data: 60 bp reads
+    - [] Test data: 75 bp reads
+    - [] Test data: 100 bp reads
+    - [] Test data: 150 bp reads
+    - [] Test data: 300 bp reads
+    - [] Test data: 700 bp reads
+    - [] Test data: 1000 bp reads
+- [ ] Processed data: processed reads
+    - [] Transfer train/val!
+    - [] Test data: 30 bp reads (process on cluster)
+    - [] Test data: 60 bp reads (process on cluster)
+    - [] Test data: 75 bp reads (process on cluster)
+    - [] Test data: 100 bp reads (process on cluster)
+    - [] Test data: 150 bp reads (process on cluster)
+    - [] Test data: 300 bp reads (process on cluster)
+    - [] Test data: 700 bp reads (process on cluster)
+    - [] Test data: 1000 bp reads (process on cluster)
 
 ### Scripts in development - A status
 #### Data preprocessing
@@ -15,16 +38,7 @@ Project workspace for DeepCDS project
 - [x] 2. /data_preprocessing/collect_genomic_information.py (merge taxonomic information for each organism with genomic statistical information and remove organisms with no family-level classification)
 - [x] 3. /data_preprocessing/partition_genomes.py (partition genomes into test, val and train set based on pre-defined procedure)
 - [x] 4. /data_preprocessing/extract_smaller_training_sets.py
-- [ ] 4. /data_preprocessing/simulate_reads.py (simulate reads of user-defined coverage and length on both template and complement strands)
-    - [x] Train and val data
-    - [] Test data: 30 bp reads
-    - [x] Test data: 60 bp reads
-    - [x] Test data: 75 bp reads
-    - [x] Test data: 100 bp reads
-    - [x] Test data: 150 bp reads
-    - [x] Test data: 300 bp reads
-    - [x] Test data: 700 bp reads
-    - [x] Test data: 1000 bp reads
+- [x] 4. /data_preprocessing/simulate_reads.py (simulate reads of user-defined coverage and length on both template and complement strands)
 - [ ] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
     - [x] Train and val data
     - [] Test data: 30 bp reads
@@ -70,6 +84,8 @@ Project workspace for DeepCDS project
 
 
 ### Project structure
+Raw data transferred to ERDA
+
 ```
 ├── data/                           # Data directory
 │   ├── processed_data/
