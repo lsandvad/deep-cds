@@ -257,4 +257,4 @@ if __name__ == "__main__":
     #   print(f"Simulating test reads with length {read_length}")
     #   simulate_test_reads(accessions_test, read_length, fragment_mean_size=read_length + 500)
 
-    simulate_test_reads(accessions_test, 60)
+    simulate_test_reads(accessions_test, 30)

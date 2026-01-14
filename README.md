@@ -2,9 +2,9 @@
 Project workspace for DeepCDS project
 
 ### TO DO
-- [ ] Make script to check number of reads in each length test set 
+- [x] Make script to check number of reads in each length test set -> matches for all read lengths
 - [ ] Define nt encoding full model (check d_model)
-- [ ] Check up on substitution errors full model training convergence
+- [ ] Check up on substitution errors full model training convergence (running)
 - [ ] Simulate all test data
 - [ ] Process all simulated reads (testset)
 - [ ] Make plots nicer with scienceplots
@@ -14,18 +14,18 @@ Project workspace for DeepCDS project
 - [x] 1. /data_preprocessing/sort_taxonomy.py (Get taxonomic information for all organisms in dataset)
 - [x] 2. /data_preprocessing/collect_genomic_information.py (merge taxonomic information for each organism with genomic statistical information and remove organisms with no family-level classification)
 - [x] 3. /data_preprocessing/partition_genomes.py (partition genomes into test, val and train set based on pre-defined procedure)
-- [ ] 4. /data_preprocessing/extract_smaller_training_sets.py
-- [x] 4. scripts/data_preprocessing/simulate_reads.py (simulate reads of user-defined coverage and length on both template and complement strands)
+- [x] 4. /data_preprocessing/extract_smaller_training_sets.py
+- [ ] 4. /data_preprocessing/simulate_reads.py (simulate reads of user-defined coverage and length on both template and complement strands)
     - [x] Train and val data
     - [] Test data: 30 bp reads
-    - [] Test data: 60 bp reads
+    - [x] Test data: 60 bp reads
     - [x] Test data: 75 bp reads
     - [x] Test data: 100 bp reads
     - [x] Test data: 150 bp reads
     - [x] Test data: 300 bp reads
     - [x] Test data: 700 bp reads
     - [x] Test data: 1000 bp reads
-- [ ] 5. scripts/data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
+- [ ] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
     - [x] Train and val data
     - [] Test data: 30 bp reads
     - [] Test data: 60 bp reads
@@ -35,7 +35,7 @@ Project workspace for DeepCDS project
     - [] Test data: 300 bp reads
     - [] Test data: 700 bp reads
     - [] Test data: 1000 bp reads
-- [ ] 5. scripts/data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
+- [ ] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
     - [x] Train and val data
     - [] Test data: 30 bp reads
     - [] Test data: 60 bp reads
@@ -45,9 +45,8 @@ Project workspace for DeepCDS project
     - [] Test data: 300 bp reads
     - [] Test data: 700 bp reads
     - [] Test data: 1000 bp reads
-- [ ] 6. scripts/data_preprocessing/get_label_encodings.ipynb (map class labels to 3d vectors; use for model that processes all 3 reading frames)
-- [ ] 7. scripts/data_preprocessing/prepare_model_datasets.ipynb (creates datasets specific for model input for each of the train, val and test splits)
-- [ ] 7. scripts/data_preprocessing/prepare_model_datasets_shared.ipynb (creates datasets specific for model input for each of the train, val and test splits)
+- [ ] 6. /data_preprocessing/get_label_encodings.ipynb (map class labels to 3d vectors; use for model that processes all 3 reading frames)
+- [ ] 7. /data_preprocessing/prepare_model_datasets.ipynb (creates datasets specific for model input for each of the train, val and test splits)
 
 #### Data analysis
 - [ ] 1. /data_analysis/generate_taxonomical_trees.ipynb (Generate taxonomical trees in newick format along with partition annotations)

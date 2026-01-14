@@ -172,8 +172,6 @@ def convert_complement_coordinates(refseq_accession, cds_coords_complement, cds_
 
     return cds_coords_complement, cds_coords_uncertain_complement
 
-
-
 def extract_CDS(refseq_accession):
     """ 
     Extracts the CDS coordinates from RefSeq and GenBank GFF files (annotation data).
