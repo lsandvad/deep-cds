@@ -1,15 +1,6 @@
 # DeepCDS
 Project workspace for DeepCDS project
 
-To do data:
-- Upload:
-    - test simulated reads with errors (all without errors done!)
-- process all test reads without errors
-- process all test reads with errors
-- Continue working on formatting for now
-- Upload:
-    - train, val simulated reads
-    - train, val processed reads 
 
 
 ### TO DO
@@ -24,16 +15,10 @@ To do data:
 - [x] Raw data ALL
 - [ ] Processed data: Simulated reads
     - [x] Train/val
-    - [ ] Test data: 30 bp reads
-    - [ ] Test data: 60 bp reads
-    - [ ] Test data: 75 bp reads
-    - [ ] Test data: 100 bp reads
-    - [ ] Test data: 150 bp reads
-    - [x] Test data: 300 bp reads
-    - [ ] Test data: 700 bp reads
-    - [ ] Test data: 1000 bp reads
+    - [x] All test data
 - [ ] Processed data: processed reads
     - [ ] Transfer train/val!
+    - [ ] Generate test data on cluster
 
 ### Scripts in development - A status
 #### Data preprocessing
