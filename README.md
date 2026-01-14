@@ -1,13 +1,14 @@
 # DeepCDS
 Project workspace for DeepCDS project
 
-### Make public - notes
-- [ ] Use ```pipreqs <dir>``` on both ```src_dev``` and ```src``` to get out required packages and versions (requirements and requirements_dev.txt). UPDATE THIS IN THE END!!! Does not take into account notebooks. 
-- [ ] Write tool versions used for development + benchmark (Mason, FGS, MetaProdigal?)
-
+### TO DO
+- [ ] Make script to check number of reads in each length test set 
+- [ ] Define nt encoding full model (check d_model)
+- [ ] Check up on substitution errors full model training convergence
+- [ ] Simulate all test data
+- [ ] Process all simulated reads (testset)
 
 ### Scripts in development - A status
-
 #### Data preprocessing
 - [x] 1. /data_preprocessing/sort_taxonomy.py (Get taxonomic information for all organisms in dataset)
 - [x] 2. /data_preprocessing/collect_genomic_information.py (merge taxonomic information for each organism with genomic statistical information and remove organisms with no family-level classification)
@@ -98,3 +99,8 @@ Project workspace for DeepCDS project
 ├── requirements.txt                # Project requirements: FILL OUT
 ├── requirements_dev.txt            # Development requirements: FILL OUT
 ```
+
+
+### Make public - notes
+- [ ] Use ```pipreqs <dir>``` on both ```src_dev``` and ```src``` to get out required packages and versions (requirements and requirements_dev.txt). UPDATE THIS IN THE END!!! Does not take into account notebooks. 
+- [ ] Write tool versions used for development + benchmark (Mason, FGS, MetaProdigal?)
