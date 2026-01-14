@@ -1657,18 +1657,18 @@ if __name__ == "__main__":
         partition = "test"
         accessions = accessions_test
 
-        seqs_len = 300
+        for seqs_len in [30, 60, 75, 100, 150, 300, 700, 1000]:
 
-        for error_rates in [
-            f"with_errors_1.25e-05i_0.01s_{str(seqs_len)}bp",
-            f"with_errors_3.75e-05i_0.03s_{str(seqs_len)}bp",
-            f"with_errors_5e-06i_0.004s_{str(seqs_len)}bp",
-            f"without_errors_{str(seqs_len)}bp",
-        ]:
-            print("======================================")
-            print("Data partition: ", partition)
-            print("Dataset: ", error_rates)
-            print("Read length: ", seqs_len)
-            print("Processing samples...")
-            main()
-            print("======================================")
+            for error_rates in [
+                f"with_errors_1.25e-05i_0.01s_{str(seqs_len)}bp",
+                f"with_errors_3.75e-05i_0.03s_{str(seqs_len)}bp",
+                f"with_errors_5e-06i_0.004s_{str(seqs_len)}bp",
+                f"without_errors_{str(seqs_len)}bp",
+            ]:
+                print("======================================")
+                print("Data partition: ", partition)
+                print("Dataset: ", error_rates)
+                print("Read length: ", seqs_len)
+                print("Processing samples...")
+                main()
+                print("======================================")

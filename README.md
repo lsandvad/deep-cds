@@ -1,6 +1,11 @@
 # DeepCDS
 Project workspace for DeepCDS project
 
+To do data:
+- Upload test simulated reads with errors (all without errors done!)
+- process all reads without errors
+- Continue working on formatting for now
+
 ### TO DO
 - [x] Make script to check number of reads in each length test set -> matches for all read lengths
 - [ ] Define nt encoding full model (check d_model)
