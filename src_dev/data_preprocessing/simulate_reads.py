@@ -245,16 +245,14 @@ def simulate_test_reads(accessions_test, read_length, fragment_mean_size=None) -
 
 if __name__ == "__main__":
     # Simulate reads for training and validation genomes
-    # simulate_training_validation_reads(accessions_train, accessions_val)
+    simulate_training_validation_reads(accessions_train, accessions_val)
 
     # Simulate reads for test genomes
-    #for read_length in [30, 60, 75, 100, 150, 300]:
-    #   print(f"Simulating test reads with length {read_length}")
-    #   simulate_test_reads(accessions_test, read_length)
+    for read_length in [30, 60, 75, 100, 150, 300]:
+        print(f"Simulating test reads with length {read_length}")
+        simulate_test_reads(accessions_test, read_length)
 
-        # Simulate reads for test genomes
-    #for read_length in [700, 1000]:
-    #   print(f"Simulating test reads with length {read_length}")
-    #   simulate_test_reads(accessions_test, read_length, fragment_mean_size=read_length + 500)
-
-    simulate_test_reads(accessions_test, 30)
+    # Simulate reads for test genomes
+    for read_length in [700, 1000]:
+        print(f"Simulating test reads with length {read_length}")
+        simulate_test_reads(accessions_test, read_length, fragment_mean_size=read_length + 500)
