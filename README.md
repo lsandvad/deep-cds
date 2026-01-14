@@ -18,7 +18,7 @@ Project workspace for DeepCDS project
     - [] Test data: 75 bp reads
     - [] Test data: 100 bp reads
     - [] Test data: 150 bp reads
-    - [] Test data: 300 bp reads
+    - [x] Test data: 300 bp reads
     - [] Test data: 700 bp reads
     - [] Test data: 1000 bp reads
 - [ ] Processed data: processed reads
