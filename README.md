@@ -2,9 +2,15 @@
 Project workspace for DeepCDS project
 
 To do data:
-- Upload test simulated reads with errors (all without errors done!)
-- process all reads without errors
+- Upload:
+    - test simulated reads with errors (all without errors done!)
+- process all test reads without errors
+- process all test reads with errors
 - Continue working on formatting for now
+- Upload:
+    - train, val simulated reads
+    - train, val processed reads 
+
 
 ### TO DO
 - [x] Make script to check number of reads in each length test set -> matches for all read lengths
@@ -64,7 +70,7 @@ To do data:
     - [ ] Test data: 300 bp reads
     - [ ] Test data: 700 bp reads
     - [ ] Test data: 1000 bp reads
-- [ ] 6. /data_preprocessing/get_label_encodings.ipynb (map class labels to 3d vectors; use for model that processes all 3 reading frames)
+- [x] 6. /data_preprocessing/get_label_encodings.ipynb (map class labels to 3d vectors; use for model that processes all 3 reading frames)
 - [ ] 7. /data_preprocessing/prepare_model_datasets.ipynb (creates datasets specific for model input for each of the train, val and test splits)
 
 #### Data analysis

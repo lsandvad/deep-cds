@@ -840,11 +840,6 @@ def generate_rf_labels_with_indels(sequence_start, sequence_len, cds_coords, cig
             # Shift reading frame 1 position backward per deletion due to deleted nucleotide
             cds_copy = {k: [x - 1 * piecewise_len for x in v] for k, v in cds_copy.items()}
 
-            # TEST
-            # BUG FIXED!
-            # _, piecewise_labels = generate_rf_labels(sequence_start, sequence_len, cds_copy)
-            # rf_labels = rf_labels + piecewise_labels[length_labelled:length_labelled+piecewise_len*2]
-            # length_labelled += piecewise_len * 2
 
     rf_labels = rf_labels[:sequence_len]  # Truncate to sequence length
 
@@ -1628,11 +1623,10 @@ def main():
         for future in as_completed(futures):
             future.result()
 
-
-process_train_val_reads = False
-process_test_reads = True
-
 if __name__ == "__main__":
+    process_train_val_reads = False
+    process_test_reads = True
+
     if process_train_val_reads:
         partition = "train_val"
         accessions = accessions_train + accessions_val
@@ -1658,13 +1652,13 @@ if __name__ == "__main__":
         accessions = accessions_test
 
         for seqs_len in [30, 60, 75, 100, 150, 300, 700, 1000]:
+            print("Now processing read length: ", seqs_len)
 
             for error_rates in [
                 f"with_errors_1.25e-05i_0.01s_{str(seqs_len)}bp",
                 f"with_errors_3.75e-05i_0.03s_{str(seqs_len)}bp",
-                f"with_errors_5e-06i_0.004s_{str(seqs_len)}bp",
-                f"without_errors_{str(seqs_len)}bp",
-            ]:
+                f"with_errors_5e-06i_0.004s_{str(seqs_len)}bp"]:
+
                 print("======================================")
                 print("Data partition: ", partition)
                 print("Dataset: ", error_rates)
