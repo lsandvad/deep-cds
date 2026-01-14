@@ -35,6 +35,7 @@ parser.add_argument(
 parser.add_argument("--gpu", type=int, default=0, help="GPU number to use (default: 0)")
 parser.add_argument("--healthtech_cluster", type=bool, default=False, help="Whether running on HealthTech cluster (default: False)")
 parser.add_argument("--scarb_cluster", type=bool, default=False, help="Whether running on SCARB cluster (default: False)")
+parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility (default: 42)")
 parser.add_argument(
     "--error_type",
     type=str,
