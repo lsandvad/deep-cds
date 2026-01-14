@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-def create_stratified_subsamples(genomes_info_train, target_sizes=[400, 200, 100]):
+def create_stratified_subsamples(genomes_info_train, target_sizes=[400, 200, 100]) -> dict:
     """
     Create stratified subsamples maintaining family distribution proportionally.
     Always includes genomes with extreme (min and max) GC content.
@@ -38,6 +38,7 @@ def create_stratified_subsamples(genomes_info_train, target_sizes=[400, 200, 100
         family_targets = {}
         for family, proportion in family_proportions.items():
             target_count = proportion * target_size
+
             #Round but ensure at least 1 if family is represented by extreme GC
             if family in extreme_families:
                 family_targets[family] = max(1, int(np.round(target_count)))
@@ -185,19 +186,22 @@ def print_dataset_summary(original_df, subsampled_dict):
         print()
 
 
+def main():
+    accessions_train = open("../../data/processed_data/genome_partitions/train_partition_accessions.txt").read().splitlines()
+    genomes_info = pd.read_csv("../../data/processed_data/dataset_information/genomes_info.csv", index_col=None).rename(columns = {'Unnamed: 0': 'accession'})
+    genomes_info_train = genomes_info[genomes_info["accession"].isin(accessions_train)]
 
-accessions_train = open("../../data/processed_data/genome_partitions/train_partition_accessions.txt").read().splitlines()
-genomes_info = pd.read_csv("../../data/processed_data/dataset_information/genomes_info.csv", index_col=None).rename(columns = {'Unnamed: 0': 'accession'})
-genomes_info_train = genomes_info[genomes_info["accession"].isin(accessions_train)]
+    results = create_stratified_subsamples(genomes_info_train)
+    print_dataset_summary(genomes_info_train, results)
 
-results = create_stratified_subsamples(genomes_info_train)
-print_dataset_summary(genomes_info_train, results)
+    with open('../../data/processed_data/genome_partitions/train_partition_accessions_400_genomes.txt', 'w') as f:
+        f.write('\n'.join(list(results[400]['accession'])))
 
-with open('../../data/processed_data/genome_partitions/train_partition_accessions_400_genomes.txt', 'w') as f:
-    f.write('\n'.join(list(results[400]['accession'])))
+    with open('../../data/processed_data/genome_partitions/train_partition_accessions_200_genomes.txt', 'w') as f:
+        f.write('\n'.join(list(results[200]['accession'])))
 
-with open('../../data/processed_data/genome_partitions/train_partition_accessions_200_genomes.txt', 'w') as f:
-    f.write('\n'.join(list(results[200]['accession'])))
+    with open('../../data/processed_data/genome_partitions/train_partition_accessions_100_genomes.txt', 'w') as f:
+        f.write('\n'.join(list(results[100]['accession'])))
 
-with open('../../data/processed_data/genome_partitions/train_partition_accessions_100_genomes.txt', 'w') as f:
-    f.write('\n'.join(list(results[100]['accession'])))
+if __name__ == "__main__":
+    main()
