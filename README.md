@@ -34,14 +34,6 @@ To do data:
     - [ ] Test data: 1000 bp reads
 - [ ] Processed data: processed reads
     - [ ] Transfer train/val!
-    - [ ] Test data: 30 bp reads (process on cluster)
-    - [ ] Test data: 60 bp reads (process on cluster)
-    - [ ] Test data: 75 bp reads (process on cluster)
-    - [ ] Test data: 100 bp reads (process on cluster)
-    - [ ] Test data: 150 bp reads (process on cluster)
-    - [ ] Test data: 300 bp reads (process on cluster)
-    - [ ] Test data: 700 bp reads (process on cluster)
-    - [ ] Test data: 1000 bp reads (process on cluster)
 
 ### Scripts in development - A status
 #### Data preprocessing
@@ -71,7 +63,7 @@ To do data:
     - [ ] Test data: 700 bp reads
     - [ ] Test data: 1000 bp reads
 - [x] 6. /data_preprocessing/get_label_encodings.ipynb (map class labels to 3d vectors; use for model that processes all 3 reading frames)
-- [ ] 7. /data_preprocessing/prepare_model_datasets.ipynb (creates datasets specific for model input for each of the train, val and test splits)
+- [x] 7. /data_preprocessing/prepare_model_datasets.ipynb (creates datasets specific for model input for each of the train, val and test splits)
 
 #### Data analysis
 - [ ] 1. /data_analysis/generate_taxonomical_trees.ipynb (Generate taxonomical trees in newick format along with partition annotations)

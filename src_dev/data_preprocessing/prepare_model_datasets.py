@@ -1,18 +1,30 @@
-import pandas as pd
-from tqdm import tqdm
 import os
-import numpy as np
 import pickle
 
+import numpy as np
+import pandas as pd
 import torch
+from tqdm import tqdm
+
+device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+device_type = device.type  # "cuda", "mps", or "cpu"
+
+# For local runs
+if device_type != "cuda":
+    data_subpath = "../.."
+
+# For runs on SCARB cluster
+elif device_type == "cuda":
+    data_subpath = "/tmp/nrt204/FragmentPredictor"  # Mount point on SCARB cluster
 
 
-def mask_full_read(read, p=5e-4):
+def mask_full_read(read, p=5e-4) -> str:
     """
-    Mask nucleotides in the original read; ensures RF consistency.
+    Mask nucleotides in the original read with 'N' at probability p.
     p = 0.05 % default
     """
     import random
+
     read_list = list(read)
     for i in range(len(read_list)):
         if random.random() < p:
@@ -20,38 +32,46 @@ def mask_full_read(read, p=5e-4):
     return "".join(read_list)
 
 
-def mask_aa_sequence_from_nt(nt_seq, aa_seq):
-    """Replace AA with <unk> if its codon contains N."""
+def mask_aa_sequence_from_nt(nt_seq, aa_seq) -> str:
+    """
+    Replace AA with <unk> if its codon contains N.
+    """
     assert len(nt_seq) == 3 * len(aa_seq)
     aa_list = list(aa_seq)
     for i in range(len(aa_list)):
-        codon = nt_seq[3*i:3*i+3]
+        codon = nt_seq[3 * i : 3 * i + 3]
         if "N" in codon:
             aa_list[i] = "<unk>"
     return "".join(aa_list)
 
 
-def create_datasets_split(fold, 
-                          archive, 
-                          error_rates, 
-                          seqs_len, 
-                          model_type,
-                          accession_filenames,
-                          dataset_size,
-                          data_subpath=data_subpath):
-    
-    # Load mapping depending on model_type (unchanged)
+def create_datasets_split(fold, archive, error_rates, seqs_len, model_type, accession_filenames, dataset_size, data_subpath=data_subpath) -> None:
+    """
+    Create datasets for training/validation of models.
+
+    Args:
+        fold (str): "train" or "val"
+        archive (str): "train_val"
+        error_rates (str): "with_errors", "with_substitution_errors", or "without_errors"
+        seqs_len (int): Length of the reads (e.g., 300)
+        model_type (str): "model_with_errors", "model_with_substitution_errors", or "model_without_errors"
+        accession_filenames (list): List of accession filenames to process
+        dataset_size (str): Suffix indicating dataset size (e.g., "_400_genomes", "_all_genomes")
+        data_subpath (str): Base path to the data directory
+    """
+
+    # Load mapping depending on model_type
     if model_type == "model_with_errors":
         print("Creating dataset for model trained with sequencing errors...")
-        with open(f'{data_subpath}/data/processed_data/model_data/shared_crf/model_with_errors/label_mappings/mapping_to_class.pkl', "rb") as mapping_file:
+        with open(f"{data_subpath}/data/processed_data/model_data/shared_crf/model_with_errors/label_mappings/mapping_to_class.pkl", "rb") as mapping_file:
             mapping_dict_to_class = pickle.load(mapping_file)
     elif model_type == "model_with_substitution_errors":
         print("Creating dataset for model trained with substitution errors...")
-        with open(f'{data_subpath}/data/processed_data/model_data/shared_crf/model_with_substitution_errors/label_mappings/mapping_to_class.pkl', "rb") as mapping_file:
+        with open(f"{data_subpath}/data/processed_data/model_data/shared_crf/model_with_substitution_errors/label_mappings/mapping_to_class.pkl", "rb") as mapping_file:
             mapping_dict_to_class = pickle.load(mapping_file)
     elif model_type == "model_without_errors":
         print("Creating dataset for model trained without sequencing errors...")
-        with open(f'{data_subpath}/data/processed_data/model_data/shared_crf/model_without_errors/label_mappings/mapping_to_class.pkl', "rb") as mapping_file:
+        with open(f"{data_subpath}/data/processed_data/model_data/shared_crf/model_without_errors/label_mappings/mapping_to_class.pkl", "rb") as mapping_file:
             mapping_dict_to_class = pickle.load(mapping_file)
     else:
         raise ValueError("Invalid model type specified.")
@@ -63,15 +83,9 @@ def create_datasets_split(fold,
 
     for accession_filename in tqdm(accession_filenames):
         accession = accession_filename.strip(".csv")
-        processed_reads = pd.read_csv(
-            f"{data_subpath}/data/processed_data/reads_processed/{archive}/{error_rates}/csv/{accession_filename}.csv.gz", 
-            compression='gzip',
-            index_col=0,
-            low_memory=False
-        )
-        
-        for _, row in processed_reads.iterrows():
+        processed_reads = pd.read_csv(f"{data_subpath}/data/processed_data/reads_processed/{archive}/{error_rates}/csv/{accession_filename}.csv.gz", compression="gzip", index_col=0, low_memory=False)
 
+        for _, row in processed_reads.iterrows():
             indel_detected = False
             indel_and_coding = False
             start_codon_detected = False
@@ -91,15 +105,15 @@ def create_datasets_split(fold,
 
                 if indel_detected:
                     if 1 in labels[frame] and 0 in labels[frame]:
-
+                        # Mark boundaries of indel region within coding sequence with 4 (nc -> coding) and 5 (coding -> nc)
                         for i in range(1, len(labels[frame])):
-                            if labels[frame][i] == 1 and labels[frame][i-1] == 0:
+                            if labels[frame][i] == 1 and labels[frame][i - 1] == 0:
                                 labels[frame][i] = 4
 
                         for i in range(len(labels[frame]) - 1):
-                            if labels[frame][i] == 1 and labels[frame][i+1] == 0:
+                            if labels[frame][i] == 1 and labels[frame][i + 1] == 0:
                                 labels[frame][i] = 5
-                        
+
                         indel_and_coding = True
 
                 if 2 in labels[frame]:
@@ -116,7 +130,7 @@ def create_datasets_split(fold,
                 elif frame == "rf2":
                     nt_seq_rf2 = row["read"][2:-1]
 
-            # Determine sequence type (unchanged)
+            # Determine sequence type for logging/monitoring purposes during training
             if indel_and_coding:
                 seq_type = "transition_indel"
             elif start_codon_detected and stop_codon_detected:
@@ -138,52 +152,51 @@ def create_datasets_split(fold,
                 rfs_tuple = (labels["rf0"][i], labels["rf1"][i], labels["rf2"][i])
                 label_encodings.append(mapping_dict_to_class[rfs_tuple])
 
-            # Assertions unchanged
             assert len(label_encodings) == len(labels["rf0"][:-1]) == len(labels["rf1"]) == len(labels["rf2"])
-            assert len(row['rf0_seq'][:-1]) == len(row['rf1_seq']) == len(row['rf2_seq'])
+            assert len(row["rf0_seq"][:-1]) == len(row["rf1_seq"]) == len(row["rf2_seq"])
             assert len(nt_seq_rf0) == len(nt_seq_rf1) == len(nt_seq_rf2)
 
-            # ------------------------------
-            # *** AUGMENTATION STEP HERE ***
-            # ------------------------------
+            # Induce unknown nucleotides in training data
             if fold == "train":
                 # Mask the *original* read once
                 masked_read = mask_full_read(row["read"], p=p_unknown)
 
-                # Recompute the RF NT sequences *from the masked read*
+                # Ensure each rf has equally many labels to work in CRF
                 nt_seq_rf0 = masked_read[:-3]
                 nt_seq_rf1 = masked_read[1:-2]
                 nt_seq_rf2 = masked_read[2:-1]
 
                 # Recompute AA sequences based on masked codons
-                rf0_seq_aa = mask_aa_sequence_from_nt(nt_seq_rf0, row['rf0_seq'][:-1])
-                rf1_seq_aa = mask_aa_sequence_from_nt(nt_seq_rf1, row['rf1_seq'])
-                rf2_seq_aa = mask_aa_sequence_from_nt(nt_seq_rf2, row['rf2_seq'])
+                rf0_seq_aa = mask_aa_sequence_from_nt(nt_seq_rf0, row["rf0_seq"][:-1])
+                rf1_seq_aa = mask_aa_sequence_from_nt(nt_seq_rf1, row["rf1_seq"])
+                rf2_seq_aa = mask_aa_sequence_from_nt(nt_seq_rf2, row["rf2_seq"])
+
             else:
                 nt_seq_rf0 = row["read"][:-3]
                 nt_seq_rf1 = row["read"][1:-2]
                 nt_seq_rf2 = row["read"][2:-1]
 
-                rf0_seq_aa = row['rf0_seq'][:-1]
-                rf1_seq_aa = row['rf1_seq']
-                rf2_seq_aa = row['rf2_seq']
-            # ------------------------------
+                rf0_seq_aa = row["rf0_seq"][:-1]
+                rf1_seq_aa = row["rf1_seq"]
+                rf2_seq_aa = row["rf2_seq"]
 
-            all_data_shared_rfs.append({
-                'accession': accession,
-                'rf0_seq_nt': nt_seq_rf0,
-                'rf0_seq_aa': rf0_seq_aa,
-                'rf0_labels': labels["rf0"][:-1],
-                'rf1_seq_nt': nt_seq_rf1,
-                'rf1_seq_aa': rf1_seq_aa,
-                'rf1_labels': labels["rf1"],
-                'rf2_seq_nt': nt_seq_rf2,
-                'rf2_seq_aa': rf2_seq_aa,
-                'rf2_labels': labels["rf2"],
-                'label_encodings': label_encodings,
-                'seq_desc': seq_type
-            })
-
+            # add all data to list of dicts
+            all_data_shared_rfs.append(
+                {
+                    "accession": accession,
+                    "rf0_seq_nt": nt_seq_rf0,
+                    "rf0_seq_aa": rf0_seq_aa,
+                    "rf0_labels": labels["rf0"][:-1],
+                    "rf1_seq_nt": nt_seq_rf1,
+                    "rf1_seq_aa": rf1_seq_aa,
+                    "rf1_labels": labels["rf1"],
+                    "rf2_seq_nt": nt_seq_rf2,
+                    "rf2_seq_aa": rf2_seq_aa,
+                    "rf2_labels": labels["rf2"],
+                    "label_encodings": label_encodings,
+                    "seq_desc": seq_type,
+                }
+            )
 
     os.makedirs(f"{data_subpath}/data/processed_data/model_data/shared_crf/{model_type}/datasets_model", exist_ok=True)
 
@@ -191,20 +204,7 @@ def create_datasets_split(fold,
     processed_samples_shared_df.to_csv(f"{data_subpath}/data/processed_data/model_data/shared_crf/{model_type}/datasets_model/{fold}{dataset_size}.csv.gz", index=False, compression="gzip")
 
 
-
 if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
-    device_type = device.type  # "cuda", "mps", or "cpu"
-
-    #For local runs
-    if device_type != "cuda":
-        data_subpath = "../.."
-
-    #For runs on SCARB cluster
-    elif device_type == "cuda":
-        data_subpath = "/tmp/nrt204/FragmentPredictor" #Mount point on SCARB cluster
-
-
     train_accessions = open(f"{data_subpath}/data/processed_data/genome_partitions/train_partition_accessions.txt").read().splitlines()
     val_accessions = open(f"{data_subpath}/data/processed_data/genome_partitions/val_partition_accessions.txt").read().splitlines()
 
@@ -215,7 +215,6 @@ if __name__ == "__main__":
 
     ##### Generate datasets with sequencing errors ####
     for dataset in [train_accessions_400, train_accessions_200, train_accessions_100, train_accessions]:
-
         if dataset == train_accessions_400:
             dataset_size = "_400_genomes"
         elif dataset == train_accessions_200:
@@ -227,14 +226,11 @@ if __name__ == "__main__":
 
         create_datasets_split("train", "train_val", "with_errors", seqs_len, "model_with_errors", dataset, dataset_size)
 
-    #Generate validation dataset
+    # Generate validation dataset
     create_datasets_split("val", "train_val", "with_errors", seqs_len, "model_with_errors", val_accessions, "")
-
-
 
     #### Generate datasets with substitution errors ####
     for dataset in [train_accessions_400, train_accessions_200, train_accessions_100, train_accessions]:
-
         if dataset == train_accessions_400:
             dataset_size = "_400_genomes"
         elif dataset == train_accessions_200:
@@ -246,10 +242,8 @@ if __name__ == "__main__":
 
         create_datasets_split("train", "train_val", "with_substitution_errors", seqs_len, "model_with_substitution_errors", dataset, dataset_size)
 
-    #Generate validation dataset
+    # Generate validation dataset
     create_datasets_split("val", "train_val", "with_substitution_errors", seqs_len, "model_with_substitution_errors", val_accessions, "")
-
-
 
     ##### Generate datasets without sequencing errors ####
     for dataset in [train_accessions_100, train_accessions_200, train_accessions_400, train_accessions]:
@@ -264,5 +258,5 @@ if __name__ == "__main__":
 
         create_datasets_split("train", "train_val", "without_errors", seqs_len, "model_without_errors", dataset, dataset_size)
 
-    #Generate validation dataset
+    # Generate validation dataset
     create_datasets_split("val", "train_val", "without_errors", seqs_len, "model_without_errors", val_accessions, "")
