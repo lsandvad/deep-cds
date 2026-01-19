@@ -121,39 +121,16 @@ max_aa_len = 100
 max_len = max_aa_len + 2  # Add CLS and EOS tokens
 
 
-def set_seed(seed):  # ADD THIS
-    """
-    Set seed for reproducibility across all random number generators.
-
-    Args:
-        seed (int): seed value to set
-    """
-
-    # Python random
+def set_seed(seed):
+    """Set seed for reproducibility."""
     random.seed(seed)
-
-    # Numpy
     np.random.seed(seed)
-
-    # PyTorch
     torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # for multi-GPU
-
-    # PyTorch backends
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-    # Environment variables
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
-
-    # Use deterministic algorithms where possible
-    torch.use_deterministic_algorithms(True, warn_only=True)
+    torch.cuda.manual_seed_all(seed)
 
 
-def seed_worker(worker_id):  # ADD THIS
-    """Seed function for DataLoader workers"""
+def seed_worker(worker_id):
+    """Seed function for DataLoader workers."""
     worker_seed = torch.initial_seed() % 2**32
     np.random.seed(worker_seed)
     random.seed(worker_seed)
@@ -539,7 +516,7 @@ class LinearChainCRF(nn.Module):
 
     Args:
         mapping_dict_to_class (dict): Mapping from integer label indices to tuples representing the corresponding reading-frame combination (e.g., `{0: (0, 1, 2), 1: (1, 3, 5), ...}`).
-        num_class_labels (int, optional): Total number of class labels. If not provided, it is inferred from `mapping_dict_to_class`.
+        num_encoded_labels (int, optional): Total number of class labels. If not provided, it is inferred from `mapping_dict_to_class`.
 
     Attributes:
         shared_rf_labels_mapping (dict): Stores the mapping from label indices to RF combinations.
@@ -549,20 +526,33 @@ class LinearChainCRF(nn.Module):
         frequent_transition_mask (torch.BoolTensor): Mask indicating which transitions are frequent self-transitions.
     """
 
-    def __init__(self, mapping_dict_to_class, transition_weight, num_class_labels=None):
+    def __init__(self, mapping_dict_to_class, transition_weight, num_encoded_labels=None, label_classes=label_classes):
         super().__init__()
 
         # Load shared class mapping
         self.shared_rf_labels_mapping = mapping_dict_to_class
 
         # Determine number of classes if not provided
-        if num_class_labels is None:
-            num_class_labels = len(self.shared_rf_labels_mapping)
+        if num_encoded_labels is None:
+            num_encoded_labels = len(self.shared_rf_labels_mapping)
 
-        self.crf = CRF(num_tags=num_class_labels, batch_first=True)
+        self.crf = CRF(num_tags=num_encoded_labels, batch_first=True)
 
-        # Define allowed RF transition rules
-        self.legal_transitions = {0: {0, 2, 4}, 1: {1, 3, 5}, 2: {1, 5}, 3: {0, 2, 4}, 4: {1, 3, 5}, 5: {0, 2, 4}}
+        # In LinearChainCRF.__init__, add label_classes parameter and use it:
+        if label_classes == 6:
+            self.legal_transitions = {
+                0: {0, 2, 4}, 1: {1, 3, 5}, 2: {1, 5}, 
+                3: {0, 2, 4}, 4: {1, 3, 5}, 5: {0, 2, 4}
+            }
+        elif label_classes == 4:  # 4 classes
+            self.legal_transitions = {
+                0: {0, 2},
+                1: {1, 3},
+                2: {1},
+                3: {0, 2}
+            }
+        else:
+            raise ValueError("label_classes must be either 4 or 6.")
 
         self.biologically_valid_mask = torch.ones_like(self.crf.transitions, dtype=torch.bool)
         self.frequent_transition_mask = torch.zeros_like(self.crf.transitions, dtype=torch.bool)
@@ -570,15 +560,14 @@ class LinearChainCRF(nn.Module):
         self._create_biologically_valid_mask()
         self._create_frequent_transition_mask()
 
-        # Initialize transitions with three-tier scheme
+        # Initialize transitions with three-tier scheme + small noise for diversity
         with torch.no_grad():
             # Stage 1: All illegal transitions → -10 (forbidden)
             self.crf.transitions[~self.biologically_valid_mask] = -10
 
-            # Stage 2: Legal but infrequent transitions → transition_weight + small noise (discouraged but diverse)
+            # Stage 2: Legal but infrequent transitions → transition_weight (penalized)
             legal_infrequent = self.biologically_valid_mask & ~self.frequent_transition_mask
-            noise = torch.randn_like(self.crf.transitions[legal_infrequent]) * 0.1
-            self.crf.transitions[legal_infrequent] = transition_weight + noise
+            self.crf.transitions[legal_infrequent] = transition_weight
 
             # Stage 3: Frequent self-transitions → 0 (neutral/encouraged)
             self.crf.transitions[self.frequent_transition_mask] = 0
@@ -729,7 +718,7 @@ class CDSPredictor(nn.Module):
         self.linear_transform = nn.Linear(3 * label_classes, num_encoded_labels)
 
         # CRF layer for structured predictions with transition constraints
-        self.CRF = LinearChainCRF(mapping_dict_to_class=encoded_labels_mapping, transition_weight=transition_weight, num_class_labels=num_encoded_labels)
+        self.CRF = LinearChainCRF(mapping_dict_to_class=encoded_labels_mapping, transition_weight=transition_weight, num_encoded_labels=num_encoded_labels, label_classes=label_classes)
 
     def forward(self, x_aa_rf0, attention_mask_aa_rf0, x_aa_rf1, attention_mask_aa_rf1, x_aa_rf2, attention_mask_aa_rf2, labels=None):
         """
@@ -1287,30 +1276,23 @@ wandb.init(
 )  # MODIFY
 
 
-# Create generator for DataLoader
-generator = torch.Generator()
-generator.manual_seed(args.seed)
-
 train_loader = DataLoader(
     train_data,
     batch_size=batch_size,
     shuffle=True,
     num_workers=num_workers_cpu,
     pin_memory=pin_memory,
-    drop_last=True,
-    persistent_workers=True if num_workers_cpu > 0 else False,
-    worker_init_fn=seed_worker,
-    generator=generator,
+    drop_last=True
 )
 
 val_loader = DataLoader(
     val_data,
     batch_size=450,
-    shuffle=False,
+    shuffle=True,
     num_workers=num_workers_cpu,
-    pin_memory=pin_memory,
-    persistent_workers=True if num_workers_cpu > 0 else False,
+    pin_memory=pin_memory
 )
+
 
 # Initialize model with hyperparameters to try
 model, mapping_dict_to_class = initialize_model(
@@ -1331,9 +1313,9 @@ model.sequence_encoder.prepare_for_unfreezing(unfreeze_fraction=0.5)
 epochs = 20
 steps_per_epoch = len(train_data) / batch_size
 print("Steps per epoch: ", steps_per_epoch)
-eval_every_n_steps = 10000  # 10000  #Validate every 10000 batches = 10000 * 32 samples #MODIFY
+eval_every_n_steps = 4000  # 10000  #Validate every 10000 batches = 10000 * 32 samples #MODIFY
 print(f"Evaluating {round(steps_per_epoch / eval_every_n_steps, 1)} times per epoch")
-freeze_esm_validations = 10  # unfreeze after approximately 1 epoch = 15 validations (2.4M training samples)
+freeze_esm_validations = 15  # unfreeze after approximately 1 epoch = 15 validations (2.4M training samples)
 
 # Initialize the loss tracker
 tracker = CategoricalLossTracker(sequence_types)
@@ -1350,7 +1332,7 @@ optimizer = torch.optim.AdamW(
 # Initialize variables for early stopping
 best_val_loss = float("inf")
 
-threshold_patience = 12
+threshold_patience = 16
 counter_patience = 0
 
 # Initialize variables for training loop
