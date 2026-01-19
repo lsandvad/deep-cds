@@ -5,15 +5,15 @@ Project workspace for DeepCDS project
 
 ### TO DO
 - [x] Make script to check number of reads in each length test set -> matches for all read lengths
-- [ ] Adapt hyperparameter tuning scripts 
-    - [ ] Full model
-    - [ ] ESM 2
-    - [ ] Codon encoding
+- [x] Adapt hyperparameter tuning scripts 
+    - [x] Full model
+    - [x] ESM 2
+    - [x] Codon encoding
 - [ ] Rerun hyperparameter tunings
-    - [ ] Full model substitutionsfejl
+    - [ ] Full model substitutionsfejl RUNNING
     - [ ] Fuld model uden fejl
-    - [ ] Codon encoding med fejl
-    - [ ] Codon encoding substitutionsfejl
+    - [ ] Codon encoding med fejl RUNNING
+    - [ ] Codon encoding substitutionsfejl RUNNING
     - [ ] codon encoding uden fejl
 - [x] Simulate all test data
 - [ ] Process all simulated reads (testset)
@@ -21,7 +21,7 @@ Project workspace for DeepCDS project
 
 ### Data moved to ERDA:
 - [x] Raw data ALL
-- [ ] Processed data: Simulated reads
+- [x] Processed data: Simulated reads
     - [x] Train/val
     - [x] All test data
 - [ ] Processed data: processed reads
