@@ -25,3 +25,5 @@ pyproject.toml
 /src_dev/**/*.fasta*
 #ignore archive directories
 /**/archive
+#ignore jobscripts to run all data
+/src_dev/data_preprocessing/process_all_model_datasets_to_npy.sh

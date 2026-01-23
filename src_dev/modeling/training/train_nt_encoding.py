@@ -143,46 +143,39 @@ def one_hot_encode(sequence):
         sequence (str): a nucleotide sequence.
 
     Returns:
-        encoding (tensor): one-hot encoded sequence.
+        encoding (np.ndarray): one-hot encoded sequence as uint8 numpy array.
     """
-
-    # Define the mapping of nucleotides to indices
     mapping = {"A": 0, "C": 1, "G": 2, "T": 3}
-
-    # Create an empty one-hot encoding tensor
-    encoding = torch.zeros(4, len(sequence))
-
-    # Convert the sequence to a tensor of indices for efficient indexing
-    indices = torch.tensor([mapping[char] for char in sequence if char in mapping], dtype=torch.long)
-
-    # Use advanced indexing to set the appropriate positions to 1
-    positions = torch.arange(len(sequence))[[char in mapping for char in sequence]]
-    encoding[indices, positions] = 1
-
+    encoding = np.zeros((4, len(sequence)), dtype=np.uint8)
+    
+    for i, char in enumerate(sequence):
+        if char in mapping:
+            encoding[mapping[char], i] = 1
+    
     # For 'N', we do nothing, so the corresponding column remains all zeros
+    return encoding
 
-    return torch.tensor(encoding)
 
 
-def process_nt_sequences_to_codons(nt_sequences, max_aa_len):
+def process_nt_sequences_to_codons(nt_sequences, max_aa_len): #MODIFIED
     """
     Convert nucleotide sequences from dimension (4, nucleotide_seq_len) to dimension (12, nucleotide_seq_len/3) format
     by grouping every 3 nucleotides (1 codon) together.
 
     Args:
-        nt_sequences: List of tensors with shape (4, nucleotide_seq_len)
+        nt_sequences: List of numpy arrays with shape (4, nucleotide_seq_len)
 
     Returns:
-        List of tensors with shape (12, nucleotide_seq_len/3)
+        List of numpy arrays with shape (nucleotide_seq_len/3, 12)
     """
     processed_sequences = []
 
     for seq in nt_sequences:
         # seq has shape (4, nucleotide_seq_len) -> reshape to (4, nucleotide_seq_len/3, 3) to group every 3 nucleotides
-        seq_reshaped = seq.view(4, max_aa_len, 3)
+        seq_reshaped = seq.reshape(4, max_aa_len, 3)
 
         # Transpose to (nucleotide_seq_len/3, 4, 3) then reshape to (nucleotide_seq_len/3, 12)
-        seq_transposed = seq_reshaped.transpose(0, 1)  # (nucleotide_seq_len/3, 4, 3)
+        seq_transposed = seq_reshaped.transpose(1, 0, 2)  # (nucleotide_seq_len/3, 4, 3)
         seq_formatted = seq_transposed.reshape(max_aa_len, 12)  # (nucleotide_seq_len/3, 12)
 
         processed_sequences.append(seq_formatted)
@@ -291,8 +284,11 @@ def encode_data(processed_samples_df, max_len):
 
         # Process nt_sequences to codon-based format (3*4=12, max_nt_len/3)
         nt_encodings_rf = process_nt_sequences_to_codons(nt_sequences, max_len)
-        encodings_nt[rf] = nt_encodings_rf
+        encodings_nt[rf] = np.stack(nt_encodings_rf)
 
+        del nt_encodings_rf
+        gc.collect()
+        
     seq_descriptions = processed_samples_df["seq_desc"].tolist()
 
     dataset = SeqDataset(encodings_nt["rf0"], labels["rf0"], encodings_nt["rf1"], labels["rf1"], encodings_nt["rf2"], labels["rf2"], padded_labels, seq_descriptions)
@@ -322,8 +318,6 @@ def load_and_process_data(max_len, dataset_size):
 
     val_set = pd.read_csv(f"{input_data_dir_path}/datasets_model/val.csv.gz", index_col=None, compression="gzip")
 
-    seq_type_desc_fracs = (val_set["seq_desc"].value_counts(normalize=True)).to_dict()
-
     # Create a combined stratification label for accession and sequence type
     val_set["accession_seq_desc_merged"] = val_set["accession"].astype(str) + "_" + val_set["seq_desc"].astype(str)
 
@@ -336,15 +330,22 @@ def load_and_process_data(max_len, dataset_size):
     ##Validate on 115k samples = 5 % of val set (0.05) following the original distribution stratified on accession and sequence type
     #train_set = (train_set.groupby("accession_seq_desc_merged", group_keys=False).apply(lambda x: x.sample(frac=0.005, random_state=42))) ##DELETE
 
+    seq_type_desc_fracs = (val_set["seq_desc"].value_counts(normalize=True)).to_dict()
+
     print("Training data samples : ", train_set.shape[0])
     print("Validation data samples during training: ", val_set.shape[0])
-    print("Distribution of sequence types in training set:", seq_type_desc_fracs)
+    print("Distribution of sequence types in val set:", seq_type_desc_fracs)
 
     # Process training data
     train_data, sequence_types = encode_data(train_set, max_len)
 
     # Process validation data
     val_data, _ = encode_data(val_set, max_len)
+
+    del train_set  # MODIFIED
+    gc.collect()   # MODIFIED
+    del val_set    # MODIFIED
+    gc.collect()   # MODIFIED
 
     return train_data, val_data, sequence_types, seq_type_desc_fracs
 
@@ -611,16 +612,19 @@ class LinearChainCRF(nn.Module):
         """
         # Training
         if labels is not None:
-            crf_mask = attention_mask.bool()
-            # calculate log likelihood of the true label sequence under the CRF model for each sequence in batch (no reduction across batch)
-            log_likelihood = self.crf(logits, labels, mask=crf_mask, reduction="none")  # returns the log-likelihood value per true label sequence
 
-            # compute negative log likelihood loss averaged across batch
+            # Use label-based mask instead of attention mask
+            crf_mask = (labels != -1)
+            
+            # Replace -1 with 0 in labels (masked positions don't matter, but -1 is invalid index)
+            safe_labels = labels.clone()
+            safe_labels[safe_labels == -1] = 0
+            
+            log_likelihood = self.crf(logits, safe_labels, mask=crf_mask, reduction="none")
             loss = -log_likelihood.mean()
 
             return {"loss": loss, "logits": logits}
-
-        # Inference mode: decode the most probable label sequence using the Viterbi algorithm
+        
         else:
             crf_mask = attention_mask.bool()
             predictions = self.crf.decode(logits, mask=crf_mask)
@@ -930,19 +934,28 @@ def calculate_sequence_accuracy_metrics(true_labels_list, predictions_list, sequ
 class CategoricalLossTracker:
     """
     A class to track losses for different sequence types during training.
+    Properly weights by number of sequences per category.
     """
 
     def __init__(self, categories):
         self.categories = categories
-        self.losses = {cat: [] for cat in categories}  # Create empty list for each category
+        self.total_loss = {cat: 0.0 for cat in categories}
+        self.total_count = {cat: 0 for cat in categories}
 
-    def update(self, category, loss):
-        # Extract average loss for the category in a batch
-        self.losses[category].append(loss.item())
+    def update(self, category, loss, count):
+        # Accumulate total loss and count for proper averaging
+        self.total_loss[category] += loss * count
+        self.total_count[category] += count
 
     def get_metrics(self):
-        # Calculate the mean loss for each category
-        return {cat: np.mean(losses) for cat, losses in self.losses.items()}
+        # Calculate the properly weighted mean loss for each category
+        metrics = {}
+        for cat in self.categories:
+            if self.total_count[cat] > 0:
+                metrics[cat] = self.total_loss[cat] / self.total_count[cat]
+            else:
+                metrics[cat] = 0.0
+        return metrics
 
 
 def log_evaluation_metrics(epoch, train_avg_loss, val_avg_loss, best_val_loss, tracker, sequence_metrics, val_times_counter, sequence_types):
@@ -1032,7 +1045,7 @@ def log_evaluation_metrics(epoch, train_avg_loss, val_avg_loss, best_val_loss, t
     return val_times_counter + 1
 
 
-def training_iteration(i, batch, scaler, model, optimizer, device, epoch_losses):
+def training_iteration(i, batch, scaler, model, optimizer, device, train_losses):
     """
     Perform a single training iteration on one batch, including forward and backward passes,
     optional mixed precision, and loss accumulation.
@@ -1047,11 +1060,11 @@ def training_iteration(i, batch, scaler, model, optimizer, device, epoch_losses)
         model (nn.Module): CDS prediction model with transformer and CRF layers.
         optimizer (torch.optim.Optimizer): Optimizer used to update model parameters.
         device (torch.device): Device for computation ("cuda", "cpu", etc.).
-        epoch_losses (list): List storing training loss values per batch for the current epoch.
+        train_losses (list): List storing training loss values per batch for the current epoch.
         seq_type_to_idx (dict): Mapping from sequence type strings to integer indices for weighted loss.
 
     Returns:
-        list: Updated `epoch_losses` list with the current batch loss appended.
+        list: Updated `train_losses` list with the current batch loss appended.
     """
 
     # Move data to device
@@ -1077,12 +1090,12 @@ def training_iteration(i, batch, scaler, model, optimizer, device, epoch_losses)
     if scaler is not None:
         scaler.scale(loss).backward()
         scaler.unscale_(optimizer)  # CRITICAL: unscale before clipping
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # ADD THIS
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # MODIFIED
         scaler.step(optimizer)
         scaler.update()
     else:
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # ADD THIS
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # MODIFIED
         optimizer.step()
 
     # if scaler is not None:
@@ -1096,7 +1109,7 @@ def training_iteration(i, batch, scaler, model, optimizer, device, epoch_losses)
     #    optimizer.step()
 
     # Store loss value
-    epoch_losses.append(loss.item())
+    train_losses.append(loss.item())
 
     # Print transition matrix for checkpoint
     if i % 10000 == 0:
@@ -1106,7 +1119,7 @@ def training_iteration(i, batch, scaler, model, optimizer, device, epoch_losses)
         # Cleanup every 1000th batch to prevent memory leaks
         del outputs, loss, inputs_nt_rf0, inputs_nt_rf1, inputs_nt_rf2, encoded_labels
 
-    return epoch_losses
+    return train_losses
 
 
 def show_examples(v_labels, padding_mask, logits, seq_descs_batch, mapping_dict_to_class, model, device, valid_mask):
@@ -1231,11 +1244,13 @@ train_loader = DataLoader(
 val_loader = DataLoader(
     val_data,
     batch_size=450,
-    shuffle=True,
+    shuffle=False,
     num_workers=num_workers_cpu,
-    pin_memory=pin_memory
+    pin_memory=pin_memory,
+    drop_last=True
 )
 
+# Initialize model
 model, mapping_dict_to_class = initialize_model(
     device,
     num_layers=depth_transformer_encoder_blocks,
@@ -1248,12 +1263,22 @@ model, mapping_dict_to_class = initialize_model(
     label_classes=label_classes,
 )
 
+print(f"\n=== Configuration Check ===", flush=True)
+print(f"Error type: {args.error_type}", flush=True)
+print(f"Label classes: {label_classes}", flush=True)
+print(f"Number of encoded labels (CRF tags): {len(mapping_dict_to_class)}", flush=True)
+print(f"Legal transitions defined for states: {list(model.CRF.legal_transitions.keys())}", flush=True)
+print(f"Legal transitions: {model.CRF.legal_transitions}", flush=True)
+print(f"Biologically valid transitions: {model.CRF.biologically_valid_mask.sum().item()}", flush=True)
+print(f"Illegal transitions: {(~model.CRF.biologically_valid_mask).sum().item()}", flush=True)
+print(f"Frequent self-transitions: {model.CRF.frequent_transition_mask.sum().item()}", flush=True)
+print(f"=== End Configuration Check ===\n", flush=True)
 
 # Define settings for training
 epochs = 20  # modify
 steps_per_epoch = len(train_data) / batch_size
 print("Steps per epoch: ", steps_per_epoch)
-eval_every_n_steps = 4000  # Validate every 10000 batches = 10000 * 32 samples #MODIFY
+eval_every_n_steps = 8000  # Validate every 10000 batches = 10000 * 32 samples #MODIFY
 print(f"Evaluating {round(steps_per_epoch / eval_every_n_steps, 1)} times per epoch")
 
 # Initialize the loss tracker
@@ -1264,7 +1289,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=lr_scratch)
 
 # Initialize variables for early stopping
 best_val_loss = float("inf")
-threshold_patience = 16  # Number of evaluations with no improvement to wait before stopping
+threshold_patience = 12  # Number of evaluations with no improvement to wait before stopping
 counter_patience = 0
 
 # Initialize variables for training loop
@@ -1276,14 +1301,15 @@ scaler = GradScaler() if "cuda" in device_type else None
 if scaler is not None:
     print("Mixed precision training enabled")
 
+train_losses = []
+
 # Training loop
 for epoch in range(epochs):
     model.train()
-    epoch_losses = []  # Reset at start of each epoch
 
     for i, batch in enumerate(train_loader):
         # Run training iteration
-        epoch_losses = training_iteration(i, batch, scaler, model, optimizer, device, epoch_losses)
+        train_losses = training_iteration(i, batch, scaler, model, optimizer, device, train_losses)
 
         # Validation step
         if step % eval_every_n_steps == 0 and step > 0:
@@ -1297,6 +1323,8 @@ for epoch in range(epochs):
             all_val_sequence_types = []
 
             with torch.no_grad():
+                tracker = CategoricalLossTracker(sequence_types)
+
                 for counter, val_batch in enumerate(val_loader):
                     v_inputs_nt_rf0 = val_batch["nt_encodings_rf0"].to(device, non_blocking=True)
                     v_inputs_nt_rf1 = val_batch["nt_encodings_rf1"].to(device, non_blocking=True)
@@ -1323,25 +1351,26 @@ for epoch in range(epochs):
                     seq_descs_batch = val_batch["seq_desc"]
 
                     for desc in tracker.categories:
-                        # Find which sequences in the batch belong to this desc
                         desc_mask = torch.tensor([d == desc for d in seq_descs_batch], device=device)
                         if desc_mask.any():
-                            # Select only the relevant sequences
-                            desc_logits = v_outputs["logits"][desc_mask]  # [num_desc, seq_len, C]
+                            desc_count = desc_mask.sum().item()
+                            desc_logits = v_outputs["logits"][desc_mask]
+                            desc_labels_original = v_encoded_labels[desc_mask]
+                            desc_valid_mask = valid_mask[desc_mask]
 
-                            # Use the same label preprocessing as the main loss
-                            desc_labels_original = v_encoded_labels[desc_mask]  # Original labels
-                            desc_valid_mask = valid_mask[desc_mask]  # Valid positions mask
+                            # Make labels safe - replace -1 with 0 (same as in LinearChainCRF.forward)
+                            safe_desc_labels = desc_labels_original.clone()
+                            safe_desc_labels[safe_desc_labels == -1] = 0
 
-                            # Calculate sequence type-specific loss
-                            desc_crf_loss = -model.CRF.crf(desc_logits, desc_labels_original, mask=desc_valid_mask, reduction="mean")
+                            desc_ll = model.CRF.crf(desc_logits, safe_desc_labels, mask=desc_valid_mask, reduction="none")
+                            desc_crf_loss = -desc_ll.mean()  # Mean over sequences, not tokens
 
-                            tracker.update(desc, desc_crf_loss)
+                            tracker.update(desc, desc_crf_loss.item(), desc_count)
 
-                            del desc_logits, desc_labels_original, desc_valid_mask, desc_crf_loss
-
+                            del desc_logits, desc_labels_original, safe_desc_labels, desc_valid_mask, desc_crf_loss
                         del desc_mask
 
+                    """
                     # Only calculate sequence metrics for every 5th validation iteration to save memory
                     if val_times_counter % 5 == 0:
                         logits_for_metrics = v_outputs["logits"]
@@ -1371,6 +1400,7 @@ for epoch in range(epochs):
                         if counter % 30 == 0:
                             del logits_for_metrics, seq_descs_batch, v_encoded_labels, padding_mask, valid_mask
                             clear_memory()
+                    """
 
                     if counter % 30 == 0:
                         del v_inputs_nt_rf0, v_inputs_nt_rf1, v_inputs_nt_rf2
@@ -1383,20 +1413,30 @@ for epoch in range(epochs):
             else:
                 val_avg_loss = float("inf")
 
+            # After validation loop, verify losses match
+            weighted_sum = sum(
+                seq_type_desc_fracs[cat] * tracker.get_metrics()[cat] 
+                for cat in tracker.categories
+            )
+            print(f"val_avg_loss: {val_avg_loss:.4f}", flush = True)
+            print(f"weighted sum from categories: {weighted_sum:.4f}", flush = True)
+
             # Calculate performance metrics
             if all_val_true_sequences and all_val_pred_sequences:
                 sequence_metrics = calculate_sequence_accuracy_metrics(all_val_true_sequences, all_val_pred_sequences, all_val_sequence_types)
+            else:
+                sequence_metrics = {}
 
             # Calculate training loss based on batches from given training iteration
-            if epoch_losses:
-                train_avg_loss = sum(epoch_losses[-eval_every_n_steps:]) / min(len(epoch_losses), eval_every_n_steps)
+            if train_losses:
+                train_avg_loss = sum(train_losses) / len(train_losses)
             else:
-                train_avg_loss = 0.0
+                train_avg_loss = float("inf")
 
             # Early stopping check
             if val_avg_loss < best_val_loss:
                 best_val_loss = val_avg_loss
-                torch.save(model.state_dict(), f"{models_output_dir_path}/codon_encoding_model_seed_{args.seed}_trained.pth")
+                torch.save(model.state_dict(), f"{models_output_dir_path}/codon_encoding_model_seed_{args.seed}_trained.pth") #modify
                 counter_patience = 0
             else:
                 counter_patience += 1
@@ -1412,6 +1452,7 @@ for epoch in range(epochs):
             del val_losses, all_val_true_sequences, all_val_pred_sequences
             clear_memory()
 
+            train_losses = []  # Reset training losses for round
             model.train()  # Back to training mode
 
         # Increment global step counter after each batch
