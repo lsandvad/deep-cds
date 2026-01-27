@@ -8,38 +8,10 @@ Project workspace for DeepCDS project
 - [x] Adapt hyperparameter tuning scripts after fixed bug 
     - [ ] Full model
     - [ ] ESM 2
-    - [ ] Codon encoding
+    - [x] Codon encoding
 - [x] Simulate all test data
 - [ ] Process all simulated reads (testset)
 - [ ] Make plots nicer with scienceplots
-
-#### Plan pr. model: 
-- [ ] For fuld model + ESM-2: Definerer at unfreezing af ESM-2 sker efter 2M sekvenser, dvs. 3.000.000 / 32 batches = 62500 steps
-- [ ] Implementer træningsscripts
-- [ ] Fuld model:
-    - [ ] I + S fejl: Vent: stabil og færdig træning. Evt. genkør med korrigeret script (udregning af loss). 10k steps/evaluation
-    - [ ] S fejl: Kører på 100 genomer og 200 genomer; hhv. 10k og 5k steps/evaluation: find ud af om 5k giver mere stabile resultater
-    - [ ] Uden fejl: Ustabil pga. non-coding/coding. Prøv med færre evaluations/step (5k/step + unfreeze efter 20 evaluations)
-- [ ] ESM-2:
-    - [ ] I + S fejl: Vent: stabil og færdig træning. Evt. genkør med korrigeret script (udregning af loss). 10k steps/evaluation
-    - [ ] S fejl: skal køres
-    - [ ] Uden fejl: skal køres, brug færre evaluations/step (5k/step + unfreeze efter 20 evaluations)
-- [ ] nt encoding: 
-    - [ ] I + S fejl: skal køres, test først på 100 genomer 
-    - [ ] S fejl: kører på fuldt datasæt, 8k steps pr. evaluering (kørt på 100 genomer)
-    - [ ] Uden fejl: skal køres, brug færre evaluations/step (5k/step + unfreeze efter 20 evaluations). Test først på 100 genomer 
-
-
-### Data moved to ERDA:
-- [x] Raw data ALL
-- [x] Processed data: Simulated reads
-    - [x] Train/val
-    - [x] All test data
-- [ ] Processed data: processed reads
-    - [x] Transfer train/val!
-    - [ ] Generate test data on cluster
-        - [ ] With indels RUNNING
-        - [x] Without indels
 
 ### Scripts in development - A status
 #### Data preprocessing
@@ -49,15 +21,15 @@ Project workspace for DeepCDS project
 - [x] 4. /data_preprocessing/extract_smaller_training_sets.py
 - [x] 4. /data_preprocessing/simulate_reads.py (simulate reads of user-defined coverage and length on both template and complement strands)
 - [ ] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
-    - [x] Train and val data
-    - [ ] Test data: 30 bp reads
+    - [] Train and val data
+    - [] Test data: 30 bp reads
     - [ ] Test data: 60 bp reads
     - [ ] Test data: 75 bp reads
     - [ ] Test data: 100 bp reads
     - [ ] Test data: 150 bp reads
-    - [ ] Test data: 300 bp reads
-    - [ ] Test data: 700 bp reads
-    - [ ] Test data: 1000 bp reads
+    - [] Test data: 300 bp reads
+    - [] Test data: 700 bp reads
+    - [] Test data: 1000 bp reads
 - [ ] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
     - [x] Train and val data
     - [x] Test data: 30 bp reads
@@ -74,9 +46,9 @@ Project workspace for DeepCDS project
 
 #### Data analysis
 - [ ] 1. /data_analysis/generate_taxonomical_trees.ipynb (Generate taxonomical trees in newick format along with partition annotations)
-- [ ] 2. /data_analysis/plot_genome_statistics.ipynb
-- [ ] 2. /data_analysis/get_testset_statistics.ipynb
-- [ ] 2. /data_analysis/plot_cds_lengths.ipynb
+- [ ] 1. /data_analysis/plot_genome_statistics.ipynb (plot different genome statistics based on RefSeq annotations and genomes, for each data partition)
+- [ ] 1. /data_analysis/get_testset_statistics.ipynb (get statistics for test set)
+- [ ] 1. /data_analysis/check_testset_error_distributions.py (check error rates for each test set and check they are correct)
 
 #### Modeling: Shared CRF models
 - [ ] 1. /modeling/hyperparameter_tuning_shared_crf/hyperparameter_tuning_*.ipynb

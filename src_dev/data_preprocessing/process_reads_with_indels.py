@@ -19,9 +19,12 @@ if compute_machine == "cluster":
 else:
     data_base_path = "../.."
 
-accessions_train = open(f"{data_base_path}/data/processed_data/genome_partitions/train_partition_accessions.txt").read().splitlines()
-accessions_val = open(f"{data_base_path}/data/processed_data/genome_partitions/val_partition_accessions.txt").read().splitlines()
-accessions_test = open(f"{data_base_path}/data/processed_data/genome_partitions/test_partition_accessions.txt").read().splitlines()
+with open(f"{data_base_path}/data/processed_data/genome_partitions/train_partition_accessions.txt") as f:
+    accessions_train = f.read().splitlines()
+with open(f"{data_base_path}/data/processed_data/genome_partitions/val_partition_accessions.txt") as f:
+    accessions_val = f.read().splitlines()
+with open(f"{data_base_path}/data/processed_data/genome_partitions/test_partition_accessions.txt") as f:
+    accessions_test = f.read().splitlines()
 
 
 ###Functions for processing CDS annotations###
@@ -51,7 +54,7 @@ def get_assembly_details(accession, assembly_details):
                 assembly_details[assembly_len] = []
             assembly_details[assembly_len].append(assembly_id)
 
-    except ValueError or KeyError as err:
+    except (ValueError, KeyError) as err:
         # Loop over sequences in the genome file
         for record in SeqIO.parse(genome_filename, "fasta-blast"):
             assembly_len = len(record.seq)
@@ -163,8 +166,15 @@ def convert_complement_coordinates(refseq_accession, cds_coords_complement, cds_
 
         try:
             coord_sets_assembly = sorted(cds_coords_complement[assembly_id], reverse=True)
+        except KeyError:
+            coord_sets_assembly = []
+
+        try:
             coord_sets_uncertain_assembly = sorted(cds_coords_uncertain_complement[assembly_id], reverse=True)
         except KeyError:
+            coord_sets_uncertain_assembly = []
+
+        if not coord_sets_assembly and not coord_sets_uncertain_assembly:
             print("No CDS annotations on assembly.")
 
         # Reset cds coordinates for complement strand
@@ -343,6 +353,7 @@ def read_is_in_uncertain_range(coordinate, uncertain_coordinates_list, seqs_len)
     for uncertain_coords in uncertain_coordinates_list:
         if uncertain_coords[0] - seqs_len <= coordinate <= uncertain_coords[1]:
             return True
+    return False
 
 
 def proces_reads_to_dict(accession, seqs_len, cds_coords_uncertain, strand, partition, error_rates):
@@ -791,7 +802,7 @@ def generate_rf_labels_with_indels(sequence_start, sequence_len, cds_coords, cig
     rf_labels = []
     insertions_positions = []
 
-    cds_copy = cds_coords
+    cds_copy = {k: list(v) for k, v in cds_coords.items()}
 
     # Loop over each operation on read (Match, insertion, deletion)
     for i, operation in enumerate(operations):
@@ -1470,7 +1481,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
                             write_read = False
 
                 # If read has passed all quality checks so-far, check that coding fragments are present in proteome
-                if write_read:
+                if write_read is not False:
                     # print(coding_seqs_all_read_extended)
                     write_read = quality_check_CDS_fragments(coding_seqs_all_read, accession)
 
@@ -1595,8 +1606,11 @@ def run_pipeline(seqs_len, accession, partition, error_rates):
 
     print(reads_correct, reads_wrong)
 
-    if round(reads_correct / (reads_correct + reads_wrong) * 100, 2) < 100:
-        print(f"Fraction of correct reads for {accession}: {round(reads_correct / (reads_correct + reads_wrong) * 100, 2)}%", flush=True)
+    total_reads = reads_correct + reads_wrong
+    if total_reads == 0:
+        print(f"No reads processed for {accession}")
+    elif round(reads_correct / total_reads * 100, 2) < 100:
+        print(f"Fraction of correct reads for {accession}: {round(reads_correct / total_reads * 100, 2)}%", flush=True)
     else:
         print("All sequences processed properly for: ", accession)
 
@@ -1618,14 +1632,14 @@ def run_pipeline_wrapper(args):
 
 def main():
     args_list = [(seqs_len, accession, partition, error_rates) for accession in accessions]  ###Only process first accession for testing
-    with ProcessPoolExecutor(max_workers=6) as executor:
+    with ProcessPoolExecutor(max_workers=16) as executor:
         futures = [executor.submit(run_pipeline_wrapper, args) for args in args_list]
         for future in as_completed(futures):
             future.result()
 
 if __name__ == "__main__":
-    process_train_val_reads = False
-    process_test_reads = True
+    process_train_val_reads = True
+    process_test_reads = False
 
     if process_train_val_reads:
         partition = "train_val"
@@ -1634,12 +1648,11 @@ if __name__ == "__main__":
         # Continue processing from where left off
         # accessions = set(accessions_train + accessions_val)
         # accessions_processed = os.listdir(f"{data_base_path}/data/processed_data/reads_processed/train_val/with_substitution_errors/csv/")
-        # accessions_processed = set([accession[:-4] for accession in accessions_processed])
+        # accessions_processed = set([accession[:-7] for accession in accessions_processed])
         # accessions = accessions - accessions_processed
 
         seqs_len = 300
-        # for error_rates in ["with_substitution_errors", "without_errors"]:
-        for error_rates in ["without_errors"]:
+        for error_rates in ["with_errors"]:
             print("======================================")
             print("Data partition: ", partition)
             print("Error rates: ", error_rates)
@@ -1651,7 +1664,8 @@ if __name__ == "__main__":
         partition = "test"
         accessions = accessions_test
 
-        for seqs_len in [30, 60, 75, 100, 150, 300, 700, 1000]:
+        #for seqs_len in [30, 60, 75, 100, 150, 300, 700, 1000]:
+        for seqs_len in [1000]:
             print("Now processing read length: ", seqs_len)
 
             for error_rates in [

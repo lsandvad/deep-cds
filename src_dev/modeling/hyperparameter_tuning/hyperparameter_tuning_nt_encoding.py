@@ -4,6 +4,7 @@ import optuna
 import gc
 import math
 import yaml
+from collections import Counter
 
 import torch
 import torch.nn as nn
@@ -29,8 +30,9 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 import argparse
 
 # Add argument parser at the beginning
-parser = argparse.ArgumentParser(description="Train CDS Predictor Model")
+parser = argparse.ArgumentParser(description="Hyperparameter Tuning for DeepCDS A2 Model")
 parser.add_argument("--gpu", type=int, default=0, help="GPU number to use (default: 0)")
+parser.add_argument("--healthtech_cluster", type=bool, default=False, help="Whether running on HealthTech cluster (default: False)")
 parser.add_argument("--scarb_cluster", type=bool, default=False, help="Whether running on SCARB cluster (default: False)")
 parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility (default: 42)")
 parser.add_argument(
@@ -39,7 +41,12 @@ parser.add_argument(
     default="indel_substitution",
     choices=["indel_substitution", "substitution", "none"],
     help="Type of data errors to include (default: indel_substitution)",
-)  ##Added
+)
+parser.add_argument(
+    "--use_preprocessed",
+    action="store_true",
+    help="Use preprocessed memory-mapped data if set; otherwise process from CSV (default: False)",
+)
 
 args = parser.parse_args()
 
@@ -47,38 +54,71 @@ args = parser.parse_args()
 if args.error_type == "indel_substitution":
     model_dir_path_suffix = "model_with_errors"
     label_classes = 6
-    wandb_project_name = "tune_shared_codon_encoding_with_errors_V2"
+    wandb_project_name = "A2_tune_with_errors"
+    steps_between_vals = 4000
 
 elif args.error_type == "substitution":
     model_dir_path_suffix = "model_with_substitution_errors"
     label_classes = 4
-    wandb_project_name = "tune_shared_codon_encoding_substitution_errors_V2"
+    wandb_project_name = "A2_tune_substitution_errors"
+    steps_between_vals = 4000
 else:
     model_dir_path_suffix = "model_without_errors"
     label_classes = 4
-    wandb_project_name = "tune_shared_codon_encoding_no_errors_V2"
+    wandb_project_name = "A2_tune_no_errors"
+    steps_between_vals = 4000
+
+
+# Debug mode settings
+debug_mode = False  # Set to True for debugging with smaller dataset
+
+if debug_mode:
+    steps_between_vals = 50 * 5
+    frac_train = 0.005  # 2.5% of training data
+    frac_val = 0.002  # 5% of validation data
+    frac_val_overall = 0.002
+    model_checkpoint_extension = "_debug"
+    wandb_project_name = "debug_codon_encoding"
+else:
+    frac_train = 1.0
+    frac_val = 0.05 * 4  # 5% of val set for hyperparameter tuning (faster iterations); preprocessed val set is 25 % of sequences
+    frac_val_overall = 1.0
+    model_checkpoint_extension = ""
 
 # Configure CUDA memory allocations (manage fragmentation in the GPU memory)
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 
 
-if args.scarb_cluster:
-    input_data_dir_path = f"/tmp/nrt204/FragmentPredictor/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"  # SCARB cluster
-    num_workers_cpu = 4
+if args.healthtech_cluster:
+    input_data_dir_path = f"../../../data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"
+    num_workers_cpu = 2
     pin_memory = True
-    # Use argparse values
-    device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
-    device_type = device.type  # "cuda", "mps", or "cpu"
-    print("Device: ", device, flush=True)
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+    device_type = device.type
 
+    print(f"Device: {device}", flush=True)
+    assert device == torch.device("cuda"), "HealthTech cluster run should be on a CUDA GPU."
+
+    os.makedirs(f"/home/projects/DeepCDStmp/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}/models_optuna_codon_encoding/", exist_ok=True)
+    models_output_dir_path = f"/home/projects/DeepCDStmp/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}/models_optuna_codon_encoding/"
+
+elif args.scarb_cluster:
+    input_data_dir_path = f"/tmp/nrt204/FragmentPredictor/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"
+    num_workers_cpu = 2
+    pin_memory = True
+    device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+    device_type = device.type
+
+    print(f"Device: {device}", flush=True)
     assert device.type == "cuda", "SCARB cluster run should be on a CUDA GPU."
     print(f"Device type: {device_type}, GPU: {args.gpu if device_type == 'cuda' else 'N/A'}", flush=True)
 
+    os.makedirs(f"{input_data_dir_path}/models_optuna_codon_encoding/", exist_ok=True)
+    models_output_dir_path = f"{input_data_dir_path}/models_optuna_codon_encoding/"
 
 else:
-    # Use argparse values
     device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
-    device_type = device.type  # "cuda", "mps", or "cpu"
+    device_type = device.type
 
     input_data_dir_path = f"../../../data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"
     num_workers_cpu = 0
@@ -86,13 +126,12 @@ else:
 
     print(f"Device type: {device_type}, GPU: {args.gpu if device_type == 'cuda' else 'N/A'}", flush=True)
 
+    os.makedirs(f"{input_data_dir_path}/models_optuna_codon_encoding/", exist_ok=True)
+    models_output_dir_path = f"{input_data_dir_path}/models_optuna_codon_encoding/"
 
-#Make sure dir to store model exists
-os.makedirs(f"{input_data_dir_path}/models_optuna_codon_encoding/", exist_ok=True)
+
+# Make sure dir to store hyperparameter configs exists
 os.makedirs(f"{input_data_dir_path}/hyperparameter_configs/", exist_ok=True)
-
-#dir in wandb to place runs
-#wandb_project_name = "debug_codon_encoding" #REMOVE (see above)
 
 max_len = 100
 
@@ -233,6 +272,80 @@ class SeqDataset(torch.utils.data.Dataset):
         return len(self.label_encodings)
 
 
+class PreprocessedSeqDataset(torch.utils.data.Dataset):
+    """
+    Dataset that loads preprocessed data from disk into RAM for fast training.
+
+    This dataset loads memory-mapped files into regular numpy arrays at init time,
+    which uses more RAM but provides much faster training since there's no disk I/O
+    during batch loading.
+
+    Args:
+        data_dir (str): Directory containing the preprocessed .npy files
+    """
+
+    def __init__(self, data_dir):
+        self.data_dir = data_dir
+
+        # Load shapes
+        with open(f"{data_dir}/shapes.pkl", "rb") as f:
+            shapes = pickle.load(f)
+
+        self.n_samples = shapes["n_samples"]
+        self.max_aa_len = shapes["max_aa_len"]  # 100 (codon/aa length)
+        self.max_len = shapes["max_len"]  # 102 (with CLS/EOS for ESM model)
+
+        print(f"Loading preprocessed data into RAM from {data_dir}...", flush=True)
+
+        # Load memory-mapped files into regular numpy arrays (loaded into RAM)
+        # nt_encodings and labels use max_aa_len (100)
+        print("  [1/7] Loading nt_encodings_rf0...", flush=True)
+        self.nt_rf0 = np.array(np.memmap(f"{data_dir}/nt_encodings_rf0.npy", dtype='float32', mode='r',
+                                          shape=(self.n_samples, self.max_aa_len, 12)))
+        print("  [2/7] Loading nt_encodings_rf1...", flush=True)
+        self.nt_rf1 = np.array(np.memmap(f"{data_dir}/nt_encodings_rf1.npy", dtype='float32', mode='r',
+                                          shape=(self.n_samples, self.max_aa_len, 12)))
+        print("  [3/7] Loading nt_encodings_rf2...", flush=True)
+        self.nt_rf2 = np.array(np.memmap(f"{data_dir}/nt_encodings_rf2.npy", dtype='float32', mode='r',
+                                          shape=(self.n_samples, self.max_aa_len, 12)))
+
+        print("  [4/7] Loading labels_rf0...", flush=True)
+        self.labels_rf0 = np.array(np.memmap(f"{data_dir}/labels_rf0.npy", dtype='int8', mode='r',
+                                              shape=(self.n_samples, self.max_aa_len)))
+        print("  [5/7] Loading labels_rf1...", flush=True)
+        self.labels_rf1 = np.array(np.memmap(f"{data_dir}/labels_rf1.npy", dtype='int8', mode='r',
+                                              shape=(self.n_samples, self.max_aa_len)))
+        print("  [6/7] Loading labels_rf2...", flush=True)
+        self.labels_rf2 = np.array(np.memmap(f"{data_dir}/labels_rf2.npy", dtype='int8', mode='r',
+                                              shape=(self.n_samples, self.max_aa_len)))
+
+        # label_encodings uses max_len - 2 (100, same as max_aa_len)
+        print("  [7/7] Loading label_encodings...", flush=True)
+        self.label_encodings = np.array(np.memmap(f"{data_dir}/label_encodings.npy", dtype='int8', mode='r',
+                                                   shape=(self.n_samples, self.max_len - 2)))
+
+        # Load sequence descriptions (small, kept in memory)
+        with open(f"{data_dir}/seq_descs.pkl", "rb") as f:
+            self.seq_descs = pickle.load(f)
+
+        print(f"Loaded {self.n_samples} samples into RAM.", flush=True)
+
+    def __getitem__(self, idx):
+        return {
+            "nt_encodings_rf0": torch.from_numpy(self.nt_rf0[idx].copy()),
+            "labels_rf0": torch.from_numpy(self.labels_rf0[idx].astype(np.float32)),
+            "nt_encodings_rf1": torch.from_numpy(self.nt_rf1[idx].copy()),
+            "labels_rf1": torch.from_numpy(self.labels_rf1[idx].astype(np.float32)),
+            "nt_encodings_rf2": torch.from_numpy(self.nt_rf2[idx].copy()),
+            "labels_rf2": torch.from_numpy(self.labels_rf2[idx].astype(np.float32)),
+            "label_encodings": torch.from_numpy(self.label_encodings[idx].astype(np.float32)),
+            "seq_desc": self.seq_descs[idx],
+        }
+
+    def __len__(self):
+        return self.n_samples
+
+
 def encode_data(processed_samples_df, max_len):
     """ 
     Encode data samples to fit model input format. 
@@ -321,28 +434,64 @@ def load_and_process_data(max_len):
         compression="gzip")
     
     seq_type_desc_fracs = (val_set['seq_desc'].value_counts(normalize=True)).to_dict()
-    
-    #Create a combined stratification label for accession and sequence type
-    val_set["accession_seq_desc_merged"] = val_set["accession"].astype(str) + "_" + val_set["seq_desc"].astype(str) 
 
-    ##Validate on 115k samples = 5 % of val set (0.05) following the original distribution stratified on accession and sequence type
-    val_set = (val_set.groupby("accession_seq_desc_merged", group_keys=False).apply(lambda x: x.sample(frac=0.05, random_state=42))) #0.05 #MODIFY
+    # Create a combined stratification label for accession and sequence type
+    val_set["accession_seq_desc_merged"] = val_set["accession"].astype(str) + "_" + val_set["seq_desc"].astype(str)
 
-    #Create a combined stratification label for accession and sequence type
-    #train_set["accession_seq_desc_merged"] = train_set["accession"].astype(str) + "_" + train_set["seq_desc"].astype(str) #DELETE
+    # Subsample validation set following the original distribution stratified on accession and sequence type
+    val_set = (val_set.groupby("accession_seq_desc_merged", group_keys=False).apply(lambda x: x.sample(frac=frac_val, random_state=42)))
 
-    ##Validate on 115k samples = 5 % of val set (0.05) following the original distribution stratified on accession and sequence type
-    #train_set = (train_set.groupby("accession_seq_desc_merged", group_keys=False).apply(lambda x: x.sample(frac=0.005, random_state=42))) ##DELETE
+    # Subsample training set if in debug mode
+    if frac_train < 1.0:
+        train_set["accession_seq_desc_merged"] = train_set["accession"].astype(str) + "_" + train_set["seq_desc"].astype(str)
+        train_set = (train_set.groupby("accession_seq_desc_merged", group_keys=False).apply(lambda x: x.sample(frac=frac_train, random_state=42)))
 
-    print("Training data samples : ", train_set.shape[0])
-    print("Validation data samples during training: ", val_set.shape[0])
-    print("Distribution of sequence types in training set:", seq_type_desc_fracs)
+    print(f"Training data samples: {train_set.shape[0]}", flush=True)
+    print(f"Validation data samples during training: {val_set.shape[0]}", flush=True)
+    print(f"Distribution of sequence types in validation set: {seq_type_desc_fracs}", flush=True)
 
     #Process training data
     train_data, sequence_types = encode_data(train_set, max_len)
 
     #Process validation data
     val_data, _ = encode_data(val_set, max_len)
+
+    return train_data, val_data, sequence_types, seq_type_desc_fracs
+
+
+def load_preprocessed_data():
+    """
+    Load preprocessed memory-mapped data for codon encoding model.
+
+    Returns:
+        train_data: Memory-mapped training dataset
+        val_data: Memory-mapped validation dataset
+        sequence_types: List of unique sequence types
+        seq_type_desc_fracs: Distribution of sequence types in validation set
+    """
+    train_dir = f"{input_data_dir_path}/datasets_model/preprocessed_train_100_genomes"
+    val_dir = f"{input_data_dir_path}/datasets_model/preprocessed_val"
+
+    print(f"Loading preprocessed training data from: {train_dir}", flush=True)
+    print(f"Loading preprocessed validation data from: {val_dir}", flush=True)
+
+    # Load preprocessed datasets into RAM
+    train_data = PreprocessedSeqDataset(train_dir)
+    val_data = PreprocessedSeqDataset(val_dir)
+
+    print(f"Training data samples: {len(train_data)}", flush=True)
+    print(f"Validation data samples: {len(val_data)}", flush=True)
+
+    # Get sequence types and distribution from the loaded data
+    sequence_types = list(set(train_data.seq_descs))
+
+    # Calculate distribution from validation set
+    val_seq_counts = Counter(val_data.seq_descs)
+    total_val = len(val_data.seq_descs)
+    seq_type_desc_fracs = {k: v / total_val for k, v in val_seq_counts.items()}
+
+    print(f"Sequence types: {sequence_types}", flush=True)
+    print(f"Distribution of sequence types in validation set: {seq_type_desc_fracs}", flush=True)
 
     return train_data, val_data, sequence_types, seq_type_desc_fracs
 
@@ -363,13 +512,13 @@ def load_full_validation_set(max_len):
         index_col=None, 
         compression="gzip")
 
-    print("Validation data samples in full set: ", val_set.shape[0])
+    print(f"Validation data samples in full set: {val_set.shape[0]}", flush=True)
 
     #Create a combined stratification label for accession and sequence type
     val_set["accession_seq_desc_merged"] = val_set["accession"].astype(str) + "_" + val_set["seq_desc"].astype(str) 
 
     ##Validate on 115k samples = 5 % of val set (0.05) following the original distribution stratified on accession and sequence type
-    val_set = (val_set.groupby("accession_seq_desc_merged", group_keys=False).apply(lambda x: x.sample(frac=0.25, random_state=42))) #0.25 #MODIFY
+    val_set = (val_set.groupby("accession_seq_desc_merged", group_keys=False).apply(lambda x: x.sample(frac=frac_val_overall, random_state=42))) #0.25 #MODIFY
 
 
     #Process validation data
@@ -611,10 +760,10 @@ class LinearChainCRF(nn.Module):
                     self.biologically_valid_mask[from_label, to_label] = False
                     illegal_count += 1
 
-        print(f"Legal transitions: {legal_count}")
-        print(f"Illegal transitions: {illegal_count}")
-        print(f"Total transitions: {legal_count + illegal_count}")
-        print(f"Percentage legal: {legal_count/(legal_count + illegal_count)*100:.1f}%")
+        print(f"Legal transitions: {legal_count}", flush=True)
+        print(f"Illegal transitions: {illegal_count}", flush=True)
+        print(f"Total transitions: {legal_count + illegal_count}", flush=True)
+        print(f"Percentage legal: {legal_count/(legal_count + illegal_count)*100:.1f}%", flush=True)
 
     def _create_frequent_transition_mask(self):
         """
@@ -637,21 +786,20 @@ class LinearChainCRF(nn.Module):
             self.frequent_transition_mask[label, label] = True
             frequent_count += 1
         
-        print(f"Frequent self-transitions: {frequent_count}")
-        print(f"Frequent transition labels: {frequent_labels}")
+        print(f"Frequent self-transitions: {frequent_count}", flush=True)
+        print(f"Frequent transition labels: {frequent_labels}", flush=True)
 
     def forward(self, logits, attention_mask, labels=None):
         """
         Forward pass with CRF layer.
 
-        Args: 
+        Args:
             logits (torch.Tensor): Emission scores of shape (batch_size, seq_len, num_labels).
             attention_mask (torch.Tensor): Mask where 1 indicates valid tokens.
-            labels (torch.Tensor, optional): Gold label indices for training.
-            sequence_class (torch.Tensor, optional): Sequence-level class indices for weighted loss.
+            labels (torch.Tensor, optional): Gold label indices for training (with -1 for padding).
 
-        Returns: 
-            dict: 
+        Returns:
+            dict:
             During training (`labels` provided):
                     - **'loss' (torch.Tensor)**: Mean CRF loss over the batch.
                     - **'logits' (torch.Tensor)**: Input logits passed through the CRF.
@@ -659,18 +807,24 @@ class LinearChainCRF(nn.Module):
                     - **'predictions' (list[list[int]])**: Decoded most probable label sequence per sample.
                     - **'logits' (torch.Tensor)**: Input logits passed through the CRF.
         """
-        #Training
+        # Training
         if labels is not None:
-            crf_mask = attention_mask.bool()
-            #calculate log likelihood of the true label sequence under the CRF model for each sequence in batch (no reduction across batch)
-            log_likelihood = self.crf(logits, labels, mask=crf_mask, reduction='none') #returns the log-likelihood value per true label sequence 
+            # Use label-based mask instead of attention mask
+            crf_mask = (labels != -1)
 
-            #compute negative log likelihood loss averaged across batch
+            # Replace -1 with 0 in labels (masked positions don't matter, but -1 is invalid index)
+            safe_labels = labels.clone()
+            safe_labels[safe_labels == -1] = 0
+
+            # Calculate log likelihood of the true label sequence under the CRF model
+            log_likelihood = self.crf(logits, safe_labels, mask=crf_mask, reduction='none')
+
+            # Compute negative log likelihood loss averaged across batch
             loss = -log_likelihood.mean()
 
             return {'loss': loss, 'logits': logits}
 
-        #Inference mode: decode the most probable label sequence using the Viterbi algorithm
+        # Inference mode: decode the most probable label sequence using the Viterbi algorithm
         else:
             crf_mask = attention_mask.bool()
             predictions = self.crf.decode(logits, mask=crf_mask)
@@ -787,15 +941,15 @@ class CDSPredictor(nn.Module):
 def print_model_dimensions(model):
     """Print model dimensions if needed."""
     for name, param in model.named_parameters():
-        print(f"{name}: {param.shape}")
+        print(f"{name}: {param.shape}", flush=True)
 
 def count_parameters(model):
     """Print number of model parameters; both learnable and total"""
     total_params_learnable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
 
-    print(f"Total parameters: {total_params:,}")
-    print(f"Total trainable parameters: {total_params_learnable:,}")
+    print(f"Total parameters: {total_params:,}", flush=True)
+    print(f"Total trainable parameters: {total_params_learnable:,}", flush=True)
 
 
 def initialize_model(device, num_layers, n_attention_heads, d_model, dropout_rate_1, dropout_rate_2, act_function, transition_weight, label_classes):
@@ -823,7 +977,7 @@ def initialize_model(device, num_layers, n_attention_heads, d_model, dropout_rat
         mapping_dict_to_class = pickle.load(mapping_file)
 
     num_encoded_labels = len(mapping_dict_to_class.keys())
-    print(f"Number of encoded label classes: {num_encoded_labels}")
+    print(f"Number of encoded label classes: {num_encoded_labels}", flush=True)
 
     model = CDSPredictor(num_layers = num_layers,
                          n_attention_heads = n_attention_heads,
@@ -846,20 +1000,30 @@ def initialize_model(device, num_layers, n_attention_heads, d_model, dropout_rat
     return model, mapping_dict_to_class
 
 class CategoricalLossTracker:
-    """ 
-    A class to track losses for different sequence types during training.
     """
+    A class to track losses for different sequence types during training.
+    Properly weights by number of sequences per category.
+    """
+
     def __init__(self, categories):
         self.categories = categories
-        self.losses = {cat: [] for cat in categories} #Create empty list for each category
+        self.total_loss = {cat: 0.0 for cat in categories}
+        self.total_count = {cat: 0 for cat in categories}
 
-    def update(self, category, loss):
-        #Extract average loss for the category in a batch
-        self.losses[category].append(loss.item())
+    def update(self, category, loss, count):
+        # Accumulate total loss and count for proper averaging
+        self.total_loss[category] += loss * count
+        self.total_count[category] += count
 
     def get_metrics(self):
-        #Calculate the mean loss for each category
-        return {cat: np.mean(losses) for cat, losses in self.losses.items()}
+        # Calculate the properly weighted mean loss for each category
+        metrics = {}
+        for cat in self.categories:
+            if self.total_count[cat] > 0:
+                metrics[cat] = self.total_loss[cat] / self.total_count[cat]
+            else:
+                metrics[cat] = 0.0
+        return metrics
 
 
 def create_weighted_sampler(dataset, sequence_types):
@@ -1007,17 +1171,28 @@ def training_iteration(i, batch, scaler, model, optimizer, device, epoch_losses)
                        labels=encoded_labels)
         loss = outputs['loss']
 
-    #Backward pass; handle both mixed precision and regular training
+    # Backward pass; handle both mixed precision and regular training
     optimizer.zero_grad()
 
     if scaler is not None:
-        #Mixed precision backward pass
+        # Mixed precision backward pass
         scaler.scale(loss).backward()
+
+        # Unscale before gradient clipping
+        scaler.unscale_(optimizer)
+
+        # Gradient clipping (CRITICAL for CRF stability!)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
         scaler.step(optimizer)
         scaler.update()
     else:
-        #Regular backward pass
+        # Regular backward pass
         loss.backward()
+
+        # Gradient clipping (CRITICAL for CRF stability!)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
         optimizer.step()
 
     #Store loss value
@@ -1025,7 +1200,7 @@ def training_iteration(i, batch, scaler, model, optimizer, device, epoch_losses)
 
     #Print transition matrix for checkpoint
     if i % 10000 == 0:
-        print(model.CRF.crf.transitions)
+        print(model.CRF.crf.transitions, flush=True)
 
     if i % 1000 == 0:
         #Cleanup every 1000th batch to prevent memory leaks
@@ -1033,7 +1208,7 @@ def training_iteration(i, batch, scaler, model, optimizer, device, epoch_losses)
 
     return epoch_losses
 
-def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_type_desc_fracs, label_classes):
+def objective(trial, train_data, val_data, val_loader_full, sequence_types, label_classes):
     #Define hyperparameter ranges to sample from
     depths_transformer_encoder_blocks = [2, 4, 6, 8, 10]
     attention_heads = [2, 4, 8]
@@ -1062,7 +1237,7 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
             dropout_rate_2: {dropout_rate_2}\n \
             lr_scratch: {lr_scratch}\n \
             act_function: {act_function}\n \
-            transition_weight: {transition_weight}")
+            transition_weight: {transition_weight}", flush=True)
 
     wandb.init(project=wandb_project_name, 
                 config={
@@ -1097,20 +1272,41 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
                             transition_weight = transition_weight,
                             label_classes=label_classes)
 
-    #Define settings for training
+    # CRF Configuration Check
+    print(f"\n=== Configuration Check ===", flush=True)
+    print(f"Error type: {args.error_type}", flush=True)
+    print(f"Label classes: {label_classes}", flush=True)
+    print(f"Number of encoded labels (CRF tags): {len(mapping_dict_to_class)}", flush=True)
+    print(f"Legal transitions defined for states: {list(model.CRF.legal_transitions.keys())}", flush=True)
+    print(f"Legal transitions: {model.CRF.legal_transitions}", flush=True)
+    print(f"Biologically valid transitions: {model.CRF.biologically_valid_mask.sum().item()}", flush=True)
+    print(f"Illegal transitions: {(~model.CRF.biologically_valid_mask).sum().item()}", flush=True)
+    print(f"Frequent self-transitions: {model.CRF.frequent_transition_mask.sum().item()}", flush=True)
+    print(f"=== End Configuration Check ===\n", flush=True)
+
+    # Define settings for training
     epochs = 20
-    steps_per_epoch = len(train_data) / batch_size                               #The number of steps taken per epoch
-    print("Steps per epoch: ", steps_per_epoch)
-    eval_every_n_steps = 4000 #MODIFY to 4000
-    print(f"Evaluating {round(steps_per_epoch/eval_every_n_steps, 1)} times per epoch")
+    steps_per_epoch = len(train_data) / batch_size
+    print(f"Steps per epoch: {steps_per_epoch}", flush=True)
+    eval_every_n_steps = steps_between_vals
+    print(f"Evaluating {round(steps_per_epoch/eval_every_n_steps, 1)} times per epoch", flush=True)
 
     #Initialize the loss tracker
     tracker = CategoricalLossTracker(sequence_types)
 
-    #Define the optimizer
+    # Define the optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr_scratch)
 
-    #Initialize variables for early stopping
+    # Initialize learning rate scheduler - reduces LR when validation loss plateaus
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode='min',           # Minimize validation loss
+        factor=0.7,           # Reduce LR by 30% when plateau detected
+        patience=3,           # Wait 3 validations before reducing (shorter for hyperparam tuning)
+        min_lr=1e-7           # Don't reduce below this
+    )
+
+    # Initialize variables for early stopping
     best_val_loss = float('inf')
     threshold_patience = 6  #Number of evaluations with no improvement to wait before stopping
     counter_patience = 0
@@ -1122,7 +1318,7 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
     # Initialize mixed precision scaler if using CUDA
     scaler = GradScaler() if "cuda" in device_type else None
     if scaler is not None:
-        print("Mixed precision training enabled")
+        print("Mixed precision training enabled", flush=True)
 
     #Training loop
     for epoch in range(epochs):
@@ -1143,6 +1339,10 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
 
                 with torch.no_grad():
                     print("Starting evaluation...", flush=True)
+
+                    # Reset tracker for this validation run
+                    tracker = CategoricalLossTracker(sequence_types)
+
                     for counter, val_batch in enumerate(val_loader):
                         v_inputs_nt_rf0 = val_batch["nt_encodings_rf0"].to(device, non_blocking=True)
                         v_inputs_nt_rf1 = val_batch["nt_encodings_rf1"].to(device, non_blocking=True)
@@ -1165,13 +1365,14 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
 
                         val_losses.append(v_loss.item())
 
-                        # Calculate category-specific losses (keep existing logic)
+                        # Calculate category-specific losses
                         seq_descs_batch = val_batch["seq_desc"]
 
                         for desc in tracker.categories:
                             # Find which sequences in the batch belong to this desc
                             desc_mask = torch.tensor([d == desc for d in seq_descs_batch], device=device)
                             if desc_mask.any():
+                                desc_count = desc_mask.sum().item()
                                 # Select only the relevant sequences
                                 desc_logits = v_outputs["logits"][desc_mask]  # [num_desc, seq_len, C]
 
@@ -1179,12 +1380,17 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
                                 desc_labels_original = v_encoded_labels[desc_mask]  # Original labels
                                 desc_valid_mask = valid_mask[desc_mask]  # Valid positions mask
 
+                                # Make labels safe - replace -1 with 0 (same as in LinearChainCRF.forward)
+                                safe_desc_labels = desc_labels_original.clone()
+                                safe_desc_labels[safe_desc_labels == -1] = 0
+
                                 # Calculate sequence type-specific loss
-                                desc_crf_loss = -model.CRF.crf(desc_logits, desc_labels_original, mask=desc_valid_mask, reduction="mean")
+                                desc_ll = model.CRF.crf(desc_logits, safe_desc_labels, mask=desc_valid_mask, reduction="none")
+                                desc_crf_loss = -desc_ll.mean()  # Mean over sequences
 
-                                tracker.update(desc, desc_crf_loss)
+                                tracker.update(desc, desc_crf_loss.item(), desc_count)
 
-                                del desc_logits, desc_labels_original, desc_valid_mask, desc_crf_loss
+                                del desc_logits, desc_labels_original, safe_desc_labels, desc_valid_mask, desc_crf_loss
 
                             del desc_mask
 
@@ -1222,10 +1428,13 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
                     counter_patience += 1
 
                 if counter_patience >= threshold_patience:
-                    print("Early stopping triggered!")
+                    print("Early stopping triggered!", flush=True)
                     break
 
-                #Log performance metrics
+                # Step the learning rate scheduler based on validation loss
+                scheduler.step(val_avg_loss)
+
+                # Log performance metrics
                 val_times_counter = log_evaluation_metrics(epoch, train_avg_loss, val_avg_loss, best_val_loss, tracker, val_times_counter, sequence_types)
 
                 #Clean up validation data
@@ -1264,6 +1473,9 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
     model.eval()
     val_losses = []
 
+    # Reset tracker for final validation
+    tracker = CategoricalLossTracker(sequence_types)
+
     with torch.no_grad():
         for counter, val_batch in enumerate(val_loader_full):
             v_inputs_nt_rf0 = val_batch["nt_encodings_rf0"].to(device, non_blocking=True)
@@ -1271,20 +1483,20 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
             v_inputs_nt_rf2 = val_batch["nt_encodings_rf2"].to(device, non_blocking=True)
             v_encoded_labels = val_batch['label_encodings'].to(device, non_blocking=True).long()
 
-            #Save padding mask before overwriting v_labels
+            # Save padding mask before overwriting v_labels
             padding_mask = (v_encoded_labels == -1)
-            valid_mask = ~padding_mask  #This is what we'll use consistently
+            valid_mask = ~padding_mask  # This is what we'll use consistently
 
-            #Forward pass for validation
+            # Forward pass for validation
             if scaler is not None:
                 with autocast("cuda"):
                     v_outputs = model(v_inputs_nt_rf0,
                                     v_inputs_nt_rf1,
-                                    v_inputs_nt_rf2, 
+                                    v_inputs_nt_rf2,
                                     v_encoded_labels)
                     v_loss = v_outputs['loss']
             else:
-                v_outputs = model(v_inputs_nt_rf0, 
+                v_outputs = model(v_inputs_nt_rf0,
                                 v_inputs_nt_rf1,
                                 v_inputs_nt_rf2,
                                 v_encoded_labels)
@@ -1292,33 +1504,39 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
 
             val_losses.append(v_loss.item())
 
-            #Process category-specific losses (keep existing logic)
+            # Process category-specific losses
             seq_descs_batch = val_batch['seq_desc']
 
             for desc in tracker.categories:
-                #Find which sequences in the batch belong to this desc
+                # Find which sequences in the batch belong to this desc
                 desc_mask = torch.tensor([d == desc for d in seq_descs_batch], device=device)
                 if desc_mask.any():
-                    #Select only the relevant sequences
-                    desc_logits = v_outputs["logits"][desc_mask]           #[num_desc, seq_len, C]
+                    desc_count = desc_mask.sum().item()
+                    # Select only the relevant sequences
+                    desc_logits = v_outputs["logits"][desc_mask]           # [num_desc, seq_len, C]
 
-                    #Use the same label preprocessing as the main loss
-                    desc_labels_original = v_encoded_labels[desc_mask]     #Original labels
-                    desc_valid_mask = valid_mask[desc_mask]                #Valid positions mask
+                    # Use the same label preprocessing as the main loss
+                    desc_labels_original = v_encoded_labels[desc_mask]     # Original labels
+                    desc_valid_mask = valid_mask[desc_mask]                # Valid positions mask
 
-                    #Calculate sequence type-specific loss
-                    desc_crf_loss = -model.CRF.crf(desc_logits, desc_labels_original, 
-                                                mask=desc_valid_mask, reduction='mean')
+                    # Make labels safe - replace -1 with 0 (same as in LinearChainCRF.forward)
+                    safe_desc_labels = desc_labels_original.clone()
+                    safe_desc_labels[safe_desc_labels == -1] = 0
 
-                    tracker.update(desc, desc_crf_loss)
+                    # Calculate sequence type-specific loss
+                    desc_ll = model.CRF.crf(desc_logits, safe_desc_labels,
+                                            mask=desc_valid_mask, reduction='none')
+                    desc_crf_loss = -desc_ll.mean()  # Mean over sequences
 
-                    del desc_logits, desc_labels_original, desc_valid_mask, desc_crf_loss
+                    tracker.update(desc, desc_crf_loss.item(), desc_count)
+
+                    del desc_logits, desc_labels_original, safe_desc_labels, desc_valid_mask, desc_crf_loss
 
                 del desc_mask
 
             if counter % 30 == 0:
-                #Clean up each validation batch immediately
-                del v_inputs_nt_rf0, v_inputs_nt_rf1,v_inputs_nt_rf2, v_encoded_labels, v_outputs, v_loss, padding_mask
+                # Clean up each validation batch immediately
+                del v_inputs_nt_rf0, v_inputs_nt_rf1, v_inputs_nt_rf2, v_encoded_labels, v_outputs, v_loss, padding_mask
                 clear_memory()
 
     #Calculate validation loss and other final metrics for validation loop
@@ -1350,15 +1568,21 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
 set_seed(args.seed)
 print(f"Using random seed: {args.seed}", flush=True)
 
-#Load in data once
-train_data, val_data, sequence_types, seq_type_desc_fracs = load_and_process_data(max_len)
+# Load in data once
+if args.use_preprocessed:
+    print("Using preprocessed memory-mapped data...", flush=True)
+    train_data, val_data, sequence_types, seq_type_desc_fracs = load_preprocessed_data()
+else:
+    print("Processing data from CSV files...", flush=True)
+    train_data, val_data, sequence_types, seq_type_desc_fracs = load_and_process_data(max_len)
+
 val_loader_full = load_full_validation_set(max_len)
 
 #Create a study object and optimize the objective function
 study = optuna.create_study(direction='minimize',   #Minimize loss
                             pruner=optuna.pruners.HyperbandPruner())
 study.optimize(
-    lambda trial: objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_type_desc_fracs, label_classes), 
+    lambda trial: objective(trial, train_data, val_data, val_loader_full, sequence_types, label_classes), 
     n_trials=30
 )
 
@@ -1380,5 +1604,5 @@ file_path = f'{input_data_dir_path}/hyperparameter_configs/codon_encoding_hyperp
 with open(file_path, 'w') as yaml_file:
     yaml.dump(config, yaml_file, default_flow_style=False)
 
-print(f"Model configuration saved to {file_path}.")
+print(f"Model configuration saved to {file_path}.", flush=True)
 

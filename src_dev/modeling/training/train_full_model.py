@@ -25,7 +25,7 @@ pd.options.mode.chained_assignment = None
 import argparse
 
 # Add argument parser at the beginning
-parser = argparse.ArgumentParser(description="Train CDS Predictor Model")
+parser = argparse.ArgumentParser(description="Train DeepCDS Model")
 parser.add_argument(
     "--dataset_size",
     type=str,
@@ -47,7 +47,7 @@ parser.add_argument(
 parser.add_argument(
     "--use_preprocessed",
     action="store_true",
-    help="Use preprocessed memory-mapped data (must run preprocess_data.py first)",
+    help="Use preprocessed memory-mapped data if set; otherwise process from CSV (default: False)",
 )
 
 args = parser.parse_args()
@@ -56,15 +56,18 @@ args = parser.parse_args()
 if args.error_type == "indel_substitution":
     model_dir_path_suffix = "model_with_errors"
     label_classes = 6
-    wandb_project_name = "train_full_model_errors_V2"
+    wandb_project_name = "DeepCDS_errors"
+    steps_between_vals = 10000
 elif args.error_type == "substitution":
     model_dir_path_suffix = "model_with_substitution_errors"
     label_classes = 4
-    wandb_project_name = "train_full_model_with_substitution_errors_V2"
+    wandb_project_name = "DeepCDS_substitution_errors"
+    steps_between_vals = 6000
 else:
     model_dir_path_suffix = "model_without_errors"
     label_classes = 4
-    wandb_project_name = "train_full_model_no_errors_V2"
+    wandb_project_name = "DeepCDS_no_errors"
+    steps_between_vals = 5000
 
 
 debug_mode = False  # Set to True for debugging with smaller dataset
@@ -72,14 +75,14 @@ debug_mode = False  # Set to True for debugging with smaller dataset
 if debug_mode == True:
     steps_between_vals = 50 * 5
     frac_train = 0.005 * 5 # 2.5 % of 2.4 M samples = 12000 samples
-    frac_val = 0.002 * 5
+    frac_val = 0.0005 * 5  # 0.05 % of 25 % of 2.3 M samples = 1150 samples
     model_checkpoint_extension = "_debug"
+    wandb_project_name = "debug"
 
 else: 
-    steps_between_vals = 5000
     frac_train = 1.0
     frac_val = 0.25
-    model_checkpoint_extension = ""
+    model_checkpoint_extension = "_final"
 
 # Configure CUDA memory allocations (manage fragmentation in the GPU memory)
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
@@ -298,12 +301,13 @@ class SeqDataset(torch.utils.data.Dataset):
         return len(self.label_encodings)
 
 
-class MemoryMappedSeqDataset(torch.utils.data.Dataset):
+class PreprocessedSeqDataset(torch.utils.data.Dataset):
     """
-    Memory-efficient dataset that loads from preprocessed memory-mapped files.
+    Dataset that loads preprocessed data from disk into RAM for fast training.
 
-    This dataset reads data directly from disk using numpy memory mapping,
-    keeping RAM usage minimal regardless of dataset size.
+    This dataset loads memory-mapped files into regular numpy arrays at init time,
+    which uses more RAM but provides much faster training since there's no disk I/O
+    during batch loading.
 
     Args:
         data_dir (str): Directory containing the preprocessed .npy files
@@ -320,41 +324,59 @@ class MemoryMappedSeqDataset(torch.utils.data.Dataset):
         self.max_aa_len = shapes["max_aa_len"]
         self.max_len = shapes["max_len"]
 
-        # Open memory-mapped files in read mode
-        self.nt_rf0 = np.memmap(f"{data_dir}/nt_encodings_rf0.npy", dtype='float32', mode='r',
-                                shape=(self.n_samples, self.max_aa_len, 12))
-        self.nt_rf1 = np.memmap(f"{data_dir}/nt_encodings_rf1.npy", dtype='float32', mode='r',
-                                shape=(self.n_samples, self.max_aa_len, 12))
-        self.nt_rf2 = np.memmap(f"{data_dir}/nt_encodings_rf2.npy", dtype='float32', mode='r',
-                                shape=(self.n_samples, self.max_aa_len, 12))
+        print(f"Loading preprocessed data into RAM from {data_dir}...", flush=True)
 
-        self.aa_input_ids_rf0 = np.memmap(f"{data_dir}/aa_input_ids_rf0.npy", dtype='int64', mode='r',
-                                          shape=(self.n_samples, self.max_len))
-        self.aa_input_ids_rf1 = np.memmap(f"{data_dir}/aa_input_ids_rf1.npy", dtype='int64', mode='r',
-                                          shape=(self.n_samples, self.max_len))
-        self.aa_input_ids_rf2 = np.memmap(f"{data_dir}/aa_input_ids_rf2.npy", dtype='int64', mode='r',
-                                          shape=(self.n_samples, self.max_len))
+        # Load memory-mapped files into regular numpy arrays (loaded into RAM)
+        # This is done once at init, so training is fast
+        print("  [1/13] Loading nt_encodings_rf0...", flush=True)
+        self.nt_rf0 = np.array(np.memmap(f"{data_dir}/nt_encodings_rf0.npy", dtype='float32', mode='r',
+                                          shape=(self.n_samples, self.max_aa_len, 12)))
+        print("  [2/13] Loading nt_encodings_rf1...", flush=True)
+        self.nt_rf1 = np.array(np.memmap(f"{data_dir}/nt_encodings_rf1.npy", dtype='float32', mode='r',
+                                          shape=(self.n_samples, self.max_aa_len, 12)))
+        print("  [3/13] Loading nt_encodings_rf2...", flush=True)
+        self.nt_rf2 = np.array(np.memmap(f"{data_dir}/nt_encodings_rf2.npy", dtype='float32', mode='r',
+                                          shape=(self.n_samples, self.max_aa_len, 12)))
 
-        self.aa_attention_rf0 = np.memmap(f"{data_dir}/aa_attention_mask_rf0.npy", dtype='int64', mode='r',
-                                          shape=(self.n_samples, self.max_len))
-        self.aa_attention_rf1 = np.memmap(f"{data_dir}/aa_attention_mask_rf1.npy", dtype='int64', mode='r',
-                                          shape=(self.n_samples, self.max_len))
-        self.aa_attention_rf2 = np.memmap(f"{data_dir}/aa_attention_mask_rf2.npy", dtype='int64', mode='r',
-                                          shape=(self.n_samples, self.max_len))
+        print("  [4/13] Loading aa_input_ids_rf0...", flush=True)
+        self.aa_input_ids_rf0 = np.array(np.memmap(f"{data_dir}/aa_input_ids_rf0.npy", dtype='int64', mode='r',
+                                                    shape=(self.n_samples, self.max_len)))
+        print("  [5/13] Loading aa_input_ids_rf1...", flush=True)
+        self.aa_input_ids_rf1 = np.array(np.memmap(f"{data_dir}/aa_input_ids_rf1.npy", dtype='int64', mode='r',
+                                                    shape=(self.n_samples, self.max_len)))
+        print("  [6/13] Loading aa_input_ids_rf2...", flush=True)
+        self.aa_input_ids_rf2 = np.array(np.memmap(f"{data_dir}/aa_input_ids_rf2.npy", dtype='int64', mode='r',
+                                                    shape=(self.n_samples, self.max_len)))
 
-        self.labels_rf0 = np.memmap(f"{data_dir}/labels_rf0.npy", dtype='int8', mode='r',
-                                    shape=(self.n_samples, self.max_aa_len))
-        self.labels_rf1 = np.memmap(f"{data_dir}/labels_rf1.npy", dtype='int8', mode='r',
-                                    shape=(self.n_samples, self.max_aa_len))
-        self.labels_rf2 = np.memmap(f"{data_dir}/labels_rf2.npy", dtype='int8', mode='r',
-                                    shape=(self.n_samples, self.max_aa_len))
+        print("  [7/13] Loading aa_attention_mask_rf0...", flush=True)
+        self.aa_attention_rf0 = np.array(np.memmap(f"{data_dir}/aa_attention_mask_rf0.npy", dtype='int64', mode='r',
+                                                    shape=(self.n_samples, self.max_len)))
+        print("  [8/13] Loading aa_attention_mask_rf1...", flush=True)
+        self.aa_attention_rf1 = np.array(np.memmap(f"{data_dir}/aa_attention_mask_rf1.npy", dtype='int64', mode='r',
+                                                    shape=(self.n_samples, self.max_len)))
+        print("  [9/13] Loading aa_attention_mask_rf2...", flush=True)
+        self.aa_attention_rf2 = np.array(np.memmap(f"{data_dir}/aa_attention_mask_rf2.npy", dtype='int64', mode='r',
+                                                    shape=(self.n_samples, self.max_len)))
 
-        self.label_encodings = np.memmap(f"{data_dir}/label_encodings.npy", dtype='int8', mode='r',
-                                         shape=(self.n_samples, self.max_len - 2))
+        print("  [10/13] Loading labels_rf0...", flush=True)
+        self.labels_rf0 = np.array(np.memmap(f"{data_dir}/labels_rf0.npy", dtype='int8', mode='r',
+                                              shape=(self.n_samples, self.max_aa_len)))
+        print("  [11/13] Loading labels_rf1...", flush=True)
+        self.labels_rf1 = np.array(np.memmap(f"{data_dir}/labels_rf1.npy", dtype='int8', mode='r',
+                                              shape=(self.n_samples, self.max_aa_len)))
+        print("  [12/13] Loading labels_rf2...", flush=True)
+        self.labels_rf2 = np.array(np.memmap(f"{data_dir}/labels_rf2.npy", dtype='int8', mode='r',
+                                              shape=(self.n_samples, self.max_aa_len)))
+
+        print("  [13/13] Loading label_encodings...", flush=True)
+        self.label_encodings = np.array(np.memmap(f"{data_dir}/label_encodings.npy", dtype='int8', mode='r',
+                                                   shape=(self.n_samples, self.max_len - 2)))
 
         # Load sequence descriptions (small, kept in memory)
         with open(f"{data_dir}/seq_descs.pkl", "rb") as f:
             self.seq_descs = pickle.load(f)
+
+        print(f"Loaded {self.n_samples} samples into RAM.", flush=True)
 
     def __getitem__(self, idx):
         return {
@@ -363,20 +385,20 @@ class MemoryMappedSeqDataset(torch.utils.data.Dataset):
                 "input_ids": torch.from_numpy(self.aa_input_ids_rf0[idx].copy()),
                 "attention_mask": torch.from_numpy(self.aa_attention_rf0[idx].copy()),
             },
-            "labels_rf0": torch.from_numpy(self.labels_rf0[idx].copy().astype(np.float32)),
+            "labels_rf0": torch.from_numpy(self.labels_rf0[idx].astype(np.float32)),
             "nt_encodings_rf1": torch.from_numpy(self.nt_rf1[idx].copy()),
             "aa_encodings_rf1": {
                 "input_ids": torch.from_numpy(self.aa_input_ids_rf1[idx].copy()),
                 "attention_mask": torch.from_numpy(self.aa_attention_rf1[idx].copy()),
             },
-            "labels_rf1": torch.from_numpy(self.labels_rf1[idx].copy().astype(np.float32)),
+            "labels_rf1": torch.from_numpy(self.labels_rf1[idx].astype(np.float32)),
             "nt_encodings_rf2": torch.from_numpy(self.nt_rf2[idx].copy()),
             "aa_encodings_rf2": {
                 "input_ids": torch.from_numpy(self.aa_input_ids_rf2[idx].copy()),
                 "attention_mask": torch.from_numpy(self.aa_attention_rf2[idx].copy()),
             },
-            "labels_rf2": torch.from_numpy(self.labels_rf2[idx].copy().astype(np.float32)),
-            "label_encodings": torch.from_numpy(self.label_encodings[idx].copy().astype(np.float32)),
+            "labels_rf2": torch.from_numpy(self.labels_rf2[idx].astype(np.float32)),
+            "label_encodings": torch.from_numpy(self.label_encodings[idx].astype(np.float32)),
             "seq_desc": self.seq_descs[idx],
         }
 
@@ -498,9 +520,9 @@ def load_preprocessed_data(dataset_size):
     print(f"Loading preprocessed training data from: {train_dir}", flush=True)
     print(f"Loading preprocessed validation data from: {val_dir}", flush=True)
 
-    # Load memory-mapped datasets
-    train_data = MemoryMappedSeqDataset(train_dir)
-    val_data = MemoryMappedSeqDataset(val_dir)
+    # Load preprocessed datasets into RAM
+    train_data = PreprocessedSeqDataset(train_dir)
+    val_data = PreprocessedSeqDataset(val_dir)
 
     print(f"Training data samples: {len(train_data)}", flush=True)
     print(f"Validation data samples: {len(val_data)}", flush=True)
@@ -1319,7 +1341,7 @@ class CategoricalLossTracker: #MODIFY
 
 def log_evaluation_metrics(epoch, train_avg_loss, val_avg_loss, best_val_loss, tracker, sequence_metrics, val_times_counter, sequence_types):
     """
-    Print evaluation metrics for the current epoch and log them to Weights & Biases (wandb).
+    Print evaluation metrics for the current epoch and prepare wandb logging dict.
 
     Args:
         epoch (int): Current training epoch.
@@ -1332,7 +1354,7 @@ def log_evaluation_metrics(epoch, train_avg_loss, val_avg_loss, best_val_loss, t
         sequence_types (list[str]): List of sequence types (e.g., categories) to include in type-specific metrics.
 
     Returns:
-        int: Updated validation counter (val_times_counter + 1).
+        tuple: (val_times_counter + 1, wandb_log dict) - Updated counter and metrics dict for logging.
     """
 
     # Build the print statement with type-specific metrics
@@ -1407,10 +1429,8 @@ def log_evaluation_metrics(epoch, train_avg_loss, val_avg_loss, best_val_loss, t
     # Log lowest validation loss obtained throughout entire training
     wandb_log[f"best_val_loss"] = best_val_loss
 
-    # Log to wandb
-    wandb.log(wandb_log)
-
-    return val_times_counter + 1
+    # Return the dict instead of logging - caller will consolidate all metrics
+    return val_times_counter + 1, wandb_log
 
 
 def training_iteration(i, batch, scaler, model, optimizer, device, train_losses, warmup_state=None):
@@ -1656,20 +1676,24 @@ wandb.init(
     name=f"train_{dataset_size}_seed_{args.seed}",
 )
 
+# With preprocessed data in RAM, fewer workers needed (loading from RAM is fast)
+# Reduces process count and memory reporting confusion from forked workers
+dataloader_num_workers = 2 if args.use_preprocessed else num_workers_cpu
+
 train_loader = DataLoader(
     train_data,
     batch_size=batch_size,
     shuffle=True,
-    num_workers=num_workers_cpu,
+    num_workers=dataloader_num_workers,
     pin_memory=pin_memory,
     drop_last=True
 )
 
-val_loader = DataLoader( #MODIFY
+val_loader = DataLoader(
     val_data,
     batch_size=450,
     shuffle=False,
-    num_workers=num_workers_cpu,
+    num_workers=dataloader_num_workers,
     pin_memory=pin_memory
 )
 
@@ -1730,6 +1754,9 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     min_lr=1e-7           # Don't reduce below this
 )
 
+# Store initial LR for tracking scheduler changes (use first param group as reference)
+initial_lr = optimizer.param_groups[0]["lr"]
+
 # Initialize variables for early stopping
 best_val_loss = float("inf")
 
@@ -1761,6 +1788,7 @@ for epoch in range(epochs):
 
         # Validation loop
         if step % eval_every_n_steps == 0 and step > 0:
+            print("Eval starting...", flush=True)
             clear_memory()
             model.eval()
 
@@ -1940,12 +1968,12 @@ for epoch in range(epochs):
             # Step the learning rate scheduler based on validation loss
             scheduler.step(val_avg_loss)
 
-            # Log current learning rates to wandb
-            current_lrs = {f"lr_group_{i}": pg["lr"] for i, pg in enumerate(optimizer.param_groups)}
-            wandb.log(current_lrs)
+            # Track LR as percentage of initial (starts at 100%, decreases when scheduler triggers)
+            current_lr = optimizer.param_groups[0]["lr"]
+            lr_percentage = (current_lr / initial_lr) * 100
 
-            # Log performance metrics
-            val_times_counter = log_evaluation_metrics(
+            # Get evaluation metrics (returns counter and wandb dict)
+            val_times_counter, wandb_metrics = log_evaluation_metrics(
                 epoch,
                 train_avg_loss,
                 val_avg_loss,
@@ -1955,6 +1983,9 @@ for epoch in range(epochs):
                 val_times_counter,
                 sequence_types,
             )
+
+            # Consolidate all metrics for single wandb.log call
+            all_metrics = {**wandb_metrics, "lr_percent_of_initial": lr_percentage}
 
             if val_times_counter == freeze_esm_validations:
                 # Unfreeze ESM-2 layers and set up warmup
@@ -1990,12 +2021,12 @@ for epoch in range(epochs):
 
                 print(f"ESM-2 parameters changed by: {relative_change:.6e} ({relative_change * 100:.4f}%)", flush=True)
 
-                wandb.log(
-                    {
-                        "esm2_cumulative_change": relative_change,
-                        "validations_since_unfreeze": val_times_counter - freeze_esm_validations,
-                    }
-                )
+                # Add ESM-2 metrics to consolidated log
+                all_metrics["esm2_cumulative_change"] = relative_change
+                all_metrics["validations_since_unfreeze"] = val_times_counter - freeze_esm_validations
+
+            # Single consolidated wandb.log call
+            wandb.log(all_metrics)
 
             # Clean up validation data
             del val_losses, all_val_true_sequences, all_val_pred_sequences, all_val_sequence_types
@@ -2009,7 +2040,6 @@ for epoch in range(epochs):
 
     # Check for early stopping again at end of epoch
     if counter_patience >= threshold_patience:
-        print("Early stopping triggered at end of epoch!", flush=True)
         break
 
 wandb.finish()
