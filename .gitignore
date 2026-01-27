@@ -2,7 +2,7 @@
 README.txt
 
 ###Ignore pyproject.tomal for now
-pyproject.toml
+##pyproject.toml
 
 ###Ignore all datafiles
 /data/**
