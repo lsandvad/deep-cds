@@ -56,7 +56,7 @@ Project workspace for DeepCDS project
 
 #### Performance and benchmark
 - [ ] 1. /benchmark/predict/model_predict_shared_crf.ipynb (Predict with models)
-- [ ] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
+- [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
 - [ ] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal)
 - [ ] 2. /postprocess_preds/postprocess_testset.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_model_predictions.ipynb (Postprocess testset)

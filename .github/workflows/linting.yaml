@@ -18,21 +18,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v7
+      - name: Setup conda
+        uses: conda-incubator/setup-miniconda@v3
         with:
           python-version: "3.12"
+          auto-activate-base: true
 
       - name: Install dependencies
         run: |
-          uv sync
+          pip install ruff
 
       - name: ruff check
         run: |
-          uv run ruff check .
+          ruff check .
 
       - name: ruff format
         run: |
-          uv run ruff format .
+          ruff format --check .
 
       - run: echo "Linting workflow ran"
