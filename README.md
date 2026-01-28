@@ -55,9 +55,13 @@ Project workspace for DeepCDS project
 - [ ] 2. /modeling/training_shared_crf/train_*.ipynb
 
 #### Performance and benchmark
-- [ ] 1. /benchmark/predict/model_predict_shared_crf.ipynb (Predict with models)
 - [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
-- [ ] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal)
+    - [ ] Predict all on datasets with no sequencing errors 
+    - [ ] Predict all on datasets with sequencing errors
+- [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal)
+    - [ ] Predict all on datasets with no sequencing errors 
+    - [ ] Predict all on datasets with sequencing errors
+- [ ] 1. /benchmark/predict/model_predict_shared_crf.ipynb (Predict with models)
 - [ ] 2. /postprocess_preds/postprocess_testset.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_model_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)

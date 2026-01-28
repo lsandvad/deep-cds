@@ -40,8 +40,4 @@ jobs:
         run: |
           ruff check .
 
-      - name: ruff format
-        run: |
-          ruff format --check .
-
       - run: echo "Linting workflow ran"

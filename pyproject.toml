@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deep-cds"
-version = "0.1.0"
-authors = [{name = "EM", email = "me@em.com"}]
-description = "Something cool here."
+version = "1.0.0"
+authors = [{name = "Line Sandvad Nielsen", email = "line.s.nielsen@bio.ku.dk"}]
+description = "DeepCDS predictor for predicting CDS sequences from short reads"
 requires-python = ">=3.8"
 dynamic = ["dependencies"]
 
@@ -18,7 +18,5 @@ line-length = 200
 
 [tool.ruff.lint]
 select = ["I", "N", "E"]
-#select = ["I", "N", "E", "W", ]
 
-####MODIFY EVERYTHING!
 #Read this docs: https://packaging.python.org/en/latest/specifications/pyproject-toml/#declaring-project-metadata

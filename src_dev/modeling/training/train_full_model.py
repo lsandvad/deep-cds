@@ -87,7 +87,7 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 
 if args.healthtech_cluster:
     input_data_dir_path = f"../../../data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"
-    num_workers_cpu = 4
+    num_workers_cpu = 2
     pin_memory = True
     # Use argparse values
     device = torch.device(f"cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -102,7 +102,7 @@ if args.healthtech_cluster:
 
 elif args.scarb_cluster:
     input_data_dir_path = f"/tmp/nrt204/FragmentPredictor/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"  # SCARB cluster
-    num_workers_cpu = 4
+    num_workers_cpu = 2
     pin_memory = True
     # Use argparse values
     device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
