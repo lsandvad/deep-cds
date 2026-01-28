@@ -1638,8 +1638,8 @@ def main():
             future.result()
 
 if __name__ == "__main__":
-    process_train_val_reads = True
-    process_test_reads = False
+    process_train_val_reads = False
+    process_test_reads = True
 
     if process_train_val_reads:
         partition = "train_val"
@@ -1665,7 +1665,7 @@ if __name__ == "__main__":
         accessions = accessions_test
 
         #for seqs_len in [30, 60, 75, 100, 150, 300, 700, 1000]:
-        for seqs_len in [1000]:
+        for seqs_len in [700]:
             print("Now processing read length: ", seqs_len)
 
             for error_rates in [
@@ -1673,10 +1673,22 @@ if __name__ == "__main__":
                 f"with_errors_3.75e-05i_0.03s_{str(seqs_len)}bp",
                 f"with_errors_5e-06i_0.004s_{str(seqs_len)}bp"]:
 
+
+                # Continue processing from where left off
+                accessions = set(accessions_test)
+                try:
+                    accessions_processed = os.listdir(f"{data_base_path}/data/processed_data/reads_processed/test/{error_rates}/fasta/")
+                    accessions_processed = set([accession[:-9] for accession in accessions_processed])
+                    accessions = accessions - accessions_processed
+
+                except FileNotFoundError:
+                    accessions = accessions
+
                 print("======================================")
                 print("Data partition: ", partition)
                 print("Dataset: ", error_rates)
                 print("Read length: ", seqs_len)
+                print(f"Missing {len(accessions)} accessions to process for error rate and sequnece length.")
                 print("Processing samples...")
                 main()
                 print("======================================")

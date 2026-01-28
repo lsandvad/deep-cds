@@ -21,15 +21,15 @@ Project workspace for DeepCDS project
 - [x] 4. /data_preprocessing/extract_smaller_training_sets.py
 - [x] 4. /data_preprocessing/simulate_reads.py (simulate reads of user-defined coverage and length on both template and complement strands)
 - [ ] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
-    - [] Train and val data
-    - [] Test data: 30 bp reads
+    - [ ] Train and val data
+    - [ ] Test data: 30 bp reads
     - [ ] Test data: 60 bp reads
     - [ ] Test data: 75 bp reads
     - [ ] Test data: 100 bp reads
     - [ ] Test data: 150 bp reads
-    - [] Test data: 300 bp reads
-    - [] Test data: 700 bp reads
-    - [] Test data: 1000 bp reads
+    - [ ] Test data: 300 bp reads
+    - [ ] Test data: 700 bp reads
+    - [ ] Test data: 1000 bp reads
 - [ ] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
     - [x] Train and val data
     - [x] Test data: 30 bp reads

@@ -1,14 +1,13 @@
-import pandas as pd
+import gzip
 import os
 import re
-import gzip
-import pysam
-
-from Bio import SeqIO
+import warnings
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from Bio import BiopythonDeprecationWarning
-import warnings
+
+import pandas as pd
+import pysam
+from Bio import BiopythonDeprecationWarning, SeqIO
 
 # Suppress FASTA comment deprecation warnings globally
 warnings.filterwarnings("ignore", category=BiopythonDeprecationWarning)

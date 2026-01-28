@@ -10,12 +10,13 @@ Usage:
     python preprocess_data.py --dataset_size all_genomes --error_type none
 """
 
-import numpy as np
-import pandas as pd
+import argparse
 import gc
 import os
 import pickle
-import argparse
+
+import numpy as np
+import pandas as pd
 from transformers import AutoTokenizer
 
 # Parse arguments

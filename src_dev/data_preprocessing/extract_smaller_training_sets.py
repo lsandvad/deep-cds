@@ -1,5 +1,6 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
+
 
 def create_stratified_subsamples(genomes_info_train, target_sizes=[400, 200, 100]) -> dict:
     """

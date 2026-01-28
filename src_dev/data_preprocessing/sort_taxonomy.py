@@ -1,6 +1,7 @@
 import io
 import os
 import zipfile
+
 from tqdm import tqdm
 
 os.makedirs("../../data/processed_data/taxonomy/", exist_ok=True)

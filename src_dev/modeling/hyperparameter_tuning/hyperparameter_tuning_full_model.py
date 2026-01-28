@@ -1,24 +1,22 @@
-import numpy as np
-import pandas as pd
-import optuna
 import gc
-import math
-import yaml
-
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from sklearn.metrics import matthews_corrcoef
-from transformers import AutoTokenizer, AutoModel
-from torch.amp import GradScaler, autocast
-
-import wandb
-import os
 import json
+import math
+import os
 import pickle
 import random
 
+import numpy as np
+import optuna
+import pandas as pd
+import torch
+import torch.nn as nn
+import wandb
+import yaml
+from sklearn.metrics import matthews_corrcoef
+from torch.amp import GradScaler, autocast
+from torch.utils.data import DataLoader
 from torchcrf import CRF
+from transformers import AutoModel, AutoTokenizer
 
 torch.cuda.empty_cache() #Clear the GPU memory cache
 pd.options.mode.chained_assignment = None

@@ -1,22 +1,21 @@
+import gc
+import json
+import math
+import os
+import pickle
+import random
+
 import numpy as np
 import pandas as pd
-import gc
-import os
-import random
-import math
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
-from sklearn.metrics import matthews_corrcoef
-from transformers import AutoTokenizer, AutoModel
-from torch.amp import GradScaler, autocast
-
 import wandb
-import json
-import pickle
 from omegaconf import OmegaConf
-
+from sklearn.metrics import matthews_corrcoef
+from torch.amp import GradScaler, autocast
+from torch.utils.data import DataLoader
 from torchcrf import CRF
+from transformers import AutoModel, AutoTokenizer
 
 torch.cuda.empty_cache()  # Clear the GPU memory cache
 pd.options.mode.chained_assignment = None
