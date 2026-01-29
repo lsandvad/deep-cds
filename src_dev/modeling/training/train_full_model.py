@@ -42,11 +42,6 @@ parser.add_argument(
     choices=["indel_substitution", "substitution", "none"],
     help="Type of data errors to include (default: indel_substitution)",
 )
-parser.add_argument(
-    "--use_preprocessed",
-    action="store_true",
-    help="Use preprocessed memory-mapped data if set; otherwise process from CSV (default: False)",
-)
 
 args = parser.parse_args()
 
@@ -299,111 +294,6 @@ class SeqDataset(torch.utils.data.Dataset):
         return len(self.label_encodings)
 
 
-class PreprocessedSeqDataset(torch.utils.data.Dataset):
-    """
-    Dataset that loads preprocessed data from disk into RAM for fast training.
-
-    This dataset loads memory-mapped files into regular numpy arrays at init time,
-    which uses more RAM but provides much faster training since there's no disk I/O
-    during batch loading.
-
-    Args:
-        data_dir (str): Directory containing the preprocessed .npy files
-    """
-
-    def __init__(self, data_dir):
-        self.data_dir = data_dir
-
-        # Load shapes
-        with open(f"{data_dir}/shapes.pkl", "rb") as f:
-            shapes = pickle.load(f)
-
-        self.n_samples = shapes["n_samples"]
-        self.max_aa_len = shapes["max_aa_len"]
-        self.max_len = shapes["max_len"]
-
-        print(f"Loading preprocessed data into RAM from {data_dir}...", flush=True)
-
-        # Load memory-mapped files into regular numpy arrays (loaded into RAM)
-        # This is done once at init, so training is fast
-        print("  [1/13] Loading nt_encodings_rf0...", flush=True)
-        self.nt_rf0 = np.array(np.memmap(f"{data_dir}/nt_encodings_rf0.npy", dtype='float32', mode='r',
-                                          shape=(self.n_samples, self.max_aa_len, 12)))
-        print("  [2/13] Loading nt_encodings_rf1...", flush=True)
-        self.nt_rf1 = np.array(np.memmap(f"{data_dir}/nt_encodings_rf1.npy", dtype='float32', mode='r',
-                                          shape=(self.n_samples, self.max_aa_len, 12)))
-        print("  [3/13] Loading nt_encodings_rf2...", flush=True)
-        self.nt_rf2 = np.array(np.memmap(f"{data_dir}/nt_encodings_rf2.npy", dtype='float32', mode='r',
-                                          shape=(self.n_samples, self.max_aa_len, 12)))
-
-        print("  [4/13] Loading aa_input_ids_rf0...", flush=True)
-        self.aa_input_ids_rf0 = np.array(np.memmap(f"{data_dir}/aa_input_ids_rf0.npy", dtype='int64', mode='r',
-                                                    shape=(self.n_samples, self.max_len)))
-        print("  [5/13] Loading aa_input_ids_rf1...", flush=True)
-        self.aa_input_ids_rf1 = np.array(np.memmap(f"{data_dir}/aa_input_ids_rf1.npy", dtype='int64', mode='r',
-                                                    shape=(self.n_samples, self.max_len)))
-        print("  [6/13] Loading aa_input_ids_rf2...", flush=True)
-        self.aa_input_ids_rf2 = np.array(np.memmap(f"{data_dir}/aa_input_ids_rf2.npy", dtype='int64', mode='r',
-                                                    shape=(self.n_samples, self.max_len)))
-
-        print("  [7/13] Loading aa_attention_mask_rf0...", flush=True)
-        self.aa_attention_rf0 = np.array(np.memmap(f"{data_dir}/aa_attention_mask_rf0.npy", dtype='int64', mode='r',
-                                                    shape=(self.n_samples, self.max_len)))
-        print("  [8/13] Loading aa_attention_mask_rf1...", flush=True)
-        self.aa_attention_rf1 = np.array(np.memmap(f"{data_dir}/aa_attention_mask_rf1.npy", dtype='int64', mode='r',
-                                                    shape=(self.n_samples, self.max_len)))
-        print("  [9/13] Loading aa_attention_mask_rf2...", flush=True)
-        self.aa_attention_rf2 = np.array(np.memmap(f"{data_dir}/aa_attention_mask_rf2.npy", dtype='int64', mode='r',
-                                                    shape=(self.n_samples, self.max_len)))
-
-        print("  [10/13] Loading labels_rf0...", flush=True)
-        self.labels_rf0 = np.array(np.memmap(f"{data_dir}/labels_rf0.npy", dtype='int8', mode='r',
-                                              shape=(self.n_samples, self.max_aa_len)))
-        print("  [11/13] Loading labels_rf1...", flush=True)
-        self.labels_rf1 = np.array(np.memmap(f"{data_dir}/labels_rf1.npy", dtype='int8', mode='r',
-                                              shape=(self.n_samples, self.max_aa_len)))
-        print("  [12/13] Loading labels_rf2...", flush=True)
-        self.labels_rf2 = np.array(np.memmap(f"{data_dir}/labels_rf2.npy", dtype='int8', mode='r',
-                                              shape=(self.n_samples, self.max_aa_len)))
-
-        print("  [13/13] Loading label_encodings...", flush=True)
-        self.label_encodings = np.array(np.memmap(f"{data_dir}/label_encodings.npy", dtype='int8', mode='r',
-                                                   shape=(self.n_samples, self.max_len - 2)))
-
-        # Load sequence descriptions (small, kept in memory)
-        with open(f"{data_dir}/seq_descs.pkl", "rb") as f:
-            self.seq_descs = pickle.load(f)
-
-        print(f"Loaded {self.n_samples} samples into RAM.", flush=True)
-
-    def __getitem__(self, idx):
-        return {
-            "nt_encodings_rf0": torch.from_numpy(self.nt_rf0[idx].copy()),
-            "aa_encodings_rf0": {
-                "input_ids": torch.from_numpy(self.aa_input_ids_rf0[idx].copy()),
-                "attention_mask": torch.from_numpy(self.aa_attention_rf0[idx].copy()),
-            },
-            "labels_rf0": torch.from_numpy(self.labels_rf0[idx].astype(np.float32)),
-            "nt_encodings_rf1": torch.from_numpy(self.nt_rf1[idx].copy()),
-            "aa_encodings_rf1": {
-                "input_ids": torch.from_numpy(self.aa_input_ids_rf1[idx].copy()),
-                "attention_mask": torch.from_numpy(self.aa_attention_rf1[idx].copy()),
-            },
-            "labels_rf1": torch.from_numpy(self.labels_rf1[idx].astype(np.float32)),
-            "nt_encodings_rf2": torch.from_numpy(self.nt_rf2[idx].copy()),
-            "aa_encodings_rf2": {
-                "input_ids": torch.from_numpy(self.aa_input_ids_rf2[idx].copy()),
-                "attention_mask": torch.from_numpy(self.aa_attention_rf2[idx].copy()),
-            },
-            "labels_rf2": torch.from_numpy(self.labels_rf2[idx].astype(np.float32)),
-            "label_encodings": torch.from_numpy(self.label_encodings[idx].astype(np.float32)),
-            "seq_desc": self.seq_descs[idx],
-        }
-
-    def __len__(self):
-        return self.n_samples
-
-
 def encode_data(processed_samples_df, max_len, tokenizer=None, max_aa_len=max_aa_len):
     """
     Encode data samples to fit model input format.
@@ -497,46 +387,6 @@ def encode_data(processed_samples_df, max_len, tokenizer=None, max_aa_len=max_aa
     )
 
     return dataset, list(set(seq_descriptions))
-
-
-def load_preprocessed_data(dataset_size):
-    """
-    Load preprocessed memory-mapped data.
-
-    Args:
-        dataset_size: Size of the training dataset (e.g., "100_genomes")
-
-    Returns:
-        train_data: Memory-mapped training dataset
-        val_data: Memory-mapped validation dataset
-        sequence_types: List of unique sequence types
-        seq_type_desc_fracs: Distribution of sequence types in validation set
-    """
-    train_dir = f"{input_data_dir_path}/datasets_model/preprocessed_train_{dataset_size}"
-    val_dir = f"{input_data_dir_path}/datasets_model/preprocessed_val"
-
-    print(f"Loading preprocessed training data from: {train_dir}", flush=True)
-    print(f"Loading preprocessed validation data from: {val_dir}", flush=True)
-
-    # Load preprocessed datasets into RAM
-    train_data = PreprocessedSeqDataset(train_dir)
-    val_data = PreprocessedSeqDataset(val_dir)
-
-    print(f"Training data samples: {len(train_data)}", flush=True)
-    print(f"Validation data samples: {len(val_data)}", flush=True)
-
-    # Get sequence types and distribution from the loaded data
-    sequence_types = list(set(train_data.seq_descs))
-
-    # Calculate distribution from validation set
-    val_seq_counts = Counter(val_data.seq_descs)
-    total_val = len(val_data.seq_descs)
-    seq_type_desc_fracs = {k: v / total_val for k, v in val_seq_counts.items()}
-
-    print(f"Sequence types: {sequence_types}", flush=True)
-    print(f"Distribution of sequence types in validation set: {seq_type_desc_fracs}", flush=True)
-
-    return train_data, val_data, sequence_types, seq_type_desc_fracs
 
 
 def load_and_process_data(max_len, dataset_size):
@@ -1636,12 +1486,8 @@ set_seed(args.seed)
 print(f"Using random seed: {args.seed}", flush=True)
 
 # Load in data once
-if args.use_preprocessed:
-    print("Using preprocessed memory-mapped data...", flush=True)
-    train_data, val_data, sequence_types, seq_type_desc_fracs = load_preprocessed_data(dataset_size)
-else:
-    print("Processing data from CSV files (high RAM usage)...", flush=True)
-    train_data, val_data, sequence_types, seq_type_desc_fracs = load_and_process_data(max_len, dataset_size)
+print("Processing data from CSV files", flush=True)
+train_data, val_data, sequence_types, seq_type_desc_fracs = load_and_process_data(max_len, dataset_size)
 
 # Load the optimized hyperparameters
 cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/full_model_hyperparameters.yaml")
@@ -1674,9 +1520,7 @@ wandb.init(
     name=f"train_{dataset_size}_seed_{args.seed}",
 )
 
-# With preprocessed data in RAM, fewer workers needed (loading from RAM is fast)
-# Reduces process count and memory reporting confusion from forked workers
-dataloader_num_workers = 2 if args.use_preprocessed else num_workers_cpu
+dataloader_num_workers = 2
 
 train_loader = DataLoader(
     train_data,

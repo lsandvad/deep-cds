@@ -28,8 +28,8 @@ Project workspace for DeepCDS project
     - [ ] Test data: 100 bp reads
     - [ ] Test data: 150 bp reads
     - [ ] Test data: 300 bp reads
-    - [ ] Test data: 700 bp reads
-    - [ ] Test data: 1000 bp reads
+    - [x] Test data: 700 bp reads
+    - [x] Test data: 1000 bp reads
 - [ ] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
     - [x] Train and val data
     - [x] Test data: 30 bp reads
@@ -56,10 +56,10 @@ Project workspace for DeepCDS project
 
 #### Performance and benchmark
 - [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
-    - [ ] Predict all on datasets with no sequencing errors 
+    - [ ] Predict all on datasets with no sequencing errors -> RUNNIG
     - [ ] Predict all on datasets with sequencing errors
 - [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal)
-    - [ ] Predict all on datasets with no sequencing errors 
+    - [x] Predict all on datasets with no sequencing errors
     - [ ] Predict all on datasets with sequencing errors
 - [ ] 1. /benchmark/predict/model_predict_shared_crf.ipynb (Predict with models)
 - [ ] 2. /postprocess_preds/postprocess_testset.ipynb (Postprocess testset)

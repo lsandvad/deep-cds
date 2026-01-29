@@ -595,10 +595,10 @@ def encode_nucleotide_to_amino_acid(sequence):
     for i in range(0, len(sequence), 3):
         codon = sequence[i : i + 3]
         # Get amino acid (stop codons represented as X)
-        amino_acid = genetic_code.get(codon, "Å")
+        amino_acid = genetic_code.get(codon, "<unk>")
         amino_acid_sequence += amino_acid
 
-    assert "Å" not in amino_acid_sequence, "Unknown nucleotides present in sequence."
+    assert "<unk>" not in amino_acid_sequence, "Unknown nucleotides present in sequence."
 
     return amino_acid_sequence
 
