@@ -1664,8 +1664,7 @@ if __name__ == "__main__":
         partition = "test"
         accessions = accessions_test
 
-        #for seqs_len in [30, 60, 75, 100, 150, 300, 700, 1000]:
-        for seqs_len in [700]:
+        for seqs_len in [60, 75, 100, 150, 300, 700, 1000]:
             print("Now processing read length: ", seqs_len)
 
             for error_rates in [

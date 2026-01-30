@@ -171,14 +171,32 @@ def simulate_training_validation_reads(accessions_train, accessions_val) -> None
         3) without sequencing errors
     """
     for accession in tqdm(accessions_train + accessions_val):
-        # Simulate reads with sequencing errors (simulate 0.02 % indel error rate, and 0.6 % substitution error rate)
-        simulate_reads(accession, read_length=300, coverage=1, substitution_error_rate=0.005, indel_error_rates=0.00025, with_errors="indels_substitutions", genome_partition="train_val")
+        # Simulate reads with sequencing errors (simulate 0.05 % indel error rate, and 0.5 % substitution error rate)
+        simulate_reads(accession, 
+                       read_length=300, 
+                       coverage=1, 
+                       substitution_error_rate=0.005, 
+                       indel_error_rates=0.00025, 
+                       with_errors="indels_substitutions", 
+                       genome_partition="train_val")
 
         # Dataset only with substitution errors (0.5 % substitution error rate, no indel errors)
-        simulate_reads(accession, read_length=300, coverage=1, substitution_error_rate=0.005, indel_error_rates=0.0, with_errors="substitutions_only", genome_partition="train_val")
+        simulate_reads(accession, 
+                       read_length=300, 
+                       coverage=1, 
+                       substitution_error_rate=0.005, 
+                       indel_error_rates=0.0, 
+                       with_errors="substitutions_only", 
+                       genome_partition="train_val")
 
         # Simulate reads without sequencing errors
-        simulate_reads(accession, read_length=300, coverage=1, substitution_error_rate=0, indel_error_rates=0, with_errors=False, genome_partition="train_val")
+        simulate_reads(accession, 
+                       read_length=300, 
+                       coverage=1, 
+                       substitution_error_rate=0, 
+                       indel_error_rates=0, 
+                       with_errors=False, 
+                       genome_partition="train_val")
 
     print("Read simulation complete.")
 
@@ -237,7 +255,14 @@ def simulate_test_reads(accessions_test, read_length, fragment_mean_size=None) -
 
         # Simulate reads without sequencing errors (0% indels, 0% substituion errors)
         simulate_reads(
-            accession, read_length=read_length, coverage=1, substitution_error_rate=0, indel_error_rates=0, with_errors=False, genome_partition="test", fragment_mean_size=fragment_mean_size
+            accession, 
+            read_length=read_length, 
+            coverage=1, 
+            substitution_error_rate=0, 
+            indel_error_rates=0,
+            with_errors=False, 
+            genome_partition="test", 
+            fragment_mean_size=fragment_mean_size
         )
 
     print("Read simulation complete.")
@@ -248,7 +273,7 @@ if __name__ == "__main__":
     simulate_training_validation_reads(accessions_train, accessions_val)
 
     # Simulate reads for test genomes
-    for read_length in [30, 60, 75, 100, 150, 300]:
+    for read_length in [60, 75, 100, 150, 300]:
         print(f"Simulating test reads with length {read_length}")
         simulate_test_reads(accessions_test, read_length)
 

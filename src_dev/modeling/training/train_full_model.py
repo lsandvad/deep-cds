@@ -32,8 +32,8 @@ parser.add_argument(
     help="Dataset size to use for training (default: 100_genomes)",
 )
 parser.add_argument("--gpu", type=int, default=0, help="GPU number to use (default: 0)")
-parser.add_argument("--healthtech_cluster", type=bool, default=False, help="Whether running on HealthTech cluster (default: False)")
-parser.add_argument("--scarb_cluster", type=bool, default=False, help="Whether running on SCARB cluster (default: False)")
+parser.add_argument("--healthtech_cluster", action="store_true", help="Whether running on HealthTech cluster")
+parser.add_argument("--scarb_cluster", action="store_true", help="Whether running on SCARB cluster")
 parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility (default: 42)")
 parser.add_argument(
     "--error_type",

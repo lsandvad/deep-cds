@@ -8,10 +8,11 @@ Project workspace for DeepCDS project
 - [x] Adapt hyperparameter tuning scripts after fixed bug 
     - [ ] Full model
     - [ ] ESM 2
-    - [x] Codon encoding
-- [x] Simulate all test data
+    - [ ] Codon encoding: Done, just remove preprocesing!
 - [ ] Process all simulated reads (testset)
+- [ ] Check that test set error rates are correct, plot in a nice way
 - [ ] Make plots nicer with scienceplots
+
 
 ### Scripts in development - A status
 #### Data preprocessing
@@ -25,7 +26,7 @@ Project workspace for DeepCDS project
     - [ ] Test data: 30 bp reads
     - [ ] Test data: 60 bp reads
     - [ ] Test data: 75 bp reads
-    - [ ] Test data: 100 bp reads
+    - [x] Test data: 100 bp reads
     - [ ] Test data: 150 bp reads
     - [ ] Test data: 300 bp reads
     - [x] Test data: 700 bp reads
@@ -42,7 +43,6 @@ Project workspace for DeepCDS project
     - [x] Test data: 1000 bp reads
 - [x] 6. /data_preprocessing/get_label_encodings.py (map class labels to 3d vectors; use for model that processes all 3 reading frames)
 - [x] 7. /data_preprocessing/prepare_model_datasets.py (creates datasets specific for model input for each of the train and val splits)
-- [x] 8. /data_preprocessing/process_model_datasets_to_npy.py (process model datasets to be .npy files to be loaded more memory-efficiently for training)
 
 #### Data analysis
 - [ ] 1. /data_analysis/generate_taxonomical_trees.ipynb (Generate taxonomical trees in newick format along with partition annotations)
