@@ -40,11 +40,6 @@ parser.add_argument(
     choices=["indel_substitution", "substitution", "none"],
     help="Type of data errors to include (default: indel_substitution)",
 )
-parser.add_argument(
-    "--use_preprocessed",
-    action="store_true",
-    help="Use preprocessed memory-mapped data if set; otherwise process from CSV (default: False)",
-)
 
 args = parser.parse_args()
 
@@ -79,7 +74,7 @@ if debug_mode:
     wandb_project_name = "debug_codon_encoding"
 else:
     frac_train = 1.0
-    frac_val = 0.05 * 4  # 5% of val set for hyperparameter tuning (faster iterations); preprocessed val set is 25 % of sequences
+    frac_val = 0.05 # 5% of val set for hyperparameter tuning (faster iterations); preprocessed val set is 25 % of sequences
     frac_val_overall = 1.0
     model_checkpoint_extension = ""
 
@@ -269,81 +264,6 @@ class SeqDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.label_encodings)
 
-
-class PreprocessedSeqDataset(torch.utils.data.Dataset):
-    """
-    Dataset that loads preprocessed data from disk into RAM for fast training.
-
-    This dataset loads memory-mapped files into regular numpy arrays at init time,
-    which uses more RAM but provides much faster training since there's no disk I/O
-    during batch loading.
-
-    Args:
-        data_dir (str): Directory containing the preprocessed .npy files
-    """
-
-    def __init__(self, data_dir):
-        self.data_dir = data_dir
-
-        # Load shapes
-        with open(f"{data_dir}/shapes.pkl", "rb") as f:
-            shapes = pickle.load(f)
-
-        self.n_samples = shapes["n_samples"]
-        self.max_aa_len = shapes["max_aa_len"]  # 100 (codon/aa length)
-        self.max_len = shapes["max_len"]  # 102 (with CLS/EOS for ESM model)
-
-        print(f"Loading preprocessed data into RAM from {data_dir}...", flush=True)
-
-        # Load memory-mapped files into regular numpy arrays (loaded into RAM)
-        # nt_encodings and labels use max_aa_len (100)
-        print("  [1/7] Loading nt_encodings_rf0...", flush=True)
-        self.nt_rf0 = np.array(np.memmap(f"{data_dir}/nt_encodings_rf0.npy", dtype='float32', mode='r',
-                                          shape=(self.n_samples, self.max_aa_len, 12)))
-        print("  [2/7] Loading nt_encodings_rf1...", flush=True)
-        self.nt_rf1 = np.array(np.memmap(f"{data_dir}/nt_encodings_rf1.npy", dtype='float32', mode='r',
-                                          shape=(self.n_samples, self.max_aa_len, 12)))
-        print("  [3/7] Loading nt_encodings_rf2...", flush=True)
-        self.nt_rf2 = np.array(np.memmap(f"{data_dir}/nt_encodings_rf2.npy", dtype='float32', mode='r',
-                                          shape=(self.n_samples, self.max_aa_len, 12)))
-
-        print("  [4/7] Loading labels_rf0...", flush=True)
-        self.labels_rf0 = np.array(np.memmap(f"{data_dir}/labels_rf0.npy", dtype='int8', mode='r',
-                                              shape=(self.n_samples, self.max_aa_len)))
-        print("  [5/7] Loading labels_rf1...", flush=True)
-        self.labels_rf1 = np.array(np.memmap(f"{data_dir}/labels_rf1.npy", dtype='int8', mode='r',
-                                              shape=(self.n_samples, self.max_aa_len)))
-        print("  [6/7] Loading labels_rf2...", flush=True)
-        self.labels_rf2 = np.array(np.memmap(f"{data_dir}/labels_rf2.npy", dtype='int8', mode='r',
-                                              shape=(self.n_samples, self.max_aa_len)))
-
-        # label_encodings uses max_len - 2 (100, same as max_aa_len)
-        print("  [7/7] Loading label_encodings...", flush=True)
-        self.label_encodings = np.array(np.memmap(f"{data_dir}/label_encodings.npy", dtype='int8', mode='r',
-                                                   shape=(self.n_samples, self.max_len - 2)))
-
-        # Load sequence descriptions (small, kept in memory)
-        with open(f"{data_dir}/seq_descs.pkl", "rb") as f:
-            self.seq_descs = pickle.load(f)
-
-        print(f"Loaded {self.n_samples} samples into RAM.", flush=True)
-
-    def __getitem__(self, idx):
-        return {
-            "nt_encodings_rf0": torch.from_numpy(self.nt_rf0[idx].copy()),
-            "labels_rf0": torch.from_numpy(self.labels_rf0[idx].astype(np.float32)),
-            "nt_encodings_rf1": torch.from_numpy(self.nt_rf1[idx].copy()),
-            "labels_rf1": torch.from_numpy(self.labels_rf1[idx].astype(np.float32)),
-            "nt_encodings_rf2": torch.from_numpy(self.nt_rf2[idx].copy()),
-            "labels_rf2": torch.from_numpy(self.labels_rf2[idx].astype(np.float32)),
-            "label_encodings": torch.from_numpy(self.label_encodings[idx].astype(np.float32)),
-            "seq_desc": self.seq_descs[idx],
-        }
-
-    def __len__(self):
-        return self.n_samples
-
-
 def encode_data(processed_samples_df, max_len):
     """ 
     Encode data samples to fit model input format. 
@@ -457,43 +377,6 @@ def load_and_process_data(max_len):
     return train_data, val_data, sequence_types, seq_type_desc_fracs
 
 
-def load_preprocessed_data():
-    """
-    Load preprocessed memory-mapped data for codon encoding model.
-
-    Returns:
-        train_data: Memory-mapped training dataset
-        val_data: Memory-mapped validation dataset
-        sequence_types: List of unique sequence types
-        seq_type_desc_fracs: Distribution of sequence types in validation set
-    """
-    train_dir = f"{input_data_dir_path}/datasets_model/preprocessed_train_100_genomes"
-    val_dir = f"{input_data_dir_path}/datasets_model/preprocessed_val"
-
-    print(f"Loading preprocessed training data from: {train_dir}", flush=True)
-    print(f"Loading preprocessed validation data from: {val_dir}", flush=True)
-
-    # Load preprocessed datasets into RAM
-    train_data = PreprocessedSeqDataset(train_dir)
-    val_data = PreprocessedSeqDataset(val_dir)
-
-    print(f"Training data samples: {len(train_data)}", flush=True)
-    print(f"Validation data samples: {len(val_data)}", flush=True)
-
-    # Get sequence types and distribution from the loaded data
-    sequence_types = list(set(train_data.seq_descs))
-
-    # Calculate distribution from validation set
-    val_seq_counts = Counter(val_data.seq_descs)
-    total_val = len(val_data.seq_descs)
-    seq_type_desc_fracs = {k: v / total_val for k, v in val_seq_counts.items()}
-
-    print(f"Sequence types: {sequence_types}", flush=True)
-    print(f"Distribution of sequence types in validation set: {seq_type_desc_fracs}", flush=True)
-
-    return train_data, val_data, sequence_types, seq_type_desc_fracs
-
-
 def load_full_validation_set(max_len):
     """ 
     Load full validation set for final validation. 
@@ -558,7 +441,7 @@ class SinusoidalPositionalEncoding(nn.Module):
         # Pre-compute for efficiency, but can extend dynamically
         pe = torch.zeros(max_len, d_model)
         position = torch.arange(0, max_len).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2) * 
+        div_term = torch.exp(torch.arange(0, d_model, 2) *
                             -(math.log(10000.0) / d_model))
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
@@ -578,30 +461,311 @@ class SinusoidalPositionalEncoding(nn.Module):
     def _compute_pe(seq_len, d_model, device):
         pe = torch.zeros(seq_len, d_model, device=device)
         position = torch.arange(0, seq_len, device=device).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2, device=device) * 
+        div_term = torch.exp(torch.arange(0, d_model, 2, device=device) *
                             -(math.log(10000.0) / d_model))
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         return pe
 
 
+class RotaryPositionalEmbedding(nn.Module):
+    """
+    Rotary Position Embedding (RoPE) as described in "RoFormer: Enhanced Transformer with Rotary Position Embedding".
+
+    RoPE encodes position by rotating query and key vectors, which naturally captures relative positions
+    through the dot product. This leads to better length generalization and relative position awareness.
+
+    Supports Position Interpolation (PI) for extending to longer sequences at inference time.
+    When scaling_factor > 1.0, positions are scaled down so that longer sequences map to the
+    position range seen during training (e.g., scaling_factor=4.0 maps 400 positions to 0-100 range).
+
+    Args:
+        dim (int): Dimension of the embedding (should be head_dim, i.e., d_model // num_heads)
+        max_seq_len (int): Maximum sequence length for precomputing frequencies
+        base (float): Base for the frequency computation (default 10000.0)
+        scaling_factor (float): Position interpolation factor. Set to 1.0 during training,
+                                and to (inference_len / train_len) during inference for longer sequences.
+    """
+    def __init__(self, dim, max_seq_len=512, base=10000.0, scaling_factor=1.0):
+        super().__init__()
+        self.dim = dim
+        self.max_seq_len = max_seq_len
+        self.base = base
+        self.scaling_factor = scaling_factor
+
+        # Precompute the frequency bands: theta_i = base^(-2i/dim) for i in [0, dim/2)
+        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
+        self.register_buffer('inv_freq', inv_freq)
+
+        # Precompute cos and sin for positions [0, max_seq_len)
+        self._precompute_freqs(max_seq_len)
+
+    def _precompute_freqs(self, seq_len):
+        """Precompute cos and sin values for all positions up to seq_len."""
+        # Position Interpolation: scale positions by 1/scaling_factor
+        # This maps longer sequences back to the position range seen during training
+        positions = torch.arange(seq_len, device=self.inv_freq.device).float()
+        positions = positions / self.scaling_factor
+
+        # Outer product: [seq_len, dim/2]
+        freqs = torch.outer(positions, self.inv_freq)
+        # Duplicate for pairing: [seq_len, dim]
+        freqs = torch.cat([freqs, freqs], dim=-1)
+
+        self.register_buffer('cos_cached', freqs.cos(), persistent=False)
+        self.register_buffer('sin_cached', freqs.sin(), persistent=False)
+
+    def set_scaling_factor(self, scaling_factor):
+        """
+        Update the scaling factor for position interpolation.
+        Call this before inference on longer sequences.
+
+        Args:
+            scaling_factor: New scaling factor (inference_len / train_len)
+        """
+        if scaling_factor != self.scaling_factor:
+            self.scaling_factor = scaling_factor
+            # Recompute frequencies with new scaling
+            self._precompute_freqs(self.cos_cached.shape[0])
+
+    def _rotate_half(self, x):
+        """Rotate half the hidden dims of the input for RoPE computation."""
+        x1, x2 = x[..., :x.shape[-1]//2], x[..., x.shape[-1]//2:]
+        return torch.cat([-x2, x1], dim=-1)
+
+    def forward(self, q, k, seq_len=None):
+        """
+        Apply rotary embeddings to query and key tensors.
+
+        Args:
+            q: Query tensor of shape [batch, num_heads, seq_len, head_dim]
+            k: Key tensor of shape [batch, num_heads, seq_len, head_dim]
+            seq_len: Sequence length (inferred from q if not provided)
+
+        Returns:
+            Tuple of (rotated_q, rotated_k) with same shapes as inputs
+        """
+        if seq_len is None:
+            seq_len = q.shape[2]
+
+        # Extend precomputed values if needed
+        if seq_len > self.cos_cached.shape[0]:
+            self._precompute_freqs(seq_len)
+
+        cos = self.cos_cached[:seq_len].unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, dim]
+        sin = self.sin_cached[:seq_len].unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, dim]
+
+        # Apply rotation: x * cos + rotate_half(x) * sin
+        q_rotated = q * cos + self._rotate_half(q) * sin
+        k_rotated = k * cos + self._rotate_half(k) * sin
+
+        return q_rotated, k_rotated
+
+
+class MultiHeadAttentionWithRoPE(nn.Module):
+    """
+    Multi-head attention with Rotary Position Embeddings.
+
+    This applies RoPE to the query and key vectors before computing attention scores,
+    enabling the model to learn relative positions through the attention mechanism.
+
+    Args:
+        d_model (int): Total dimension of the model
+        num_heads (int): Number of attention heads
+        dropout (float): Dropout rate for attention weights
+        max_seq_len (int): Maximum sequence length for RoPE precomputation
+    """
+    def __init__(self, d_model, num_heads, dropout=0.0, max_seq_len=512):
+        super().__init__()
+        assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
+
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.head_dim = d_model // num_heads
+        self.scale = self.head_dim ** -0.5
+
+        # Linear projections for Q, K, V
+        self.q_proj = nn.Linear(d_model, d_model)
+        self.k_proj = nn.Linear(d_model, d_model)
+        self.v_proj = nn.Linear(d_model, d_model)
+        self.out_proj = nn.Linear(d_model, d_model)
+
+        self.dropout = nn.Dropout(dropout)
+
+        # RoPE for positional encoding
+        self.rope = RotaryPositionalEmbedding(self.head_dim, max_seq_len)
+
+    def forward(self, x, key_padding_mask=None, attn_mask=None):
+        """
+        Forward pass for multi-head attention with RoPE.
+
+        Args:
+            x: Input tensor of shape [seq_len, batch, d_model] (PyTorch transformer convention)
+            key_padding_mask: Boolean mask of shape [batch, seq_len], True = ignore
+            attn_mask: Optional attention mask
+
+        Returns:
+            Output tensor of shape [seq_len, batch, d_model]
+        """
+        seq_len, batch_size, _ = x.shape
+
+        # Project to Q, K, V
+        q = self.q_proj(x)  # [seq_len, batch, d_model]
+        k = self.k_proj(x)
+        v = self.v_proj(x)
+
+        # Reshape for multi-head attention: [batch, num_heads, seq_len, head_dim]
+        q = q.permute(1, 0, 2).view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.permute(1, 0, 2).view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        v = v.permute(1, 0, 2).view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+
+        # Apply RoPE to Q and K
+        q, k = self.rope(q, k, seq_len)
+
+        # Compute attention scores
+        attn_weights = torch.matmul(q, k.transpose(-2, -1)) * self.scale  # [batch, heads, seq, seq]
+
+        # Apply key padding mask
+        if key_padding_mask is not None:
+            # key_padding_mask: [batch, seq_len], True = ignore
+            attn_weights = attn_weights.masked_fill(
+                key_padding_mask.unsqueeze(1).unsqueeze(2),  # [batch, 1, 1, seq_len]
+                float('-inf')
+            )
+
+        # Apply optional attention mask
+        if attn_mask is not None:
+            attn_weights = attn_weights + attn_mask
+
+        # Softmax and dropout
+        attn_weights = torch.softmax(attn_weights, dim=-1)
+        attn_weights = self.dropout(attn_weights)
+
+        # Apply attention to values
+        attn_output = torch.matmul(attn_weights, v)  # [batch, heads, seq, head_dim]
+
+        # Reshape back: [batch, seq_len, d_model]
+        attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, seq_len, self.d_model)
+
+        # Output projection and transpose back to [seq_len, batch, d_model]
+        output = self.out_proj(attn_output).permute(1, 0, 2)
+
+        return output
+
+
+class TransformerEncoderLayerWithRoPE(nn.Module):
+    """
+    Transformer encoder layer with RoPE-based attention.
+
+    This replaces the standard nn.TransformerEncoderLayer with one that uses
+    rotary position embeddings in the attention mechanism.
+
+    Args:
+        d_model (int): The dimension of the model
+        nhead (int): Number of attention heads
+        dim_feedforward (int): Dimension of the feedforward network
+        dropout (float): Dropout rate
+        activation (str): Activation function ('relu' or 'gelu')
+        max_seq_len (int): Maximum sequence length for RoPE
+    """
+    def __init__(self, d_model, nhead, dim_feedforward, dropout=0.1, activation='relu', max_seq_len=512):
+        super().__init__()
+
+        # Self-attention with RoPE
+        self.self_attn = MultiHeadAttentionWithRoPE(d_model, nhead, dropout, max_seq_len)
+
+        # Feedforward network
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.dropout = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+
+        # Layer norms
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+
+        # Dropout layers
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
+        # Activation
+        if activation == 'relu':
+            self.activation = nn.ReLU()
+        elif activation == 'gelu':
+            self.activation = nn.GELU()
+        else:
+            self.activation = nn.ReLU()
+
+    def forward(self, src, src_mask=None, src_key_padding_mask=None):
+        """
+        Forward pass following Pre-LN transformer architecture.
+
+        Args:
+            src: Input tensor [seq_len, batch, d_model]
+            src_mask: Optional attention mask
+            src_key_padding_mask: Padding mask [batch, seq_len], True = pad
+
+        Returns:
+            Output tensor [seq_len, batch, d_model]
+        """
+        # Self-attention block with residual
+        src2 = self.self_attn(src, key_padding_mask=src_key_padding_mask, attn_mask=src_mask)
+        src = src + self.dropout1(src2)
+        src = self.norm1(src)
+
+        # Feedforward block with residual
+        src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
+        src = src + self.dropout2(src2)
+        src = self.norm2(src)
+
+        return src
+
+
+class TransformerEncoderWithRoPE(nn.Module):
+    """
+    Stack of transformer encoder layers with RoPE.
+
+    Args:
+        d_model (int): Model dimension
+        nhead (int): Number of attention heads
+        num_layers (int): Number of encoder layers
+        dim_feedforward (int): FFN dimension
+        dropout (float): Dropout rate
+        activation (str): Activation function
+        max_seq_len (int): Maximum sequence length
+    """
+    def __init__(self, d_model, nhead, num_layers, dim_feedforward, dropout=0.1, activation='relu', max_seq_len=512):
+        super().__init__()
+        self.layers = nn.ModuleList([
+            TransformerEncoderLayerWithRoPE(d_model, nhead, dim_feedforward, dropout, activation, max_seq_len)
+            for _ in range(num_layers)
+        ])
+
+    def forward(self, src, mask=None, src_key_padding_mask=None):
+        output = src
+        for layer in self.layers:
+            output = layer(output, src_mask=mask, src_key_padding_mask=src_key_padding_mask)
+        return output
+
+
 class TransformerEncoderBlock(nn.Module):
     """
     Neural network module that applies a Transformer encoder block to encoded sequences and adds a linear layer to fit CRF input.
+    Uses RoPE (Rotary Position Embedding) for positional encoding within attention.
 
     Args:
         hidden_size (int): The dimensionality of the input and output features for the Transformer encoder.
         num_layers (int): Number of Transformer encoder layers to stack.
         n_attention_heads (int): Number of attention heads in each Transformer encoder layer.
-        dropout_rate (float): Dropout rate applied after normalization and within the encoder layers.
+        dropout_rate_encoder (float): Dropout rate applied after normalization and within the encoder layers.
         act_function (str or Callable): Activation function to use in the feedforward network of the encoder layers.
-        num_labels (int): Number of output classes 
+        num_labels (int): Number of output classes
+        max_seq_len (int): Maximum sequence length for RoPE precomputation.
+        use_rope (bool): Whether to use RoPE (True) or standard positional encoding (False).
 
     Attributes:
-        encoder (nn.TransformerEncoder): Stacked Transformer encoder layers.
-        classifier (nn.Linear): Linear layer mapping the encoder output to class logits.
+        encoder: Stacked Transformer encoder layers (with or without RoPE).
+        linear (nn.Linear): Linear layer mapping the encoder output to class logits.
         norm (nn.LayerNorm): Layer normalization applied after the encoder.
-        dropout (nn.Dropout): Dropout layer applied after normalization.
         layers (int): Number of encoder layers.
     """
     def __init__(self,
@@ -610,50 +774,65 @@ class TransformerEncoderBlock(nn.Module):
                  n_attention_heads,
                  dropout_rate_encoder,
                  act_function,
-                 num_labels):
+                 num_labels,
+                 max_seq_len=512,
+                 use_rope=True):
         super().__init__()
 
         hidden_size_merged = hidden_size
-
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=hidden_size_merged,
-            nhead=n_attention_heads,
-            dim_feedforward=4*hidden_size_merged,
-            dropout=dropout_rate_encoder,
-            activation=act_function
-        )
-
         self.layers = num_layers
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        self.use_rope = use_rope
+
+        if use_rope:
+            # Use custom transformer encoder with RoPE
+            self.encoder = TransformerEncoderWithRoPE(
+                d_model=hidden_size_merged,
+                nhead=n_attention_heads,
+                num_layers=num_layers,
+                dim_feedforward=4 * hidden_size_merged,
+                dropout=dropout_rate_encoder,
+                activation=act_function,
+                max_seq_len=max_seq_len
+            )
+        else:
+            # Use standard PyTorch transformer encoder
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=hidden_size_merged,
+                nhead=n_attention_heads,
+                dim_feedforward=4 * hidden_size_merged,
+                dropout=dropout_rate_encoder,
+                activation=act_function
+            )
+            self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+
         self.linear = nn.Linear(hidden_size_merged, num_labels)
         self.norm = nn.LayerNorm(hidden_size_merged)
-
 
     def forward(self, encoded_seqs_nt, attention_mask):
         """
         Forward pass through the Transformer encoder block and linear classifier.
 
         Args:
-            x (torch.Tensor): Input tensor [batch_size, seq_len, hidden_size]
+            encoded_seqs_nt (torch.Tensor): Input tensor [batch_size, seq_len, hidden_size]
             attention_mask (torch.Tensor): Attention mask [batch_size, seq_len]
 
         Returns:
             torch.Tensor of logits [batch_size, seq_len, num_labels]
         """
 
-        # Original transformer processing
+        # Transformer processing (RoPE handles position internally)
         codon_embeddings = encoded_seqs_nt.permute(1, 0, 2)  # [seq_len, batch, hidden]
         attention_mask_transformer = ~attention_mask.bool()
 
-        #Pass through transformer encoder layers
+        # Pass through transformer encoder layers
         codon_embeddings = self.encoder(codon_embeddings, src_key_padding_mask=attention_mask_transformer)
 
         codon_embeddings = codon_embeddings.permute(1, 0, 2)  # [batch, seq_len, hidden]
 
-        #Layer normalization
+        # Layer normalization
         codon_embeddings = self.norm(codon_embeddings)
 
-        #Get RF-specific class logits out
+        # Get RF-specific class logits out
         logits = self.linear(codon_embeddings)  # [batch, seq_len, num_labels]
 
         return logits
@@ -834,20 +1013,23 @@ class CDSPredictor(nn.Module):
     Full model for CDS prediction combining transformer encoders per reading frame (RF0–RF2) with a shared CRF layer for structured, frame-consistent predictions.
 
     Args:
-        esm2_model (nn.Module): Pretrained ESM-2 model used to extract amino acid embeddings.
         num_layers (int): Number of Transformer encoder layers per reading frame.
         n_attention_heads (int): Number of attention heads in each Transformer layer.
-        d_model (int): dimension of FF layer to project input to and for use in FF layers in transformer encoders 
+        d_model (int): dimension of FF layer to project input to and for use in FF layers in transformer encoders
         dropout_rate_1 (float): Dropout rate applied in the sequence encoder.
         dropout_rate_2 (float): Dropout rate applied within the Transformer encoder layers.
         act_function (str or Callable): Activation function used in Transformer feedforward layers.
+        transition_weight (float): Initial weight for CRF transitions.
         num_encoded_labels (int): Number of combined label states used by the CRF.
         encoded_labels_mapping (dict): Mapping from integer label indices to RF combination tuples.
+        label_classes (int): Number of per-frame label classes (4 or 6).
+        use_rope (bool): Whether to use RoPE (True) or sinusoidal positional encoding (False).
+        max_seq_len (int): Maximum sequence length for positional encoding.
 
     Attributes:
-        sequence_encoder (SequenceEncoder): Module that extracts amino acid embeddings from the pretrained ESM-2 model.
+        input_proj (nn.Linear): Projects 12-dim codon encoding to d_model.
         TransformerEncoderBlock (TransformerEncoderBlock): Transformer encoder applied independently to each reading frame.
-        linear_transform (nn.Linear): Linear projection layer mapping concatenated RF outputs (3*num_labels) to num_encoded_labels.
+        output_proj (nn.Linear): Linear projection layer mapping concatenated RF outputs (3*num_labels) to num_encoded_labels.
         CRF (LinearChainCRF): Conditional Random Field layer enforcing structured transitions between predicted RF combinations.
     """
     def __init__(self,
@@ -860,15 +1042,22 @@ class CDSPredictor(nn.Module):
                  transition_weight,
                  num_encoded_labels,
                  encoded_labels_mapping,
-                 label_classes
-                 ): 
+                 label_classes,
+                 use_rope=True,
+                 max_seq_len=512
+                 ):
         super(CDSPredictor, self).__init__()
 
+        self.use_rope = use_rope
         self.input_proj = nn.Linear(12, d_model)
-
         self.dropout_rate_1 = nn.Dropout(dropout_rate_1)
 
-        self.pos_encoding = SinusoidalPositionalEncoding(d_model, max_len=500)
+        # Only use sinusoidal positional encoding if NOT using RoPE
+        # RoPE handles position within the attention mechanism
+        if not use_rope:
+            self.pos_encoding = SinusoidalPositionalEncoding(d_model, max_len=max_seq_len)
+        else:
+            self.pos_encoding = None
 
         self.TransformerEncoderBlock = TransformerEncoderBlock(
             hidden_size=d_model,
@@ -876,18 +1065,19 @@ class CDSPredictor(nn.Module):
             n_attention_heads=n_attention_heads,
             dropout_rate_encoder=dropout_rate_2,
             act_function=act_function,
-            num_labels=label_classes)
+            num_labels=label_classes,
+            max_seq_len=max_seq_len,
+            use_rope=use_rope)
 
-        ##Linear layer to go from 3*C -> num_encoded_labels
-        self.output_proj = nn.Linear(3*label_classes, num_encoded_labels)
+        # Linear layer to go from 3*C -> num_encoded_labels
+        self.output_proj = nn.Linear(3 * label_classes, num_encoded_labels)
 
-        self.CRF = LinearChainCRF(mapping_dict_to_class = encoded_labels_mapping,
-                                  transition_weight = transition_weight,
+        self.CRF = LinearChainCRF(mapping_dict_to_class=encoded_labels_mapping,
+                                  transition_weight=transition_weight,
                                   num_encoded_labels=num_encoded_labels,
                                   label_classes=label_classes)
 
-
-    def forward(self, encoded_seqs_nt_rf0, 
+    def forward(self, encoded_seqs_nt_rf0,
                       encoded_seqs_nt_rf1,
                       encoded_seqs_nt_rf2,
                       labels=None):
@@ -902,38 +1092,63 @@ class CDSPredictor(nn.Module):
 
         """
 
-        #Create padding mask 
+        # Create padding mask
         padding_mask = create_codon_padding_mask(encoded_seqs_nt_rf0)
 
-        #Project input vectors to d_model size
+        # Project input vectors to d_model size
         encoded_embeddings_rf0 = self.dropout_rate_1(self.input_proj(encoded_seqs_nt_rf0))
         encoded_embeddings_rf1 = self.dropout_rate_1(self.input_proj(encoded_seqs_nt_rf1))
         encoded_embeddings_rf2 = self.dropout_rate_1(self.input_proj(encoded_seqs_nt_rf2))
 
-        #Add positional encoding
-        encoded_embeddings_rf0 = encoded_embeddings_rf0 + self.pos_encoding(encoded_embeddings_rf0)
-        encoded_embeddings_rf1 = encoded_embeddings_rf1 + self.pos_encoding(encoded_embeddings_rf1)
-        encoded_embeddings_rf2 = encoded_embeddings_rf2 + self.pos_encoding(encoded_embeddings_rf2)
+        # Add positional encoding only if NOT using RoPE
+        # (RoPE applies position information within the attention mechanism)
+        if self.pos_encoding is not None:
+            encoded_embeddings_rf0 = encoded_embeddings_rf0 + self.pos_encoding(encoded_embeddings_rf0)
+            encoded_embeddings_rf1 = encoded_embeddings_rf1 + self.pos_encoding(encoded_embeddings_rf1)
+            encoded_embeddings_rf2 = encoded_embeddings_rf2 + self.pos_encoding(encoded_embeddings_rf2)
 
-        #Run through transformer encoder layers
-        logits_rf0 = self.TransformerEncoderBlock(encoded_seqs_nt = encoded_embeddings_rf0, attention_mask=padding_mask)
-        logits_rf1 = self.TransformerEncoderBlock(encoded_seqs_nt = encoded_embeddings_rf1, attention_mask=padding_mask)
-        logits_rf2 = self.TransformerEncoderBlock(encoded_seqs_nt = encoded_embeddings_rf2, attention_mask=padding_mask) #output: [100, C]
+        # Run through transformer encoder layers
+        logits_rf0 = self.TransformerEncoderBlock(encoded_seqs_nt=encoded_embeddings_rf0, attention_mask=padding_mask)
+        logits_rf1 = self.TransformerEncoderBlock(encoded_seqs_nt=encoded_embeddings_rf1, attention_mask=padding_mask)
+        logits_rf2 = self.TransformerEncoderBlock(encoded_seqs_nt=encoded_embeddings_rf2, attention_mask=padding_mask)  # output: [100, C]
 
-        #Concatenate embeddings from each window
-        codon_embeddings = torch.cat([logits_rf0, logits_rf1, logits_rf2], dim=-1) #output: [100, 3*C]
+        # Concatenate embeddings from each window
+        codon_embeddings = torch.cat([logits_rf0, logits_rf1, logits_rf2], dim=-1)  # output: [100, 3*C]
 
-        #Project to shared label space
-        logits_encoded_labels = self.output_proj(codon_embeddings) #output: [100, num_encoded_labels]
+        # Project to shared label space
+        logits_encoded_labels = self.output_proj(codon_embeddings)  # output: [100, num_encoded_labels]
 
         crf_mask = ~padding_mask  # Invert: True = valid, False = padding
 
         output = self.CRF(
             logits=logits_encoded_labels,
-            attention_mask=crf_mask, #Input any trimmed attention mask; applies to same positions as before
+            attention_mask=crf_mask,  # Input any trimmed attention mask; applies to same positions as before
             labels=labels)
 
         return output
+
+    def set_rope_scaling(self, scaling_factor):
+        """
+        Set the RoPE scaling factor for position interpolation.
+        Call this before inference on sequences longer than training length.
+
+        For example, if trained on max_len=100 and inferring on max_len=400:
+            model.set_rope_scaling(4.0)
+
+        Args:
+            scaling_factor (float): Ratio of inference_length / training_length.
+                                    Use 1.0 to disable scaling (default during training).
+        """
+        if not self.use_rope:
+            print("Warning: set_rope_scaling called but model is using sinusoidal encoding, not RoPE.")
+            return
+
+        # Access the RoPE modules in the transformer encoder
+        if hasattr(self.TransformerEncoderBlock, 'encoder') and hasattr(self.TransformerEncoderBlock.encoder, 'layers'):
+            for layer in self.TransformerEncoderBlock.encoder.layers:
+                if hasattr(layer, 'self_attn') and hasattr(layer.self_attn, 'rope'):
+                    layer.self_attn.rope.set_scaling_factor(scaling_factor)
+            print(f"RoPE scaling factor set to {scaling_factor}")
 
 
 def print_model_dimensions(model):
@@ -950,26 +1165,30 @@ def count_parameters(model):
     print(f"Total trainable parameters: {total_params_learnable:,}", flush=True)
 
 
-def initialize_model(device, num_layers, n_attention_heads, d_model, dropout_rate_1, dropout_rate_2, act_function, transition_weight, label_classes):
+def initialize_model(device, num_layers, n_attention_heads, d_model, dropout_rate_1, dropout_rate_2, act_function, transition_weight, label_classes, use_rope=True, max_seq_len=512):
     """
     Initialize the model and move it to the specified device.
-    
+
     Args:
-        device_type (str): The device to use for computation ("cuda", "mps", or "cpu").
+        device: The device to use for computation ("cuda", "mps", or "cpu").
         num_layers (int): Number of Transformer encoder layers per reading frame.
         n_attention_heads (int): Number of attention heads in each Transformer encoder layer.
         d_model (int): Dimension of FF-layers to project input encoding and to use in FF layers of sequence encoder blocks.
         dropout_rate_1 (float): Dropout rate applied in the sequence encoder.
         dropout_rate_2 (float): Dropout rate applied within the Transformer encoder layers.
         act_function (str or Callable): Activation function used in Transformer feedforward layers.
-
+        transition_weight (float): Initial weight for CRF transitions.
+        label_classes (int): Number of per-frame label classes (4 or 6).
+        use_rope (bool): Whether to use RoPE (True) or sinusoidal positional encoding (False).
+        max_seq_len (int): Maximum sequence length for positional encoding.
 
     Returns:
         model (nn.Module): The initialized model.
         mapping_dict_to_class (dict): dictionary mapping the shared label encodings to 3D rf-specific label combinations
     """
 
-    print("Running on: ", device, flush = True)
+    print("Running on: ", device, flush=True)
+    print(f"Using RoPE: {use_rope}", flush=True)
 
     with open(f'{input_data_dir_path}/label_mappings/mapping_to_3d_vector.pkl', "rb") as mapping_file:
         mapping_dict_to_class = pickle.load(mapping_file)
@@ -977,16 +1196,18 @@ def initialize_model(device, num_layers, n_attention_heads, d_model, dropout_rat
     num_encoded_labels = len(mapping_dict_to_class.keys())
     print(f"Number of encoded label classes: {num_encoded_labels}", flush=True)
 
-    model = CDSPredictor(num_layers = num_layers,
-                         n_attention_heads = n_attention_heads,
+    model = CDSPredictor(num_layers=num_layers,
+                         n_attention_heads=n_attention_heads,
                          d_model=d_model,
-                         dropout_rate_1 = dropout_rate_1, 
-                         dropout_rate_2 = dropout_rate_2,
-                         act_function = act_function,
-                         transition_weight = transition_weight,
-                         num_encoded_labels = num_encoded_labels,
-                         encoded_labels_mapping = mapping_dict_to_class,
-                         label_classes = label_classes)
+                         dropout_rate_1=dropout_rate_1,
+                         dropout_rate_2=dropout_rate_2,
+                         act_function=act_function,
+                         transition_weight=transition_weight,
+                         num_encoded_labels=num_encoded_labels,
+                         encoded_labels_mapping=mapping_dict_to_class,
+                         label_classes=label_classes,
+                         use_rope=use_rope,
+                         max_seq_len=max_seq_len)
     model.to(device)
 
     if device.type == "cuda":
@@ -1208,12 +1429,13 @@ def training_iteration(i, batch, scaler, model, optimizer, device, epoch_losses)
 
 def objective(trial, train_data, val_data, val_loader_full, sequence_types, label_classes):
     #Define hyperparameter ranges to sample from
-    depths_transformer_encoder_blocks = [2, 4, 6, 8, 10]
+    depths_transformer_encoder_blocks = [2, 4, 6, 8]
     attention_heads = [2, 4, 8]
     d_model_sizes = [64, 128, 256, 512]
-    dropout_rates_1 = [0.1, 0.2, 0.3, 0.4, 0.5] 
-    dropout_rates_2 = [0.2, 0.3, 0.4, 0.5] #dropout rate applied in transformer encoder layers
+    dropout_rates_1 = [0.1, 0.2, 0.3, 0.4, 0.5]
+    dropout_rates_2 = [0.2, 0.3, 0.4, 0.5]  # dropout rate applied in transformer encoder layers
     act_functions = ["relu", "gelu"]
+    pos_encoding_types = [True, False]  # True = RoPE, False = Sinusoidal
 
 
     #Define trial suggestions; set hyperparameters
@@ -1222,9 +1444,10 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, labe
     d_model = trial.suggest_categorical('d_model', d_model_sizes)
     dropout_rate_1 = trial.suggest_categorical('dropout_rate_1', dropout_rates_1)
     dropout_rate_2 = trial.suggest_categorical('dropout_rate_2', dropout_rates_2)
-    lr_scratch = trial.suggest_float('lr_scratch', 1e-7, 1e-3, log=True)
+    lr_scratch = trial.suggest_float('lr_scratch', 1e-6, 1e-3, log=True)
     act_function = trial.suggest_categorical('act_function', act_functions)
-    transition_weight = trial.suggest_float('transition_weight', -4, -1) #from probability from exp(-3) -> exp(-0.25) 
+    transition_weight = trial.suggest_float('transition_weight', -4, -1)  # from probability from exp(-3) -> exp(-0.25)
+    use_rope = trial.suggest_categorical('use_rope', pos_encoding_types)  # RoPE vs Sinusoidal
 
     batch_size = 32
 
@@ -1235,9 +1458,10 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, labe
             dropout_rate_2: {dropout_rate_2}\n \
             lr_scratch: {lr_scratch}\n \
             act_function: {act_function}\n \
-            transition_weight: {transition_weight}", flush=True)
+            transition_weight: {transition_weight}\n \
+            use_rope: {use_rope}", flush=True)
 
-    wandb.init(project=wandb_project_name, 
+    wandb.init(project=wandb_project_name,
                 config={
                         "depth_transformer_encoder_blocks": depth_transformer_encoder_blocks,
                         "n_attention_heads": n_attention_heads,
@@ -1246,8 +1470,9 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, labe
                         "dropout_rate_2": dropout_rate_2,
                         "act_function": act_function,
                         "transition_weight": transition_weight,
-                        "lr_scratch": lr_scratch},
-                        name = f"trial_{trial.number}")
+                        "lr_scratch": lr_scratch,
+                        "use_rope": use_rope},
+                        name=f"trial_{trial.number}")
 
     #Create initial weighted sampler for training and get data loaders
     train_sampler = create_weighted_sampler(train_data, sequence_types)
@@ -1261,14 +1486,16 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, labe
         pin_memory=pin_memory)
 
     model, mapping_dict_to_class = initialize_model(device,
-                            num_layers = depth_transformer_encoder_blocks,
-                            n_attention_heads = n_attention_heads,
+                            num_layers=depth_transformer_encoder_blocks,
+                            n_attention_heads=n_attention_heads,
                             d_model=d_model,
                             dropout_rate_1=dropout_rate_1,
                             dropout_rate_2=dropout_rate_2,
-                            act_function = act_function,
-                            transition_weight = transition_weight,
-                            label_classes=label_classes)
+                            act_function=act_function,
+                            transition_weight=transition_weight,
+                            label_classes=label_classes,
+                            use_rope=use_rope,
+                            max_seq_len=max_len)
 
     # CRF Configuration Check
     print(f"\n=== Configuration Check ===", flush=True)
@@ -1453,16 +1680,18 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, labe
     ###Final validation on full validation set###
     #############################################
     #Initialize model
-    model = CDSPredictor(num_layers = depth_transformer_encoder_blocks,
-                         n_attention_heads = n_attention_heads,
-                         d_model = d_model,
-                         dropout_rate_1 = dropout_rate_1, 
-                         dropout_rate_2 = dropout_rate_2,
-                         act_function = act_function,
-                         transition_weight = transition_weight,
-                         num_encoded_labels = len(mapping_dict_to_class.keys()),
-                         encoded_labels_mapping = mapping_dict_to_class,
-                         label_classes = label_classes)
+    model = CDSPredictor(num_layers=depth_transformer_encoder_blocks,
+                         n_attention_heads=n_attention_heads,
+                         d_model=d_model,
+                         dropout_rate_1=dropout_rate_1,
+                         dropout_rate_2=dropout_rate_2,
+                         act_function=act_function,
+                         transition_weight=transition_weight,
+                         num_encoded_labels=len(mapping_dict_to_class.keys()),
+                         encoded_labels_mapping=mapping_dict_to_class,
+                         label_classes=label_classes,
+                         use_rope=use_rope,
+                         max_seq_len=max_len)
 
     model.to(device)
     #Load in parameters from trained model of best checkpoint
@@ -1567,12 +1796,8 @@ set_seed(args.seed)
 print(f"Using random seed: {args.seed}", flush=True)
 
 # Load in data once
-if args.use_preprocessed:
-    print("Using preprocessed memory-mapped data...", flush=True)
-    train_data, val_data, sequence_types, seq_type_desc_fracs = load_preprocessed_data()
-else:
-    print("Processing data from CSV files...", flush=True)
-    train_data, val_data, sequence_types, seq_type_desc_fracs = load_and_process_data(max_len)
+print("Processing data from CSV files...", flush=True)
+train_data, val_data, sequence_types, seq_type_desc_fracs = load_and_process_data(max_len)
 
 val_loader_full = load_full_validation_set(max_len)
 
@@ -1592,7 +1817,8 @@ model_config = {
     "dropout_rate_2": study.best_params['dropout_rate_2'],
     "lr_scratch": study.best_params['lr_scratch'],
     "act_function": study.best_params['act_function'],
-    "transition_weight": study.best_params["transition_weight"]}
+    "transition_weight": study.best_params["transition_weight"],
+    "use_rope": study.best_params["use_rope"]}
 
 # Wrap in hyperparameters key for Hydra structure
 config = {"hyperparameters": model_config}

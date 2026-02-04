@@ -1,18 +1,24 @@
 # DeepCDS
 Project workspace for DeepCDS project
 
-
-
 ### TO DO
 - [x] Make script to check number of reads in each length test set -> matches for all read lengths
 - [x] Adapt hyperparameter tuning scripts after fixed bug 
     - [ ] Full model
     - [ ] ESM 2
-    - [ ] Codon encoding: Done, just remove preprocesing!
-- [ ] Process all simulated reads (testset)
-- [ ] Check that test set error rates are correct, plot in a nice way
+    - [x] Codon encoding
+- [x] Process all simulated reads (testset)
+- [ ] Check that train- and test set error rates are correct, plot in a nice way
 - [ ] Make plots nicer with scienceplots
+- [ ] Check more about Sanger sequencing on longer sequences (700 & 1000bp)
 
+Tuesday:
+- [x] Adapt hyperparameter tuning script for codon encoding
+- [ ] Work on postprocessing script
+
+FGS:
+RERUN:
+/tmp/nrt204/FragmentPredictor/data/processed_data/predictions/raw_predictions/fgs_preds/with_errors_1.25e-05i_0.01s_150bp_complete/GCF_001457455.1/GCF_001457455.1.gff
 
 ### Scripts in development - A status
 #### Data preprocessing
@@ -21,26 +27,8 @@ Project workspace for DeepCDS project
 - [x] 3. /data_preprocessing/partition_genomes.py (partition genomes into test, val and train set based on pre-defined procedure)
 - [x] 4. /data_preprocessing/extract_smaller_training_sets.py
 - [x] 4. /data_preprocessing/simulate_reads.py (simulate reads of user-defined coverage and length on both template and complement strands)
-- [ ] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
-    - [ ] Train and val data
-    - [ ] Test data: 30 bp reads
-    - [ ] Test data: 60 bp reads
-    - [ ] Test data: 75 bp reads
-    - [x] Test data: 100 bp reads
-    - [ ] Test data: 150 bp reads
-    - [ ] Test data: 300 bp reads
-    - [x] Test data: 700 bp reads
-    - [x] Test data: 1000 bp reads
-- [ ] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
-    - [x] Train and val data
-    - [x] Test data: 30 bp reads
-    - [x] Test data: 60 bp reads
-    - [x] Test data: 75 bp reads
-    - [x] Test data: 100 bp reads
-    - [x] Test data: 150 bp reads
-    - [x] Test data: 300 bp reads
-    - [x] Test data: 700 bp reads
-    - [x] Test data: 1000 bp reads
+- [x] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
+- [x] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
 - [x] 6. /data_preprocessing/get_label_encodings.py (map class labels to 3d vectors; use for model that processes all 3 reading frames)
 - [x] 7. /data_preprocessing/prepare_model_datasets.py (creates datasets specific for model input for each of the train and val splits)
 
@@ -56,12 +44,62 @@ Project workspace for DeepCDS project
 
 #### Performance and benchmark
 - [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
-    - [ ] Predict all on datasets with no sequencing errors -> RUNNIG
+    - [x] Predict all on datasets with no sequencing errors
     - [ ] Predict all on datasets with sequencing errors
+        - [ ] Test data: 60 bp reads
+        - [ ] Test data: 75 bp reads
+        - [ ] Test data: 100 bp reads -> running (predict_with_fgs)
+        - [ ] Test data: 150 bp reads -> running (predict_with_fgs) RERUN SAMPLES; SEE ABOVE
+        - [x] Test data: 300 bp reads 
 - [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal)
     - [x] Predict all on datasets with no sequencing errors
     - [ ] Predict all on datasets with sequencing errors
-- [ ] 1. /benchmark/predict/model_predict_shared_crf.ipynb (Predict with models)
+        - [ ] Test data: 60 bp reads  -> running (predict_with_prodigal)
+        - [ ] Test data: 75 bp reads  -> running (predict_with_prodigal)
+        - [x] Test data: 100 bp reads
+        - [x] Test data: 150 bp reads
+        - [x] Test data: 300 bp reads
+- [ ] 1. /benchmark/predict/predict_with_DeepCDS.py (Predict with DeepCDS)
+    - [ ] Predict all on datasets with no sequencing errors (100 genome model)
+        - [x] 100 genomes
+        - [x] 200 genomes 
+        - [ ] 400 genomes -> RUNNING (predict_DeepCDS_no_errors_400_genomes)
+        - [ ] All genomes (run all datasets)
+            - [ ] Test data: 60 bp reads
+            - [ ] Test data: 75 bp reads
+            - [ ] Test data: 100 bp reads
+            - [ ] Test data: 150 bp reads
+            - [ ] Test data: 300 bp reads
+            - [ ] Test data: 700 bp reads
+            - [ ] Test data: 1000 bp reads
+
+    - [ ] Predict all on datasets with sequencing errors
+        - [ ] Substitution errors
+            - [x] 100 genomes
+            - [x] 200 genomes
+            - [ ] 400 genomes
+            - [ ] All genomes (run all datasets)
+                - [ ] Test data: 60 bp reads
+                - [ ] Test data: 75 bp reads
+                - [ ] Test data: 100 bp reads
+                - [ ] Test data: 150 bp reads
+                - [ ] Test data: 300 bp reads
+                - [ ] Test data: 700 bp reads
+                - [ ] Test data: 1000 bp reads
+
+        - [ ] Indel and substitution errors
+            - [x] 100 genomes 
+            - [ ] 200 genomes
+            - [ ] 400 genomes
+            - [ ] All genomes (run all datasets)
+                - [ ] Test data: 60 bp reads
+                - [ ] Test data: 75 bp reads
+                - [ ] Test data: 100 bp reads
+                - [ ] Test data: 150 bp reads
+                - [ ] Test data: 300 bp reads
+                - [ ] Test data: 700 bp reads
+                - [ ] Test data: 1000 bp reads
+
 - [ ] 2. /postprocess_preds/postprocess_testset.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_model_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)

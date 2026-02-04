@@ -32,8 +32,8 @@ parser.add_argument(
     help="Dataset size to use for training (default: 100_genomes)",
 )
 parser.add_argument("--gpu", type=int, default=0, help="GPU number to use (default: 0)")
-parser.add_argument("--healthtech_cluster", type=bool, default=False, help="Whether running on HealthTech cluster (default: False)")
-parser.add_argument("--scarb_cluster", type=bool, default=False, help="Whether running on SCARB cluster (default: False)")
+parser.add_argument("--healthtech_cluster", action="store_true", help="Whether running on HealthTech cluster")
+parser.add_argument("--scarb_cluster", action="store_true", help="Whether running on SCARB cluster")
 parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility (default: 42)")
 parser.add_argument(
     "--error_type",
@@ -43,9 +43,9 @@ parser.add_argument(
     help="Type of data errors to include (default: indel_substitution)",
 )
 parser.add_argument(
-    "--use_preprocessed",
+    "--resume",
     action="store_true",
-    help="Use preprocessed memory-mapped data if set; otherwise process from CSV (default: False)",
+    help="Resume training from the latest checkpoint",
 )
 
 args = parser.parse_args()
@@ -68,7 +68,7 @@ else:
     steps_between_vals = 5000
 
 
-debug_mode = False  # Set to True for debugging with smaller dataset
+debug_mode = True  # Set to True for debugging with smaller dataset
 
 if debug_mode == True:
     steps_between_vals = 50 * 5
@@ -86,8 +86,8 @@ else:
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 
 if args.healthtech_cluster:
-    input_data_dir_path = f"../../../data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"
-    num_workers_cpu = 4
+    input_data_dir_path = f"/home/projects/DeepCDStmp/data/processed_data/model_data/{model_dir_path_suffix}"
+    num_workers_cpu = 2
     pin_memory = True
     # Use argparse values
     device = torch.device(f"cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -96,13 +96,12 @@ if args.healthtech_cluster:
     print("Device: ", device, flush=True)
 
     assert device == torch.device("cuda"), "HealthTech cluster run should be on a CUDA GPU."
-    os.makedirs(f"/home/projects/DeepCDStmp/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}/models/", exist_ok=True)  # While projects2 fails
-    models_output_dir_path = f"/home/projects/DeepCDStmp/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}/models/"
-
+    os.makedirs(f"{input_data_dir_path}/models/", exist_ok=True)
+    models_output_dir_path = f"{input_data_dir_path}/models/"
 
 elif args.scarb_cluster:
     input_data_dir_path = f"/tmp/nrt204/FragmentPredictor/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"  # SCARB cluster
-    num_workers_cpu = 4
+    num_workers_cpu = 2
     pin_memory = True
     # Use argparse values
     device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -132,6 +131,7 @@ else:
 
 # ESM model choice
 esm2_model = "facebook/esm2_t6_8M_UR50D"
+# esm2_model = "facebook/esm2_t33_650M_UR50D"
 
 dataset_size = args.dataset_size  # Use argparse value
 
@@ -167,6 +167,124 @@ def clear_memory():
         torch.cuda.empty_cache()
     gc.collect()
 
+
+def save_checkpoint(
+    checkpoint_path,
+    model,
+    optimizer,
+    scheduler,
+    scaler,
+    epoch,
+    step,
+    val_times_counter,
+    best_val_loss,
+    counter_patience,
+    warmup_state,
+    esm2_initial_params=None,
+    wandb_run_id=None,
+):
+    """
+    Save a full training checkpoint for resumption.
+
+    Args:
+        checkpoint_path: Path to save the checkpoint
+        model: The model being trained
+        optimizer: The optimizer
+        scheduler: The learning rate scheduler
+        scaler: The gradient scaler for mixed precision (can be None)
+        epoch: Current epoch number
+        step: Current global step
+        val_times_counter: Number of validation runs completed
+        best_val_loss: Best validation loss seen so far
+        counter_patience: Current patience counter for early stopping
+        warmup_state: Warmup state dict (can be None)
+        esm2_initial_params: Initial ESM-2 parameters for tracking changes (can be None)
+        wandb_run_id: WandB run ID for resuming the same run (can be None)
+    """
+    checkpoint = {
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "scheduler_state_dict": scheduler.state_dict(),
+        "scaler_state_dict": scaler.state_dict() if scaler is not None else None,
+        "epoch": epoch,
+        "step": step,
+        "val_times_counter": val_times_counter,
+        "best_val_loss": best_val_loss,
+        "counter_patience": counter_patience,
+        "warmup_state": warmup_state,
+        "esm2_initial_params": esm2_initial_params,
+        "wandb_run_id": wandb_run_id,
+    }
+    torch.save(checkpoint, checkpoint_path)
+    print(f"Checkpoint saved to {checkpoint_path}", flush=True)
+
+
+def load_checkpoint(checkpoint_path, model, optimizer, scheduler, scaler, device):
+    """
+    Load a training checkpoint and restore all training state.
+
+    Args:
+        checkpoint_path: Path to the checkpoint file
+        model: The model to load weights into
+        optimizer: The optimizer to restore state
+        scheduler: The learning rate scheduler to restore state
+        scaler: The gradient scaler (can be None)
+        device: The device to load tensors to
+
+    Returns:
+        dict: Dictionary containing restored training state variables
+    """
+    print(f"Loading checkpoint from {checkpoint_path}", flush=True)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+
+    # Check if ESM-2 layers were unfrozen when checkpoint was saved
+    # by comparing optimizer param group counts
+    saved_param_groups = len(checkpoint["optimizer_state_dict"]["param_groups"])
+    current_param_groups = len(optimizer.param_groups)
+
+    if saved_param_groups > current_param_groups:
+        # ESM-2 was unfrozen - need to add those params to optimizer first
+        print(f"Checkpoint has {saved_param_groups} param groups, current has {current_param_groups}", flush=True)
+        print("Adding ESM-2 parameters to optimizer before loading state...", flush=True)
+
+        # Unfreeze ESM-2 layers and add to optimizer
+        unfreeze_start = model.sequence_encoder.unfreeze_start
+        if unfreeze_start is not None:
+            for i, layer in enumerate(model.sequence_encoder.pretrained_model_aa.encoder.layer):
+                if i >= unfreeze_start:
+                    for param in layer.parameters():
+                        param.requires_grad = True
+
+            # Collect and add ESM-2 params to optimizer (with dummy LR, will be overwritten)
+            unfrozen_params = [
+                p for layer in model.sequence_encoder.pretrained_model_aa.encoder.layer[unfreeze_start:]
+                for p in layer.parameters()
+            ]
+            optimizer.add_param_group({"params": unfrozen_params, "lr": 1e-5})
+
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+
+    if scaler is not None and checkpoint.get("scaler_state_dict") is not None:
+        scaler.load_state_dict(checkpoint["scaler_state_dict"])
+
+    # Use .get() with defaults for fields that might not exist in older checkpoints
+    restored_state = {
+        "epoch": checkpoint["epoch"],
+        "step": checkpoint["step"],
+        "val_times_counter": checkpoint["val_times_counter"],
+        "best_val_loss": checkpoint["best_val_loss"],
+        "counter_patience": checkpoint["counter_patience"],
+        "warmup_state": checkpoint.get("warmup_state"),
+        "esm2_initial_params": checkpoint.get("esm2_initial_params"),
+    }
+
+    print(f"Resumed from epoch {restored_state['epoch']}, step {restored_state['step']}", flush=True)
+    print(f"Best val loss so far: {restored_state['best_val_loss']:.4f}", flush=True)
+
+    return restored_state
+
 class SeqDataset(torch.utils.data.Dataset):
     """
     Dataset class for multi-reading-frame sequence data.
@@ -175,10 +293,13 @@ class SeqDataset(torch.utils.data.Dataset):
     reading frames (rf0, rf1, rf2) along with sequence descriptions.
 
     Args:
+        nt_encodings_rf0 (list): List of nucleotide codon encodings (max_aa_len, 12) for reading frame 0
         aa_encodings_rf0 (BatchEncoding): Tokenized amino acid encodings (dict) for reading frame 0
         labels_rf0 (list): List of numpy arrays (int8) with per-position labels for reading frame 0
+        nt_encodings_rf1 (list): List of nucleotide codon encodings (max_aa_len, 12) for reading frame 1
         aa_encodings_rf1 (BatchEncoding): Tokenized amino acid encodings (dict) for reading frame 1
         labels_rf1 (list): List of numpy arrays (int8) with per-position labels for reading frame 1
+        nt_encodings_rf2 (list): List of nucleotide codon encodings (max_aa_len, 12) for reading frame 2
         aa_encodings_rf2 (BatchEncoding): Tokenized amino acid encodings (dict) for reading frame 2
         labels_rf2 (list): List of numpy arrays (int8) with per-position labels for reading frame 2
         label_encodings (np.ndarray): Padded array of shape (num_samples, max_len-2) with mapped label sequences (int8)
@@ -227,98 +348,6 @@ class SeqDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.label_encodings)
-
-
-class PreprocessedSeqDataset(torch.utils.data.Dataset):
-    """
-    Dataset that loads preprocessed data from disk into RAM for fast training.
-
-    This dataset loads memory-mapped files into regular numpy arrays at init time,
-    which uses more RAM but provides much faster training since there's no disk I/O
-    during batch loading.
-
-    Args:
-        data_dir (str): Directory containing the preprocessed .npy files
-    """
-
-    def __init__(self, data_dir):
-        self.data_dir = data_dir
-
-        # Load shapes
-        with open(f"{data_dir}/shapes.pkl", "rb") as f:
-            shapes = pickle.load(f)
-
-        self.n_samples = shapes["n_samples"]
-        self.max_aa_len = shapes["max_aa_len"]
-        self.max_len = shapes["max_len"]
-
-        print(f"Loading preprocessed data into RAM from {data_dir}...", flush=True)
-
-        # Load memory-mapped files into regular numpy arrays (loaded into RAM)
-        # This is done once at init, so training is fast
-        print("  [1/10] Loading aa_input_ids_rf0...", flush=True)
-        self.aa_input_ids_rf0 = np.array(np.memmap(f"{data_dir}/aa_input_ids_rf0.npy", dtype='int64', mode='r',
-                                                    shape=(self.n_samples, self.max_len)))
-        print("  [2/10] Loading aa_input_ids_rf1...", flush=True)
-        self.aa_input_ids_rf1 = np.array(np.memmap(f"{data_dir}/aa_input_ids_rf1.npy", dtype='int64', mode='r',
-                                                    shape=(self.n_samples, self.max_len)))
-        print("  [3/10] Loading aa_input_ids_rf2...", flush=True)
-        self.aa_input_ids_rf2 = np.array(np.memmap(f"{data_dir}/aa_input_ids_rf2.npy", dtype='int64', mode='r',
-                                                    shape=(self.n_samples, self.max_len)))
-
-        print("  [4/10] Loading aa_attention_mask_rf0...", flush=True)
-        self.aa_attention_rf0 = np.array(np.memmap(f"{data_dir}/aa_attention_mask_rf0.npy", dtype='int64', mode='r',
-                                                    shape=(self.n_samples, self.max_len)))
-        print("  [5/10] Loading aa_attention_mask_rf1...", flush=True)
-        self.aa_attention_rf1 = np.array(np.memmap(f"{data_dir}/aa_attention_mask_rf1.npy", dtype='int64', mode='r',
-                                                    shape=(self.n_samples, self.max_len)))
-        print("  [6/10] Loading aa_attention_mask_rf2...", flush=True)
-        self.aa_attention_rf2 = np.array(np.memmap(f"{data_dir}/aa_attention_mask_rf2.npy", dtype='int64', mode='r',
-                                                    shape=(self.n_samples, self.max_len)))
-
-        print("  [7/10] Loading labels_rf0...", flush=True)
-        self.labels_rf0 = np.array(np.memmap(f"{data_dir}/labels_rf0.npy", dtype='int8', mode='r',
-                                              shape=(self.n_samples, self.max_aa_len)))
-        print("  [8/10] Loading labels_rf1...", flush=True)
-        self.labels_rf1 = np.array(np.memmap(f"{data_dir}/labels_rf1.npy", dtype='int8', mode='r',
-                                              shape=(self.n_samples, self.max_aa_len)))
-        print("  [9/10] Loading labels_rf2...", flush=True)
-        self.labels_rf2 = np.array(np.memmap(f"{data_dir}/labels_rf2.npy", dtype='int8', mode='r',
-                                              shape=(self.n_samples, self.max_aa_len)))
-
-        print("  [10/10] Loading label_encodings...", flush=True)
-        self.label_encodings = np.array(np.memmap(f"{data_dir}/label_encodings.npy", dtype='int8', mode='r',
-                                                   shape=(self.n_samples, self.max_len - 2)))
-
-        # Load sequence descriptions (small, kept in memory)
-        with open(f"{data_dir}/seq_descs.pkl", "rb") as f:
-            self.seq_descs = pickle.load(f)
-
-        print(f"Loaded {self.n_samples} samples into RAM.", flush=True)
-
-    def __getitem__(self, idx):
-        return {
-            "aa_encodings_rf0": {
-                "input_ids": torch.from_numpy(self.aa_input_ids_rf0[idx].copy()),
-                "attention_mask": torch.from_numpy(self.aa_attention_rf0[idx].copy()),
-            },
-            "labels_rf0": torch.from_numpy(self.labels_rf0[idx].astype(np.float32)),
-            "aa_encodings_rf1": {
-                "input_ids": torch.from_numpy(self.aa_input_ids_rf1[idx].copy()),
-                "attention_mask": torch.from_numpy(self.aa_attention_rf1[idx].copy()),
-            },
-            "labels_rf1": torch.from_numpy(self.labels_rf1[idx].astype(np.float32)),
-            "aa_encodings_rf2": {
-                "input_ids": torch.from_numpy(self.aa_input_ids_rf2[idx].copy()),
-                "attention_mask": torch.from_numpy(self.aa_attention_rf2[idx].copy()),
-            },
-            "labels_rf2": torch.from_numpy(self.labels_rf2[idx].astype(np.float32)),
-            "label_encodings": torch.from_numpy(self.label_encodings[idx].astype(np.float32)),
-            "seq_desc": self.seq_descs[idx],
-        }
-
-    def __len__(self):
-        return self.n_samples
 
 
 def encode_data(processed_samples_df, max_len, tokenizer=None, max_aa_len=max_aa_len):
@@ -402,46 +431,6 @@ def encode_data(processed_samples_df, max_len, tokenizer=None, max_aa_len=max_aa
     return dataset, list(set(seq_descriptions))
 
 
-def load_preprocessed_data(dataset_size):
-    """
-    Load preprocessed memory-mapped data.
-
-    Args:
-        dataset_size: Size of the training dataset (e.g., "100_genomes")
-
-    Returns:
-        train_data: Memory-mapped training dataset
-        val_data: Memory-mapped validation dataset
-        sequence_types: List of unique sequence types
-        seq_type_desc_fracs: Distribution of sequence types in validation set
-    """
-    train_dir = f"{input_data_dir_path}/datasets_model/preprocessed_train_{dataset_size}"
-    val_dir = f"{input_data_dir_path}/datasets_model/preprocessed_val"
-
-    print(f"Loading preprocessed training data from: {train_dir}", flush=True)
-    print(f"Loading preprocessed validation data from: {val_dir}", flush=True)
-
-    # Load preprocessed datasets into RAM
-    train_data = PreprocessedSeqDataset(train_dir)
-    val_data = PreprocessedSeqDataset(val_dir)
-
-    print(f"Training data samples: {len(train_data)}", flush=True)
-    print(f"Validation data samples: {len(val_data)}", flush=True)
-
-    # Get sequence types and distribution from the loaded data
-    sequence_types = list(set(train_data.seq_descs))
-
-    # Calculate distribution from validation set
-    val_seq_counts = Counter(val_data.seq_descs)
-    total_val = len(val_data.seq_descs)
-    seq_type_desc_fracs = {k: v / total_val for k, v in val_seq_counts.items()}
-
-    print(f"Sequence types: {sequence_types}", flush=True)
-    print(f"Distribution of sequence types in validation set: {seq_type_desc_fracs}", flush=True)
-
-    return train_data, val_data, sequence_types, seq_type_desc_fracs
-
-
 def load_and_process_data(max_len, dataset_size):
     """
     Main function that loads and processes all data efficiently.
@@ -502,6 +491,7 @@ def load_and_process_data(max_len, dataset_size):
     gc.collect()
 
     return train_data, val_data, sequence_types, seq_type_desc_fracs
+
 
 
 # Define model architecture
@@ -1228,12 +1218,27 @@ def log_evaluation_metrics(epoch, train_avg_loss, val_avg_loss, best_val_loss, t
         f"Val Loss: {val_avg_loss:.4f}\t\t",
     ]
 
+    # Add overall metrics
+    print_parts.extend(
+        [
+            f"Overall MCC: {sequence_metrics.get('overall_mcc', 0):.4f}\t\t",
+            f"Overall Accuracy: {sequence_metrics.get('accuracy', 0):.4f}\n",
+        ]
+    )
+
     # Add loss metrics for each sequence type
     for seq_type in sequence_types:
         loss_val = tracker.get_metrics().get(seq_type, 0) 
         print_parts.append(f"Val Loss {seq_type}: {loss_val:.4f}\t\t")
 
     print_parts.append("\n")
+
+    # Add type-specific MCC and accuracy metrics
+    for seq_type in sequence_types:
+        type_mcc = sequence_metrics.get(f"{seq_type}_mcc", 0)
+        type_acc = sequence_metrics.get(f"{seq_type}_accuracy", 0)
+        if type_mcc != 0 or type_acc != 0:  # Only show if we have data for this type
+            print_parts.extend([f"MCC {seq_type}: {type_mcc:.4f}\t\t", f"Acc {seq_type}: {type_acc:.4f}\t\t"])
 
     # Print all metrics
     print("".join(print_parts), flush=True)
@@ -1243,11 +1248,37 @@ def log_evaluation_metrics(epoch, train_avg_loss, val_avg_loss, best_val_loss, t
         "epoch": epoch + 1,
         "train_loss": train_avg_loss,
         "val_loss": val_avg_loss,
+        # Overall sequence metrics
+        "val_fraction_perfect_sequences": sequence_metrics.get("fraction_perfect_sequences", 0),
+        "val_fraction_high_accuracy_sequences": sequence_metrics.get("fraction_high_accuracy_sequences", 0),
+        "val_overall_mcc": sequence_metrics.get("overall_mcc", 0),
+        "val_accuracy": sequence_metrics.get("accuracy", 0),
     }
 
     # Add loss metrics for each sequence type
     for seq_type in sequence_types:
         wandb_log[f"val_loss_{seq_type}"] = tracker.get_metrics().get(seq_type, 0)
+
+    # Add type-specific MCC and accuracy metrics
+    for seq_type in sequence_types:
+        # MCC metrics
+        type_mcc = sequence_metrics.get(f"{seq_type}_mcc", 0)
+        if type_mcc != 0:  # Only log if we have data
+            wandb_log[f"val_mcc_{seq_type}"] = type_mcc
+
+        # Accuracy metrics
+        type_acc = sequence_metrics.get(f"{seq_type}_accuracy", 0)
+        if type_acc != 0:  # Only log if we have data
+            wandb_log[f"val_accuracy_{seq_type}"] = type_acc
+
+        # Perfect and high accuracy sequence fractions
+        type_perfect = sequence_metrics.get(f"{seq_type}_fraction_perfect", 0)
+        if type_perfect != 0:
+            wandb_log[f"val_fraction_perfect_{seq_type}"] = type_perfect
+
+        type_high_acc = sequence_metrics.get(f"{seq_type}_fraction_high_accuracy", 0)
+        if type_high_acc != 0:
+            wandb_log[f"val_fraction_high_accuracy_{seq_type}"] = type_high_acc
 
     # Log lowest validation loss obtained throughout entire training
     wandb_log[f"best_val_loss"] = best_val_loss
@@ -1321,6 +1352,11 @@ def training_iteration(i, batch, scaler, model, optimizer, device, train_losses,
         )
         loss = outputs["loss"]
 
+    # Check for NaN loss before backward pass
+    if torch.isnan(loss) or torch.isinf(loss):
+        print(f"WARNING: NaN/Inf loss detected at batch {i}! Skipping this batch.", flush=True)
+        return train_losses, warmup_state
+
     # Backward pass
     optimizer.zero_grad()
 
@@ -1374,6 +1410,74 @@ def training_iteration(i, batch, scaler, model, optimizer, device, train_losses,
 
     return train_losses, warmup_state
 
+
+def show_examples(v_labels, padding_mask, logits, seq_descs_batch, mapping_dict_to_class, model, device, valid_mask):
+    """
+    Show hard examples as demonstration per validation loop
+
+    Args:
+        counter: batch counter
+        v_labels: encoded labels
+        padding_mask: padding mask
+        logits: model logits (not predictions)
+        seq_descs_batch: sequence descriptions
+        mapping_dict_to_class: label mapping
+        model: model object (to access CRF)
+        device: device
+        valid_mask: valid positions mask
+    """
+
+    num_to_show = min(32, v_labels.shape[0])  # Show examples
+    list_seq_types = ["none"]
+
+    for seq_i in range(num_to_show):
+        mask = ~padding_mask[seq_i]
+
+        if seq_descs_batch[seq_i] not in list_seq_types:
+            print("Sequence type:", seq_descs_batch[seq_i], flush=True)
+
+            # Get labels for this sequence
+            labels_masked = v_labels[seq_i][mask].cpu().numpy().astype(int)
+
+            # Decode prediction for sequence
+            seq_logits = logits[seq_i : seq_i + 1]  # [1, seq_len, num_classes]
+            seq_valid_mask = valid_mask[seq_i : seq_i + 1]  # [1, seq_len]
+
+            pred_decoded = model.CRF.crf.decode(seq_logits, mask=seq_valid_mask)
+            preds_masked = torch.tensor(pred_decoded[0], dtype=torch.long, device=device).cpu().numpy().astype(int)
+
+            # Convert labels to RF vectors
+            labels_rf = [mapping_dict_to_class[label] for label in labels_masked]
+
+            # Convert predictions to RF vectors
+            preds_rf = [mapping_dict_to_class[pred] for pred in preds_masked]
+
+            # Extract individual RF sequences
+            labels_rf0 = [rf[0] for rf in labels_rf]
+            labels_rf1 = [rf[1] for rf in labels_rf]
+            labels_rf2 = [rf[2] for rf in labels_rf]
+            preds_rf0 = [rf[0] for rf in preds_rf]
+            preds_rf1 = [rf[1] for rf in preds_rf]
+            preds_rf2 = [rf[2] for rf in preds_rf]
+
+            print("Encoded labels and preds:", flush=True)
+            print(v_labels[seq_i][mask].cpu().numpy().astype(float), flush=True)
+            print(preds_masked.astype(float), flush=True)
+            print(flush=True)
+            print("Labels RF0:", labels_rf0, flush=True)
+            print("Labels RF1:", labels_rf1, flush=True)
+            print("Labels RF2:", labels_rf2, flush=True)
+            print(flush=True)
+            print("Predictions RF0:", preds_rf0, flush=True)
+            print("Predictions RF1:", preds_rf1, flush=True)
+            print("Predictions RF2:", preds_rf2, flush=True)
+            print("\n", flush=True)
+
+        if seq_i == 3:
+            # Only show a few of "easy-to-classify" samples
+            list_seq_types = ["non-coding", "coding", "coding_with_substitutions"]
+
+
 ######################################################################################################################################################################################################
 ############################################################################################## Main ##################################################################################################
 ######################################################################################################################################################################################################
@@ -1383,12 +1487,8 @@ set_seed(args.seed)
 print(f"Using random seed: {args.seed}", flush=True)
 
 # Load in data once
-if args.use_preprocessed:
-    print("Using preprocessed memory-mapped data...", flush=True)
-    train_data, val_data, sequence_types, seq_type_desc_fracs = load_preprocessed_data(dataset_size)
-else:
-    print("Processing data from CSV files (high RAM usage)...", flush=True)
-    train_data, val_data, sequence_types, seq_type_desc_fracs = load_and_process_data(max_len, dataset_size)
+print("Processing data from CSV files", flush=True)
+train_data, val_data, sequence_types, seq_type_desc_fracs = load_and_process_data(max_len, dataset_size)
 
 # Load the optimized hyperparameters
 cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/esm2_8m_hyperparameters.yaml")
@@ -1405,6 +1505,17 @@ transition_weight = cfg.hyperparameters.transition_weight
 
 batch_size = 32
 
+# Check for wandb run ID if resuming
+wandb_run_id = None
+checkpoint_path = f"{models_output_dir_path}/checkpoint_{dataset_size}_seed_{args.seed}{model_checkpoint_extension}.pt"
+if args.resume and os.path.exists(checkpoint_path):
+    # Load only the wandb run ID from checkpoint
+    checkpoint_meta = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    wandb_run_id = checkpoint_meta.get("wandb_run_id")
+    del checkpoint_meta
+    if wandb_run_id:
+        print(f"Resuming WandB run: {wandb_run_id}", flush=True)
+
 wandb.init(
     project=wandb_project_name,
     config={
@@ -1419,11 +1530,11 @@ wandb.init(
         "lr_scratch": lr_scratch,
     },
     name=f"train_{dataset_size}_seed_{args.seed}",
+    id=wandb_run_id,
+    resume="must" if wandb_run_id else None,
 )
 
-# With preprocessed data in RAM, fewer workers needed (loading from RAM is fast)
-# Reduces process count and memory reporting confusion from forked workers
-dataloader_num_workers = 2 if args.use_preprocessed else num_workers_cpu
+dataloader_num_workers = 2
 
 train_loader = DataLoader(
     train_data,
@@ -1520,11 +1631,31 @@ scaler = GradScaler() if "cuda" in device_type else None
 if scaler is not None:
     print("Mixed precision training enabled", flush=True)
 
+# Initialize esm2_initial_params (will be set when unfreezing)
+esm2_initial_params = None
 
-train_losses = [] #MODIFY (Before epoch loss, adapt)
+# Load checkpoint if resuming (checkpoint_path defined earlier before wandb.init)
+start_epoch = 0
+if args.resume:
+    if os.path.exists(checkpoint_path):
+        restored_state = load_checkpoint(
+            checkpoint_path, model, optimizer, scheduler, scaler, device
+        )
+        start_epoch = restored_state["epoch"]
+        step = restored_state["step"]
+        val_times_counter = restored_state["val_times_counter"]
+        best_val_loss = restored_state["best_val_loss"]
+        counter_patience = restored_state["counter_patience"]
+        warmup_state = restored_state["warmup_state"]
+        esm2_initial_params = restored_state["esm2_initial_params"]
+    else:
+        print(f"Warning: --resume specified but no checkpoint found at {checkpoint_path}", flush=True)
+        print("Starting training from scratch.", flush=True)
+
+train_losses = []
 
 # Training loop
-for epoch in range(epochs):
+for epoch in range(start_epoch, epochs):
     model.train()
 
     for i, batch in enumerate(train_loader):
@@ -1612,11 +1743,50 @@ for epoch in range(epochs):
 
                             del desc_logits, desc_labels_original, safe_desc_labels, desc_valid_mask, desc_crf_loss
                         del desc_mask
+                    
+                    """
+                    # Only calculate sequence metrics for every 5th validation iteration to save memory
+                    if val_times_counter % 5 == 0:
+                        logits_for_metrics = v_outputs["logits"]
+
+                        # Get all true labels and predicted labels
+                        for seq_idx in range(v_encoded_labels.shape[0]):
+                            mask = ~padding_mask[seq_idx]
+                            if mask.any():
+                                true_seq = v_encoded_labels[seq_idx][mask].cpu().numpy()
+
+                                seq_logits = logits_for_metrics[seq_idx : seq_idx + 1]
+                                seq_valid_mask = valid_mask[seq_idx : seq_idx + 1]
+                                pred_decoded = model.CRF.crf.decode(seq_logits, mask=seq_valid_mask)
+                                pred_seq = np.array(pred_decoded[0])
+
+                                seq_type = seq_descs_batch[seq_idx]
+
+                                all_val_true_sequences.append(true_seq)
+                                all_val_pred_sequences.append(pred_seq)
+                                all_val_sequence_types.append(seq_type)
+
+                        if counter == 0:
+                            show_examples(
+                                v_encoded_labels,
+                                padding_mask,
+                                logits_for_metrics,
+                                seq_descs_batch,
+                                mapping_dict_to_class,
+                                model,
+                                device,
+                                valid_mask,
+                            )
+
+                        if counter % 30 == 0:
+                            del logits_for_metrics, seq_descs_batch, v_encoded_labels, padding_mask, valid_mask
+                            clear_memory()
+                    """
 
                     if counter % 30 == 0:
                         del v_inputs_aa_rf0, v_attention_mask_aa_rf0
                         del v_inputs_aa_rf1, v_attention_mask_aa_rf1
-                        del v_inputs_aa_rf2, v_attention_mask_aa_rf2
+                        del v_inputs_aa_rf2, v_attention_mask_aa_rf2,
                         del v_outputs, v_loss
                         clear_memory()
 
@@ -1653,6 +1823,23 @@ for epoch in range(epochs):
                 counter_patience = 0
             else:
                 counter_patience += 1
+
+            # Save checkpoint after every validation for crash recovery
+            save_checkpoint(
+                checkpoint_path,
+                model,
+                optimizer,
+                scheduler,
+                scaler,
+                epoch,
+                step,
+                val_times_counter,
+                best_val_loss,
+                counter_patience,
+                warmup_state,
+                esm2_initial_params,
+                wandb.run.id,
+            )
 
             if counter_patience >= threshold_patience:
                 print("Early stopping triggered!", flush=True)
@@ -1696,7 +1883,7 @@ for epoch in range(epochs):
                 esm2_initial_params = {name: param.clone().detach() for name, param in model.sequence_encoder.pretrained_model_aa.named_parameters() if param.requires_grad}
 
             # During validation (every few validations after unfreezing)
-            if val_times_counter > freeze_esm_validations:
+            if val_times_counter > freeze_esm_validations and esm2_initial_params is not None:
                 # Check how much parameters have changed
                 total_change = 0
                 total_norm = 0

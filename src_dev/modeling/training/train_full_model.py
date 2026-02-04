@@ -42,6 +42,11 @@ parser.add_argument(
     choices=["indel_substitution", "substitution", "none"],
     help="Type of data errors to include (default: indel_substitution)",
 )
+parser.add_argument(
+    "--resume",
+    action="store_true",
+    help="Resume training from the latest checkpoint",
+)
 
 args = parser.parse_args()
 
@@ -81,7 +86,7 @@ else:
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 
 if args.healthtech_cluster:
-    input_data_dir_path = f"../../../data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"
+    input_data_dir_path = f"/home/projects/DeepCDStmp/data/processed_data/model_data/{model_dir_path_suffix}"
     num_workers_cpu = 2
     pin_memory = True
     # Use argparse values
@@ -91,9 +96,8 @@ if args.healthtech_cluster:
     print("Device: ", device, flush=True)
 
     assert device == torch.device("cuda"), "HealthTech cluster run should be on a CUDA GPU."
-    os.makedirs(f"/home/projects/DeepCDStmp/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}/models/", exist_ok=True)  # While projects2 fails
-    models_output_dir_path = f"/home/projects/DeepCDStmp/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}/models/"
-
+    os.makedirs(f"{input_data_dir_path}/models/", exist_ok=True)
+    models_output_dir_path = f"{input_data_dir_path}/models/"
 
 elif args.scarb_cluster:
     input_data_dir_path = f"/tmp/nrt204/FragmentPredictor/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"  # SCARB cluster
@@ -162,6 +166,124 @@ def clear_memory():
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     gc.collect()
+
+
+def save_checkpoint(
+    checkpoint_path,
+    model,
+    optimizer,
+    scheduler,
+    scaler,
+    epoch,
+    step,
+    val_times_counter,
+    best_val_loss,
+    counter_patience,
+    warmup_state,
+    esm2_initial_params=None,
+    wandb_run_id=None,
+):
+    """
+    Save a full training checkpoint for resumption.
+
+    Args:
+        checkpoint_path: Path to save the checkpoint
+        model: The model being trained
+        optimizer: The optimizer
+        scheduler: The learning rate scheduler
+        scaler: The gradient scaler for mixed precision (can be None)
+        epoch: Current epoch number
+        step: Current global step
+        val_times_counter: Number of validation runs completed
+        best_val_loss: Best validation loss seen so far
+        counter_patience: Current patience counter for early stopping
+        warmup_state: Warmup state dict (can be None)
+        esm2_initial_params: Initial ESM-2 parameters for tracking changes (can be None)
+        wandb_run_id: WandB run ID for resuming the same run (can be None)
+    """
+    checkpoint = {
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "scheduler_state_dict": scheduler.state_dict(),
+        "scaler_state_dict": scaler.state_dict() if scaler is not None else None,
+        "epoch": epoch,
+        "step": step,
+        "val_times_counter": val_times_counter,
+        "best_val_loss": best_val_loss,
+        "counter_patience": counter_patience,
+        "warmup_state": warmup_state,
+        "esm2_initial_params": esm2_initial_params,
+        "wandb_run_id": wandb_run_id,
+    }
+    torch.save(checkpoint, checkpoint_path)
+    print(f"Checkpoint saved to {checkpoint_path}", flush=True)
+
+
+def load_checkpoint(checkpoint_path, model, optimizer, scheduler, scaler, device):
+    """
+    Load a training checkpoint and restore all training state.
+
+    Args:
+        checkpoint_path: Path to the checkpoint file
+        model: The model to load weights into
+        optimizer: The optimizer to restore state
+        scheduler: The learning rate scheduler to restore state
+        scaler: The gradient scaler (can be None)
+        device: The device to load tensors to
+
+    Returns:
+        dict: Dictionary containing restored training state variables
+    """
+    print(f"Loading checkpoint from {checkpoint_path}", flush=True)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+
+    # Check if ESM-2 layers were unfrozen when checkpoint was saved
+    # by comparing optimizer param group counts
+    saved_param_groups = len(checkpoint["optimizer_state_dict"]["param_groups"])
+    current_param_groups = len(optimizer.param_groups)
+
+    if saved_param_groups > current_param_groups:
+        # ESM-2 was unfrozen - need to add those params to optimizer first
+        print(f"Checkpoint has {saved_param_groups} param groups, current has {current_param_groups}", flush=True)
+        print("Adding ESM-2 parameters to optimizer before loading state...", flush=True)
+
+        # Unfreeze ESM-2 layers and add to optimizer
+        unfreeze_start = model.sequence_encoder.unfreeze_start
+        if unfreeze_start is not None:
+            for i, layer in enumerate(model.sequence_encoder.pretrained_model_aa.encoder.layer):
+                if i >= unfreeze_start:
+                    for param in layer.parameters():
+                        param.requires_grad = True
+
+            # Collect and add ESM-2 params to optimizer (with dummy LR, will be overwritten)
+            unfrozen_params = [
+                p for layer in model.sequence_encoder.pretrained_model_aa.encoder.layer[unfreeze_start:]
+                for p in layer.parameters()
+            ]
+            optimizer.add_param_group({"params": unfrozen_params, "lr": 1e-5})
+
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+
+    if scaler is not None and checkpoint.get("scaler_state_dict") is not None:
+        scaler.load_state_dict(checkpoint["scaler_state_dict"])
+
+    # Use .get() with defaults for fields that might not exist in older checkpoints
+    restored_state = {
+        "epoch": checkpoint["epoch"],
+        "step": checkpoint["step"],
+        "val_times_counter": checkpoint["val_times_counter"],
+        "best_val_loss": checkpoint["best_val_loss"],
+        "counter_patience": checkpoint["counter_patience"],
+        "warmup_state": checkpoint.get("warmup_state"),
+        "esm2_initial_params": checkpoint.get("esm2_initial_params"),
+    }
+
+    print(f"Resumed from epoch {restored_state['epoch']}, step {restored_state['step']}", flush=True)
+    print(f"Best val loss so far: {restored_state['best_val_loss']:.4f}", flush=True)
+
+    return restored_state
 
 
 def one_hot_encode(sequence):
@@ -1356,6 +1478,11 @@ def training_iteration(i, batch, scaler, model, optimizer, device, train_losses,
         )
         loss = outputs["loss"]
 
+    # Check for NaN loss before backward pass
+    if torch.isnan(loss) or torch.isinf(loss):
+        print(f"WARNING: NaN/Inf loss detected at batch {i}! Skipping this batch.", flush=True)
+        return train_losses, warmup_state
+
     # Backward pass
     optimizer.zero_grad()
 
@@ -1504,6 +1631,17 @@ transition_weight = cfg.hyperparameters.transition_weight
 
 batch_size = 32
 
+# Check for wandb run ID if resuming
+wandb_run_id = None
+checkpoint_path = f"{models_output_dir_path}/checkpoint_{dataset_size}_seed_{args.seed}{model_checkpoint_extension}.pt"
+if args.resume and os.path.exists(checkpoint_path):
+    # Load only the wandb run ID from checkpoint
+    checkpoint_meta = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    wandb_run_id = checkpoint_meta.get("wandb_run_id")
+    del checkpoint_meta
+    if wandb_run_id:
+        print(f"Resuming WandB run: {wandb_run_id}", flush=True)
+
 wandb.init(
     project=wandb_project_name,
     config={
@@ -1518,6 +1656,8 @@ wandb.init(
         "lr_scratch": lr_scratch,
     },
     name=f"train_{dataset_size}_seed_{args.seed}",
+    id=wandb_run_id,
+    resume="must" if wandb_run_id else None,
 )
 
 dataloader_num_workers = 2
@@ -1617,11 +1757,31 @@ scaler = GradScaler() if "cuda" in device_type else None
 if scaler is not None:
     print("Mixed precision training enabled", flush=True)
 
+# Initialize esm2_initial_params (will be set when unfreezing)
+esm2_initial_params = None
+
+# Load checkpoint if resuming (checkpoint_path defined earlier before wandb.init)
+start_epoch = 0
+if args.resume:
+    if os.path.exists(checkpoint_path):
+        restored_state = load_checkpoint(
+            checkpoint_path, model, optimizer, scheduler, scaler, device
+        )
+        start_epoch = restored_state["epoch"]
+        step = restored_state["step"]
+        val_times_counter = restored_state["val_times_counter"]
+        best_val_loss = restored_state["best_val_loss"]
+        counter_patience = restored_state["counter_patience"]
+        warmup_state = restored_state["warmup_state"]
+        esm2_initial_params = restored_state["esm2_initial_params"]
+    else:
+        print(f"Warning: --resume specified but no checkpoint found at {checkpoint_path}", flush=True)
+        print("Starting training from scratch.", flush=True)
 
 train_losses = [] #MODIFY (Before epoch loss, adapt)
 
 # Training loop
-for epoch in range(epochs):
+for epoch in range(start_epoch, epochs):
     model.train()
 
     for i, batch in enumerate(train_loader):
@@ -1803,6 +1963,23 @@ for epoch in range(epochs):
             else:
                 counter_patience += 1
 
+            # Save checkpoint after every validation for crash recovery
+            save_checkpoint(
+                checkpoint_path,
+                model,
+                optimizer,
+                scheduler,
+                scaler,
+                epoch,
+                step,
+                val_times_counter,
+                best_val_loss,
+                counter_patience,
+                warmup_state,
+                esm2_initial_params,
+                wandb.run.id,
+            )
+
             if counter_patience >= threshold_patience:
                 print("Early stopping triggered!", flush=True)
                 break
@@ -1845,7 +2022,7 @@ for epoch in range(epochs):
                 esm2_initial_params = {name: param.clone().detach() for name, param in model.sequence_encoder.pretrained_model_aa.named_parameters() if param.requires_grad}
 
             # During validation (every few validations after unfreezing)
-            if val_times_counter > freeze_esm_validations:
+            if val_times_counter > freeze_esm_validations and esm2_initial_params is not None:
                 # Check how much parameters have changed
                 total_change = 0
                 total_norm = 0
