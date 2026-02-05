@@ -7,14 +7,21 @@ Project workspace for DeepCDS project
     - [ ] Full model
     - [ ] ESM 2
     - [x] Codon encoding
-- [x] Process all simulated reads (testset)
-- [ ] Check that train- and test set error rates are correct, plot in a nice way
 - [ ] Make plots nicer with scienceplots
 - [ ] Check more about Sanger sequencing on longer sequences (700 & 1000bp)
+- [ ] Reiterate model architecture sketch
 
-Tuesday:
-- [x] Adapt hyperparameter tuning script for codon encoding
-- [ ] Work on postprocessing script
+Thursday:
+- [ ] Work on postprocessing scripts to check that everything is as should be
+    - [ ] Test set
+    - [ ] Model predictions
+    - [ ] FGS
+    - [ ] MetaProdigal
+- [ ] Monitor trainings and predictions on cluster, keep adding
+- [ ] Implement prediction script for ESM-2 only model
+- [ ] Keep writing on manuscript 
+- [ ] Start working on plotting benchmark results without sequencng errors 
+- [ ] Start working on review
 
 FGS:
 RERUN:
@@ -45,14 +52,12 @@ RERUN:
 #### Performance and benchmark
 - [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
     - [x] Predict all on datasets with no sequencing errors
-    - [ ] Predict all on datasets with sequencing errors
-        - [ ] Test data: 60 bp reads
-        - [ ] Test data: 75 bp reads
-        - [ ] Test data: 100 bp reads -> running (predict_with_fgs)
-        - [ ] Test data: 150 bp reads -> running (predict_with_fgs) RERUN SAMPLES; SEE ABOVE
-        - [x] Test data: 300 bp reads 
+        - [x] Transfered to local
+    - [x] Predict all on datasets with sequencing errors
+        - [ ] Transfered to local
 - [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal)
     - [x] Predict all on datasets with no sequencing errors
+        - [x] Transfered to local 
     - [ ] Predict all on datasets with sequencing errors
         - [ ] Test data: 60 bp reads  -> running (predict_with_prodigal)
         - [ ] Test data: 75 bp reads  -> running (predict_with_prodigal)
@@ -61,9 +66,9 @@ RERUN:
         - [x] Test data: 300 bp reads
 - [ ] 1. /benchmark/predict/predict_with_DeepCDS.py (Predict with DeepCDS)
     - [ ] Predict all on datasets with no sequencing errors (100 genome model)
-        - [x] 100 genomes
-        - [x] 200 genomes 
-        - [ ] 400 genomes -> RUNNING (predict_DeepCDS_no_errors_400_genomes)
+        - [x] 100 genomes (transfered to local pc)
+        - [x] 200 genomes (transfered to local pc)
+        - [x] 400 genomes (transfered to local pc)
         - [ ] All genomes (run all datasets)
             - [ ] Test data: 60 bp reads
             - [ ] Test data: 75 bp reads
@@ -77,7 +82,7 @@ RERUN:
         - [ ] Substitution errors
             - [x] 100 genomes
             - [x] 200 genomes
-            - [ ] 400 genomes
+            - [ ] 400 genomes -> Running (predict_with_DeepCDS_400_genomes_subs_errors)
             - [ ] All genomes (run all datasets)
                 - [ ] Test data: 60 bp reads
                 - [ ] Test data: 75 bp reads
@@ -89,7 +94,7 @@ RERUN:
 
         - [ ] Indel and substitution errors
             - [x] 100 genomes 
-            - [ ] 200 genomes
+            - [ ] 200 genomes Running (predict_with_DeepCDS_200_genomes_errors)
             - [ ] 400 genomes
             - [ ] All genomes (run all datasets)
                 - [ ] Test data: 60 bp reads
