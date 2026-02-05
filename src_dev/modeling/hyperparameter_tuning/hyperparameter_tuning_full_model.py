@@ -24,9 +24,10 @@ pd.options.mode.chained_assignment = None
 import argparse
 
 # Add argument parser at the beginning
-parser = argparse.ArgumentParser(description="Train CDS Predictor Model")
+parser = argparse.ArgumentParser(description="Hyperparameter Tuning for DeepCDS Model")
 parser.add_argument("--gpu", type=int, default=0, help="GPU number to use (default: 0)")
-parser.add_argument("--scarb_cluster", type=bool, default=False, help="Whether running on SCARB cluster (default: False)")
+parser.add_argument("--healthtech_cluster", action="store_true", help="Whether running on HealthTech cluster")
+parser.add_argument("--scarb_cluster", action="store_true", help="Whether running on SCARB cluster")
 parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility (default: 42)")
 parser.add_argument(
     "--error_type",
@@ -34,7 +35,19 @@ parser.add_argument(
     default="indel_substitution",
     choices=["indel_substitution", "substitution", "none"],
     help="Type of data errors to include (default: indel_substitution)",
-)  ##Added
+)
+parser.add_argument(
+    "--esm_model",
+    type=str,
+    default="8M",
+    choices=["8M", "650M"],
+    help="ESM-2 model size to use (default: 8M)",
+)
+parser.add_argument(
+    "--gradient_checkpointing",
+    action="store_true",
+    help="Enable gradient checkpointing to reduce memory usage (recommended for 650M model)",
+)
 
 args = parser.parse_args()
 
@@ -42,23 +55,51 @@ args = parser.parse_args()
 if args.error_type == "indel_substitution":
     model_dir_path_suffix = "model_with_errors"
     label_classes = 6
-    wandb_project_name = "tune_shared_full_model_errors_V2"
+    wandb_project_name = "DeepCDS_tune_errors"
 
 elif args.error_type == "substitution":
     model_dir_path_suffix = "model_with_substitution_errors"
     label_classes = 4
-    wandb_project_name = "tune_shared_full_model_substitution_errors_V2"
+    wandb_project_name = "DeepCDS_tune_substitution_errors"
 else:
     model_dir_path_suffix = "model_without_errors"
     label_classes = 4
-    wandb_project_name = "tune_shared_full_model_no_errors_V2"
+    wandb_project_name = "DeepCDS_tune_no_errors"
+
+# Debug mode settings
+debug_mode = False  # Set to True for debugging with smaller dataset
+
+if debug_mode:
+    steps_between_vals = 50
+    frac_train = 0.005
+    frac_val = 0.002
+    frac_full_val = 0.005
+    wandb_project_name = "debug"
+else:
+    steps_between_vals = 4000
+    frac_train = 1.0
+    frac_val = 0.05
+    frac_full_val = 0.25
 
 # Configure CUDA memory allocations (manage fragmentation in the GPU memory)
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 
-if args.scarb_cluster:
+if args.healthtech_cluster:
+    input_data_dir_path = f"/home/projects/DeepCDStmp/data/processed_data/model_data/{model_dir_path_suffix}"
+    num_workers_cpu = 2
+    pin_memory = True
+    # Use argparse values
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+    device_type = device.type  # "cuda", "mps", or "cpu"
+
+    print("Device: ", device, flush=True)
+
+    assert device == torch.device("cuda"), "HealthTech cluster run should be on a CUDA GPU."
+    print(f"Device type: {device_type}, GPU: {args.gpu if device_type == 'cuda' else 'N/A'}", flush=True)
+
+elif args.scarb_cluster:
     input_data_dir_path = f"/tmp/nrt204/FragmentPredictor/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"  # SCARB cluster
-    num_workers_cpu = 4
+    num_workers_cpu = 2
     pin_memory = True
     # Use argparse values
     device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -79,9 +120,22 @@ else:
 
     print(f"Device type: {device_type}, GPU: {args.gpu if device_type == 'cuda' else 'N/A'}", flush=True)
 
-#ESM model choice
-esm2_model = "facebook/esm2_t6_8M_UR50D"
-#esm2_model = "facebook/esm2_t33_650M_UR50D"
+# ESM model choice based on argument
+if args.esm_model == "650M":
+    esm2_model = "facebook/esm2_t33_650M_UR50D"
+    # Recommend gradient checkpointing for 650M model
+    if not args.gradient_checkpointing:
+        print("WARNING: 650M model selected without --gradient_checkpointing. This may cause OOM errors.", flush=True)
+    # Smaller batch sizes for larger model
+    default_train_batch_size = 8
+    default_val_batch_size = 64
+else:
+    esm2_model = "facebook/esm2_t6_8M_UR50D"
+    default_train_batch_size = 32
+    default_val_batch_size = 450
+
+print(f"Using ESM-2 model: {esm2_model}", flush=True)
+print(f"Gradient checkpointing: {args.gradient_checkpointing}", flush=True)
 
 #Make sure dir to store model exists
 os.makedirs(f"{input_data_dir_path}/models_optuna/", exist_ok=True)
@@ -100,6 +154,14 @@ def set_seed(seed):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+
+
+def seed_worker(worker_id):
+    """Seed function for DataLoader workers."""
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
 
 def clear_memory():
     """ 
@@ -347,18 +409,17 @@ def load_and_process_data(max_len, esm2_model = esm2_model):
         compression="gzip")
     
     seq_type_desc_fracs = (val_set['seq_desc'].value_counts(normalize=True)).to_dict()
-    
-    #Create a combined stratification label for accession and sequence type
-    val_set["accession_seq_desc_merged"] = val_set["accession"].astype(str) + "_" + val_set["seq_desc"].astype(str) 
-
-    ##Validate on 115k samples = 5 % of val set (0.05) following the original distribution stratified on accession and sequence type
-    val_set = (val_set.groupby("accession_seq_desc_merged", group_keys=False).apply(lambda x: x.sample(frac=0.05, random_state=42))) #0.05 #MODIFY
 
     #Create a combined stratification label for accession and sequence type
-    #train_set["accession_seq_desc_merged"] = train_set["accession"].astype(str) + "_" + train_set["seq_desc"].astype(str) #DELETE
+    val_set["accession_seq_desc_merged"] = val_set["accession"].astype(str) + "_" + val_set["seq_desc"].astype(str)
 
-    ##Validate on 115k samples = 5 % of val set (0.05) following the original distribution stratified on accession and sequence type
-    #train_set = (train_set.groupby("accession_seq_desc_merged", group_keys=False).apply(lambda x: x.sample(frac=0.005, random_state=42))) ##DELETE
+    # Subsample validation set
+    val_set = (val_set.groupby("accession_seq_desc_merged", group_keys=False).apply(lambda x: x.sample(frac=frac_val, random_state=42)))
+
+    # Subsample training set if in debug mode
+    if frac_train < 1.0:
+        train_set["accession_seq_desc_merged"] = train_set["accession"].astype(str) + "_" + train_set["seq_desc"].astype(str)
+        train_set = (train_set.groupby("accession_seq_desc_merged", group_keys=False).apply(lambda x: x.sample(frac=frac_train, random_state=42)))
 
     print("Training data samples : ", train_set.shape[0])
     print("Validation data samples during training: ", val_set.shape[0])
@@ -395,10 +456,10 @@ def load_full_validation_set(max_len, esm2_model = esm2_model):
         compression="gzip")
     
     #Create a combined stratification label for accession and sequence type
-    val_set["accession_seq_desc_merged"] = val_set["accession"].astype(str) + "_" + val_set["seq_desc"].astype(str) 
+    val_set["accession_seq_desc_merged"] = val_set["accession"].astype(str) + "_" + val_set["seq_desc"].astype(str)
 
-    ##Validate on 115k samples = 5 % of val set (0.05) following the original distribution stratified on accession and sequence type
-    val_set = (val_set.groupby("accession_seq_desc_merged", group_keys=False).apply(lambda x: x.sample(frac=0.25, random_state=42))) #0.25 #MODIFY
+    # Subsample full validation set
+    val_set = (val_set.groupby("accession_seq_desc_merged", group_keys=False).apply(lambda x: x.sample(frac=frac_full_val, random_state=42)))
 
     print("Validation data samples in full set: ", val_set.shape[0])
 
@@ -413,36 +474,43 @@ def load_full_validation_set(max_len, esm2_model = esm2_model):
 
     #Create model loader for the full validation set
     val_loader = DataLoader(
-        val_data, 
-        batch_size=450, 
-        shuffle=False, 
-        num_workers=num_workers_cpu,  
+        val_data,
+        batch_size=default_val_batch_size,
+        shuffle=False,
+        num_workers=num_workers_cpu,
         pin_memory=pin_memory)
 
     return val_loader
 
 
-#Define model architecture 
+#Define model architecture
 class SequenceEncoder(nn.Module):
     """
     Sequence encoder using the pretrained ESM-2.
-    
+
     Args:
         esm2_model (str): Name or path of the pretrained ESM-2 model to load
         dropout_rate_1 (float): Dropout rate for regularization layer applied after ESM-2
-    
+        use_gradient_checkpointing (bool): Whether to use gradient checkpointing to reduce memory usage
+
     Attributes:
         pretrained_model_aa (AutoModel): Pretrained ESM-2 model with all layers initially frozen
         dropout_1 (nn.Dropout): Dropout layer for regularization before transformer head
     """
     def __init__(self,
                  esm2_model,
-                 dropout_rate_1): 
+                 dropout_rate_1,
+                 use_gradient_checkpointing=False):
         super(SequenceEncoder, self).__init__()
 
         #Load pretrained ESM-2 model for amino acid sequences
         self.pretrained_model_aa = AutoModel.from_pretrained(esm2_model)
-        
+
+        # Enable gradient checkpointing to reduce memory usage (trades compute for memory)
+        if use_gradient_checkpointing:
+            self.pretrained_model_aa.gradient_checkpointing_enable()
+            print("Gradient checkpointing enabled for ESM-2 model", flush=True)
+
         self.num_layers = len(self.pretrained_model_aa.encoder.layer)
 
         #Freeze ALL layers of ESM-2 initially for staged training
@@ -451,7 +519,7 @@ class SequenceEncoder(nn.Module):
 
         #Additional dropout layer for regularization after encoding sequences
         self.dropout_1 = nn.Dropout(dropout_rate_1)
-        
+
         # Track which layers to unfreeze later
         self.unfreeze_start = None
 
@@ -836,13 +904,15 @@ class CDSPredictor(nn.Module):
                  transition_weight,
                  num_encoded_labels,
                  encoded_labels_mapping,
-                 label_classes): 
+                 label_classes,
+                 use_gradient_checkpointing=False):
         super(CDSPredictor, self).__init__()
 
         #Extract amino acid representations from pretrained ESM-2 model
         self.sequence_encoder = SequenceEncoder(
             esm2_model,
-            dropout_rate_1)
+            dropout_rate_1,
+            use_gradient_checkpointing)
 
         #Transformer encoder block applied separately to each reading frame
         self.TransformerEncoderBlock = TransformerEncoderBlock(
@@ -923,10 +993,10 @@ def count_parameters(model):
     print(f"Total trainable parameters: {total_params_learnable:,}")
 
 
-def initialize_model(device, num_layers, n_attention_heads, dropout_rate_1, dropout_rate_2, act_function, transition_weight, label_classes):
+def initialize_model(device, num_layers, n_attention_heads, dropout_rate_1, dropout_rate_2, act_function, transition_weight, label_classes, use_gradient_checkpointing=False):
     """
     Initialize the model and move it to the specified device.
-    
+
     Args:
         device_type (str): The device to use for computation ("cuda", "mps", or "cpu").
         num_layers (int): Number of Transformer encoder layers per reading frame.
@@ -934,7 +1004,7 @@ def initialize_model(device, num_layers, n_attention_heads, dropout_rate_1, drop
         dropout_rate_1 (float): Dropout rate applied in the sequence encoder.
         dropout_rate_2 (float): Dropout rate applied within the Transformer encoder layers.
         act_function (str or Callable): Activation function used in Transformer feedforward layers.
-
+        use_gradient_checkpointing (bool): Whether to use gradient checkpointing to reduce memory.
 
     Returns:
         model (nn.Module): The initialized model.
@@ -952,13 +1022,14 @@ def initialize_model(device, num_layers, n_attention_heads, dropout_rate_1, drop
     model = CDSPredictor(esm2_model=esm2_model,
                          num_layers = num_layers,
                          n_attention_heads = n_attention_heads,
-                         dropout_rate_1 = dropout_rate_1, 
+                         dropout_rate_1 = dropout_rate_1,
                          dropout_rate_2 = dropout_rate_2,
                          act_function = act_function,
                          transition_weight = transition_weight,
                          num_encoded_labels = num_encoded_labels,
                          encoded_labels_mapping = mapping_dict_to_class,
-                         label_classes = label_classes)
+                         label_classes = label_classes,
+                         use_gradient_checkpointing = use_gradient_checkpointing)
     model.to(device)
 
     if device.type == "cuda":
@@ -1433,7 +1504,7 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
     act_function = trial.suggest_categorical('act_function', act_functions)
     transition_weight = trial.suggest_float('transition_weight', -4, -1) #from probability from exp(-4) -> exp(-1) 
 
-    batch_size = 32
+    batch_size = default_train_batch_size
 
     print(f"depth_transformer_encoder_blocks: {depth_transformer_encoder_blocks}\n \
             n_attention_heads: {n_attention_heads}\n \
@@ -1444,8 +1515,11 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
             act_function: {act_function}\n \
             transition_weight: {transition_weight}")
 
-    wandb.init(project=wandb_project_name, 
+    wandb.init(project=wandb_project_name,
                 config={
+                        "esm_model": args.esm_model,
+                        "gradient_checkpointing": args.gradient_checkpointing,
+                        "batch_size": batch_size,
                         "depth_transformer_encoder_blocks": depth_transformer_encoder_blocks,
                         "n_attention_heads": n_attention_heads,
                         "dropout_rate_1": dropout_rate_1,
@@ -1454,16 +1528,16 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
                         "transition_weight": transition_weight,
                         "lr_esm2": lr_esm2,
                         "lr_scratch": lr_scratch},
-                        name = f"trial_{trial.number}")
+                        name = f"trial_{trial.number}_{args.esm_model}")
 
     #Create initial weighted sampler for training and get data loaders
     train_sampler = create_weighted_sampler(train_data, sequence_types)
     train_loader = adjust_train_sample_distribution(train_data, train_sampler, batch_size)
     val_loader = DataLoader(
-        val_data, 
-        batch_size=450, 
-        shuffle=True, 
-        num_workers=num_workers_cpu,  
+        val_data,
+        batch_size=default_val_batch_size,
+        shuffle=True,
+        num_workers=num_workers_cpu,
         pin_memory=pin_memory)
 
     #Initialize model with hyperparameters to try
@@ -1474,7 +1548,8 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
                                                     dropout_rate_2=dropout_rate_2,
                                                     act_function = act_function,
                                                     transition_weight = transition_weight,
-                                                    label_classes = label_classes)
+                                                    label_classes = label_classes,
+                                                    use_gradient_checkpointing=args.gradient_checkpointing)
     
     # Prepare for unfreezing later (but don't unfreeze yet!)
     model.sequence_encoder.prepare_for_unfreezing(unfreeze_fraction=0.5)
@@ -1483,7 +1558,7 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
     epochs = 20
     steps_per_epoch = len(train_data) / batch_size
     print("Steps per epoch: ", steps_per_epoch)
-    eval_every_n_steps = 4000  #Validate every 4000 batches = 4000 * 32 samples #MODIFY 
+    eval_every_n_steps = steps_between_vals  # Validate every N batches 
     print(f"Evaluating {round(steps_per_epoch/eval_every_n_steps, 1)} times per epoch")
     freeze_esm_validations = 15  #unfreeze after approximately 1 epoch = 15 validations (2.4M training samples)
 
@@ -1496,7 +1571,19 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
         {'params': model.linear_transform.parameters(), 'lr': lr_scratch},
         {'params': model.CRF.parameters(), 'lr': lr_scratch}
     ])
-            
+
+    # Initialize learning rate scheduler - reduces LR when validation loss plateaus
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode='min',           # Minimize validation loss
+        factor=0.7,           # Reduce LR by 30% when plateau detected
+        patience=6,           # Wait 6 validations before reducing
+        min_lr=1e-7           # Don't reduce below this
+    )
+
+    # Store initial LR for tracking scheduler changes
+    initial_lr = optimizer.param_groups[0]["lr"]
+
     #Initialize variables for early stopping
     best_val_loss = float('inf')
     
@@ -1628,6 +1715,14 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
                 #Log performance metrics
                 val_times_counter = log_evaluation_metrics(epoch, train_avg_loss, val_avg_loss, best_val_loss, tracker, val_times_counter, sequence_types)
 
+                # Step the learning rate scheduler based on validation loss
+                scheduler.step(val_avg_loss)
+
+                # Track LR as percentage of initial (starts at 100%, decreases when scheduler triggers)
+                current_lr = optimizer.param_groups[0]["lr"]
+                lr_percentage = (current_lr / initial_lr) * 100
+                wandb.log({"lr_percentage": lr_percentage, "current_lr": current_lr})
+
                 if val_times_counter == freeze_esm_validations:
                     # Unfreeze ESM-2 layers and set up warmup
                     esm2_param_group_idx = model.sequence_encoder.unfreeze_top_layers(
@@ -1665,13 +1760,14 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
     model = CDSPredictor(esm2_model=esm2_model,
                          num_layers = depth_transformer_encoder_blocks,
                          n_attention_heads = n_attention_heads,
-                         dropout_rate_1 = dropout_rate_1, 
+                         dropout_rate_1 = dropout_rate_1,
                          dropout_rate_2 = dropout_rate_2,
                          act_function = act_function,
                          transition_weight=transition_weight,
                          num_encoded_labels = len(mapping_dict_to_class.keys()),
                          encoded_labels_mapping = mapping_dict_to_class,
-                         label_classes = label_classes)
+                         label_classes = label_classes,
+                         use_gradient_checkpointing=args.gradient_checkpointing)
 
     model.to(device)
     #Load in parameters from trained model of best checkpoint

@@ -47,6 +47,18 @@ parser.add_argument(
     action="store_true",
     help="Resume training from the latest checkpoint",
 )
+parser.add_argument(
+    "--esm_model",
+    type=str,
+    default="8M",
+    choices=["8M", "650M"],
+    help="ESM-2 model size to use (default: 8M)",
+)
+parser.add_argument(
+    "--gradient_checkpointing",
+    action="store_true",
+    help="Enable gradient checkpointing to reduce memory usage (recommended for 650M model)",
+)
 
 args = parser.parse_args()
 
@@ -129,9 +141,22 @@ else:
     os.makedirs(f"{input_data_dir_path}/models/", exist_ok=True)
     models_output_dir_path = f"{input_data_dir_path}/models/"
 
-# ESM model choice
-esm2_model = "facebook/esm2_t6_8M_UR50D"
-# esm2_model = "facebook/esm2_t33_650M_UR50D"
+# ESM model choice based on argument
+if args.esm_model == "650M":
+    esm2_model = "facebook/esm2_t33_650M_UR50D"
+    # Recommend gradient checkpointing for 650M model
+    if not args.gradient_checkpointing:
+        print("WARNING: 650M model selected without --gradient_checkpointing. This may cause OOM errors.", flush=True)
+    # Smaller batch sizes for larger model
+    default_train_batch_size = 8
+    default_val_batch_size = 64
+else:
+    esm2_model = "facebook/esm2_t6_8M_UR50D"
+    default_train_batch_size = 32
+    default_val_batch_size = 450
+
+print(f"Using ESM-2 model: {esm2_model}", flush=True)
+print(f"Gradient checkpointing: {args.gradient_checkpointing}", flush=True)
 
 dataset_size = args.dataset_size  # Use argparse value
 
@@ -581,17 +606,23 @@ class SequenceEncoder(nn.Module):
     Args:
         esm2_model (str): Name or path of the pretrained ESM-2 model to load
         dropout_rate_1 (float): Dropout rate for regularization layer applied after ESM-2
+        use_gradient_checkpointing (bool): Whether to use gradient checkpointing to reduce memory usage
 
     Attributes:
         pretrained_model_aa (AutoModel): Pretrained ESM-2 model with all layers initially frozen
         dropout_1 (nn.Dropout): Dropout layer for regularization before transformer head
     """
 
-    def __init__(self, esm2_model, dropout_rate_1):
+    def __init__(self, esm2_model, dropout_rate_1, use_gradient_checkpointing=False):
         super(SequenceEncoder, self).__init__()
 
         # Load pretrained ESM-2 model for amino acid sequences
         self.pretrained_model_aa = AutoModel.from_pretrained(esm2_model)
+
+        # Enable gradient checkpointing to reduce memory usage (trades compute for memory)
+        if use_gradient_checkpointing:
+            self.pretrained_model_aa.gradient_checkpointing_enable()
+            print("Gradient checkpointing enabled for ESM-2 model", flush=True)
 
         self.num_layers = len(self.pretrained_model_aa.encoder.layer)
 
@@ -979,11 +1010,12 @@ class CDSPredictor(nn.Module):
         num_encoded_labels,
         encoded_labels_mapping,
         label_classes=label_classes,
+        use_gradient_checkpointing=False,
     ):
         super(CDSPredictor, self).__init__()
 
         # Extract amino acid representations from pretrained ESM-2 model
-        self.sequence_encoder = SequenceEncoder(esm2_model, dropout_rate_1)
+        self.sequence_encoder = SequenceEncoder(esm2_model, dropout_rate_1, use_gradient_checkpointing)
 
         # Transformer encoder block applied separately to each reading frame
         self.TransformerEncoderBlock = TransformerEncoderBlock(
@@ -1088,7 +1120,7 @@ def count_parameters(model):
     print(f"Total trainable parameters: {total_params_learnable:,}", flush=True)
 
 
-def initialize_model(device, num_layers, n_attention_heads, dropout_rate_1, dropout_rate_2, act_function, transition_weight, label_classes):
+def initialize_model(device, num_layers, n_attention_heads, dropout_rate_1, dropout_rate_2, act_function, transition_weight, label_classes, use_gradient_checkpointing=False):
     """
     Initialize the model and move it to the specified device.
 
@@ -1099,7 +1131,7 @@ def initialize_model(device, num_layers, n_attention_heads, dropout_rate_1, drop
         dropout_rate_1 (float): Dropout rate applied in the sequence encoder.
         dropout_rate_2 (float): Dropout rate applied within the Transformer encoder layers.
         act_function (str or Callable): Activation function used in Transformer feedforward layers.
-
+        use_gradient_checkpointing (bool): Whether to use gradient checkpointing to reduce memory.
 
     Returns:
         model (nn.Module): The initialized model.
@@ -1125,6 +1157,7 @@ def initialize_model(device, num_layers, n_attention_heads, dropout_rate_1, drop
         num_encoded_labels=num_encoded_labels,
         encoded_labels_mapping=mapping_dict_to_class,
         label_classes=label_classes,
+        use_gradient_checkpointing=use_gradient_checkpointing,
     )
     model.to(device)
 
@@ -1629,7 +1662,8 @@ lr_scratch = cfg.hyperparameters.lr_scratch
 n_attention_heads = cfg.hyperparameters.n_attention_heads
 transition_weight = cfg.hyperparameters.transition_weight
 
-batch_size = 32
+batch_size = default_train_batch_size
+val_batch_size = default_val_batch_size
 
 # Check for wandb run ID if resuming
 wandb_run_id = None
@@ -1646,6 +1680,9 @@ wandb.init(
     project=wandb_project_name,
     config={
         "seed": args.seed,
+        "esm_model": args.esm_model,
+        "gradient_checkpointing": args.gradient_checkpointing,
+        "batch_size": batch_size,
         "depth_transformer_encoder_blocks": depth_transformer_encoder_blocks,
         "n_attention_heads": n_attention_heads,
         "dropout_rate_1": dropout_rate_1,
@@ -1655,7 +1692,7 @@ wandb.init(
         "lr_esm2": lr_esm2,
         "lr_scratch": lr_scratch,
     },
-    name=f"train_{dataset_size}_seed_{args.seed}",
+    name=f"train_{dataset_size}_{args.esm_model}_seed_{args.seed}",
     id=wandb_run_id,
     resume="must" if wandb_run_id else None,
 )
@@ -1673,7 +1710,7 @@ train_loader = DataLoader(
 
 val_loader = DataLoader(
     val_data,
-    batch_size=450,
+    batch_size=val_batch_size,
     shuffle=False,
     num_workers=dataloader_num_workers,
     pin_memory=pin_memory
@@ -1690,6 +1727,7 @@ model, mapping_dict_to_class = initialize_model(
     act_function=act_function,
     transition_weight=transition_weight,
     label_classes=label_classes,
+    use_gradient_checkpointing=args.gradient_checkpointing,
 )
 
 #MODIFY
