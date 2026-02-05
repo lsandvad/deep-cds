@@ -180,7 +180,7 @@ def convert_complement_coordinates(refseq_accession, cds_coords_complement, cds_
     return cds_coords_complement, cds_coords_uncertain_complement
 
 
-def extract_CDS(refseq_accession):
+def extract_cds(refseq_accession):
     """
     Extracts the CDS coordinates from RefSeq and GenBank GFF files (annotation data).
     The GenBank accession number is found implicitly from the RefSeq accession number.
@@ -381,12 +381,12 @@ def proces_reads_to_dict(accession, seqs_len, cds_coords_uncertain, strand, part
 
             # Get read-specific information
             read_id = read.query_name
-            CIGAR = read.cigarstring
+            cigar = read.cigarstring
             read_seq = read.query_sequence
             md_z = read.get_tag("MD") if read.has_tag("MD") else None  # Handle missing MD tag
 
             # Write read-specific information to dict
-            reads_information_dict[assembly][read_id] = {"CIGAR": CIGAR, "start_coordinate": start_coordinate, "read": read_seq, "MD:Z": md_z}
+            reads_information_dict[assembly][read_id] = {"CIGAR": cigar, "start_coordinate": start_coordinate, "read": read_seq, "MD:Z": md_z}
 
     return reads_information_dict
 
@@ -877,7 +877,7 @@ def mark_intervals(labels_rf0_nt, labels_rf1_nt, labels_rf2_nt, labels_rf0, labe
     return intervals
 
 
-def quality_check_CDS_fragments(coding_seqs_all_read, accession):
+def quality_check_cds_fragments(coding_seqs_all_read, accession):
     """
     Check that all amino acid fragments labelled as coding (label = 1) are present in the proteome (checks both the GenBank- and RefSeq annotated proteomes)
 
@@ -979,7 +979,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
             # Extract read information
             read = reads_information_dict[assembly_id][read_id]["read"]
             start_coord = reads_information_dict[assembly_id][read_id]["start_coordinate"]
-            CIGAR = reads_information_dict[assembly_id][read_id]["CIGAR"]
+            cigar = reads_information_dict[assembly_id][read_id]["CIGAR"]
             md_z = reads_information_dict[assembly_id][read_id]["MD:Z"]
             errors_str, write_read = mark_errors(md_z, seqs_len)
 
@@ -991,7 +991,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
             seq_substitution_errors_fixed = apply_mutations(read, errors_str)
 
             # Proces sequences without indels
-            if CIGAR == str(seqs_len) + "M":
+            if cigar == str(seqs_len) + "M":
                 if seq_substitution_errors_fixed != assembly_seq[start_coord - 1 : start_coord + seqs_len - 1]:
                     print("Sequence was not back-substituted correctly. Skipping read.")
                     write_read = False
@@ -1041,7 +1041,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
                             coding_seqs_aa_rf = extract_coding_sequences(correct_seq, rf2_labels)
                             coding_seqs_all_read += coding_seqs_aa_rf
 
-                write_read = quality_check_CDS_fragments(coding_seqs_all_read, accession)
+                write_read = quality_check_cds_fragments(coding_seqs_all_read, accession)
 
             # Write read information if all quality checks are passed
             if write_read:
@@ -1057,7 +1057,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
                         "cds_fragments_connection": None,
                         "start_coord": start_coord,
                         "assembly_id": assembly_id,
-                        "CIGAR": CIGAR,
+                        "CIGAR": cigar,
                         "MD:Z": md_z,
                         "indel_positions": None,
                         "accession": accession,
@@ -1096,7 +1096,7 @@ def run_pipeline(seqs_len, accession, partition, error_rates):
     """
 
     # Get dicts with annotated CDS intervals for both strands (_uncertain_ marks annotations we are not sure of)
-    cds_coords_template, cds_coords_uncertain_template, cds_coords_complement, cds_coords_uncertain_complement = extract_CDS(accession)
+    cds_coords_template, cds_coords_uncertain_template, cds_coords_complement, cds_coords_uncertain_complement = extract_cds(accession)
 
     # Extract all simulated reads and their information attributes; remove reads overlapping with aeras where we are not sure of the CDS annotations
     reads_information_dict_template = proces_reads_to_dict(accession, seqs_len, cds_coords_uncertain_template, "template_strand", partition, error_rates)

@@ -132,10 +132,10 @@ def process_test_data(test_accession, testset_type, seq_len, indels_present, pro
                     cds_positions += cds_coords_fragment[0:2] #store start and stop coordinates
                 
                 #Figure out if CDS should go into "short fragments" (single-standing fragment shorter than 60 bp)
-                full_CDS_stretch = max(cds_positions) - min(cds_positions) + 1
+                full_cds_stretch = max(cds_positions) - min(cds_positions) + 1
 
                 #Store all fragments longer than 60 bps (FGS length limitation is > 60 bp)
-                if full_CDS_stretch > 60:
+                if full_cds_stretch > 60:
 
                     #Re-index connection between fragmented CDSs if any (necessary due to sorting into short and longer fragments)
                     cds_connections_reindexed = [index_pos for index_pos in range(cds_connection_index, cds_connection_index + len(cds_connections))]
@@ -151,7 +151,7 @@ def process_test_data(test_accession, testset_type, seq_len, indels_present, pro
 
                 else:
                     #Only store fragments longer than 30 bps
-                    if full_CDS_stretch > 30:
+                    if full_cds_stretch > 30:
 
                         #Re-index connection between fragmented CDSs if any (necessary due to sorting into short and longer fragments)
                         cds_connection_short_fragments_reindexed = [index_pos for index_pos in range(cds_connection_short_fragments_index, cds_connection_short_fragments_index + len(cds_connections))]

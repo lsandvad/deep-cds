@@ -190,7 +190,7 @@ def convert_complement_coordinates(refseq_accession, cds_coords_complement, cds_
     return cds_coords_complement, cds_coords_uncertain_complement
 
 
-def extract_CDS(refseq_accession):
+def extract_cds(refseq_accession):
     """
     Extracts the CDS coordinates from RefSeq and GenBank GFF files (annotation data).
     The GenBank accession number is found implicitly from the RefSeq accession number.
@@ -392,22 +392,22 @@ def proces_reads_to_dict(accession, seqs_len, cds_coords_uncertain, strand, part
 
             # Get read-specific information
             read_id = read.query_name
-            CIGAR = read.cigarstring
+            cigar = read.cigarstring
             read_seq = read.query_sequence
             md_z = read.get_tag("MD") if read.has_tag("MD") else None  # Handle missing MD tag
 
             # Write read-specific information to dict
-            reads_information_dict[assembly][read_id] = {"CIGAR": CIGAR, "start_coordinate": start_coordinate, "read": read_seq, "MD:Z": md_z}
+            reads_information_dict[assembly][read_id] = {"CIGAR": cigar, "start_coordinate": start_coordinate, "read": read_seq, "MD:Z": md_z}
 
     return reads_information_dict
 
 
-def get_position_gene_overlaps(CDS_ranges, start_coord, length):
+def get_position_gene_overlaps(cds_ranges, start_coord, length):
     """
     Find the specific CDS coordinates (if any) that overlaps with positions in a read (read positions defined as start_coord to start_coord+length).
 
     Args:
-        CDS_ranges (list): List of [[start, end],...] coordinates for genes
+        cds_ranges (list): List of [[start, end],...] coordinates for genes
         start_coord (int): Starting coordinate to check (on genomic scale)
         length (int): Length of the region to check
 
@@ -419,7 +419,7 @@ def get_position_gene_overlaps(CDS_ranges, start_coord, length):
     overlaps = {}
 
     # Loop over each CDS range
-    for i, (gene_start, gene_end) in enumerate(CDS_ranges):
+    for i, (gene_start, gene_end) in enumerate(cds_ranges):
         # Check if there is any overlap
         if not (end_coord < gene_start or start_coord > gene_end):
             # Store overlapping genes for subsequence region (read)
@@ -1174,7 +1174,7 @@ def mark_intervals(labels_rf0_nt, labels_rf1_nt, labels_rf2_nt, labels_rf0, labe
     return intervals, map_fragmented_cds(intervals, labels_rf0_nt, labels_rf1_nt, labels_rf2_nt)  # sorted(list(set(indel_cds_connect)))
 
 
-def quality_check_CDS_fragments(coding_seqs_all_read, accession):
+def quality_check_cds_fragments(coding_seqs_all_read, accession):
     """
     Check that all amino acid fragments labelled as coding (label = 1) are present in the proteome (checks both the GenBank- and RefSeq annotated proteomes)
 
@@ -1211,7 +1211,7 @@ def quality_check_CDS_fragments(coding_seqs_all_read, accession):
                 except FileNotFoundError:
                     seq_found = False
 
-            if seq_found == False:
+            if not seq_found:
                 write_read = False
                 break
 
@@ -1294,7 +1294,6 @@ def check_cds_quality(write_read, cds_overlaps_read, indel_cds_connect, indel_er
                         if frame_diff not in expected_shifts:
                             write_read = False
                             actual_shift = "forward" if frame_diff == 1 else "backward" if frame_diff == 2 else "none"
-                            # print(f"ERROR: {indel_type}{'eletion' if indel_type == 'D' else 'nsertion'} at {indel_pos} should shift {shift_type}, but frame shifted {actual_shift} ({first_frame} → {second_frame})")
 
     return write_read
 
@@ -1354,7 +1353,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
             # Extract read information
             read = reads_information_dict[assembly_id][read_id]["read"]
             start_coord = reads_information_dict[assembly_id][read_id]["start_coordinate"]
-            CIGAR = reads_information_dict[assembly_id][read_id]["CIGAR"]
+            cigar = reads_information_dict[assembly_id][read_id]["CIGAR"]
             md_z = reads_information_dict[assembly_id][read_id]["MD:Z"]
             errors_str = mark_errors(md_z, seqs_len)
 
@@ -1366,7 +1365,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
             seq_substitution_errors_fixed = apply_mutations(read, errors_str)
 
             # Proces sequences without indels
-            if CIGAR == str(seqs_len) + "M":
+            if cigar == str(seqs_len) + "M":
                 if seq_substitution_errors_fixed != assembly_seq[start_coord - 1 : start_coord + seqs_len - 1]:
                     print("Sequence was not back-substituted correctly. Skipping read.")
                     write_read = False
@@ -1416,7 +1415,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
                             coding_seqs_aa_rf = extract_coding_sequences(correct_seq, rf2_labels)
                             coding_seqs_all_read += coding_seqs_aa_rf
 
-                write_read = quality_check_CDS_fragments(coding_seqs_all_read, accession)
+                write_read = quality_check_cds_fragments(coding_seqs_all_read, accession)
 
             # Proces sequences with indels; same procedure.
             else:
@@ -1427,7 +1426,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
                     # Translate readign frame 0
                     if rf == "RF0":
                         # Extract amino acid sequence and labels for nucleotide-level and amino-acid level labels
-                        rf0_labels, rf0_labels_nt, insertions_positions = generate_rf_labels_with_indels(start_coord, seqs_len_rf0, cds_overlaps, CIGAR, rf)
+                        rf0_labels, rf0_labels_nt, insertions_positions = generate_rf_labels_with_indels(start_coord, seqs_len_rf0, cds_overlaps, cigar, rf)
                         rf0_seq = encode_nucleotide_to_amino_acid(read)
                         rf0_labels = rf0_labels
 
@@ -1450,7 +1449,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
 
                     elif rf == "RF1":
                         try:
-                            rf1_labels, rf1_labels_nt, _ = generate_rf_labels_with_indels(start_coord + 1, seqs_len_rf1, cds_overlaps, CIGAR, rf)
+                            rf1_labels, rf1_labels_nt, _ = generate_rf_labels_with_indels(start_coord + 1, seqs_len_rf1, cds_overlaps, cigar, rf)
                             rf1_seq = encode_nucleotide_to_amino_acid(read[1:])
 
                             assert len(rf1_labels_nt) == seqs_len_rf1
@@ -1466,7 +1465,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
 
                     elif rf == "RF2":
                         try:
-                            rf2_labels, rf2_labels_nt, _ = generate_rf_labels_with_indels(start_coord + 2, seqs_len_rf2, cds_overlaps, CIGAR, rf)
+                            rf2_labels, rf2_labels_nt, _ = generate_rf_labels_with_indels(start_coord + 2, seqs_len_rf2, cds_overlaps, cigar, rf)
                             rf2_seq = encode_nucleotide_to_amino_acid(read[2:])
 
                             assert len(rf2_labels_nt) == seqs_len_rf2
@@ -1483,7 +1482,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
                 # If read has passed all quality checks so-far, check that coding fragments are present in proteome
                 if write_read is not False:
                     # print(coding_seqs_all_read_extended)
-                    write_read = quality_check_CDS_fragments(coding_seqs_all_read, accession)
+                    write_read = quality_check_cds_fragments(coding_seqs_all_read, accession)
 
             # Write read information if all quality checks are passed
             if write_read:
@@ -1509,7 +1508,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
                         "cds_fragments_connection": indel_cds_connect,
                         "start_coord": start_coord,
                         "assembly_id": assembly_id,
-                        "CIGAR": CIGAR,
+                        "CIGAR": cigar,
                         "MD:Z": md_z,
                         "indel_positions": indel_errors,
                         "accession": accession,
@@ -1548,7 +1547,7 @@ def run_pipeline(seqs_len, accession, partition, error_rates):
     """
 
     # Get dicts with annotated CDS intervals for both strands (_uncertain_ marks annotations we are not sure of)
-    cds_coords_template, cds_coords_uncertain_template, cds_coords_complement, cds_coords_uncertain_complement = extract_CDS(accession)
+    cds_coords_template, cds_coords_uncertain_template, cds_coords_complement, cds_coords_uncertain_complement = extract_cds(accession)
 
     # Extract all simulated reads and their information attributes; remove reads overlapping with aeras where we are not sure of the CDS annotations
     reads_information_dict_template = proces_reads_to_dict(accession, seqs_len, cds_coords_uncertain_template, "template_strand", partition, error_rates)

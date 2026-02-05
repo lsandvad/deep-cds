@@ -21,7 +21,7 @@ def partition_dataset(tax_info_genomes_df, testset_accessions, random_seed=42) -
         dict with keys 'train', 'val', 'test', 'excluded' containing lists of accessions
     """
 
-    def __calculate_family_stats__(domain_df, family_groups) -> pd.DataFrame:
+    def calculate_family_stats(domain_df, family_groups) -> pd.DataFrame:
         family_stats = []
         for family, indices in family_groups.items():
             family_data = domain_df.loc[indices]
@@ -29,7 +29,7 @@ def partition_dataset(tax_info_genomes_df, testset_accessions, random_seed=42) -
 
         return pd.DataFrame(family_stats).sort_values("mean_gc").reset_index(drop=True)
 
-    def __select_validation_families__(family_stats_df, family_groups, domain_name) -> tuple:
+    def select_validation_families(family_stats_df, family_groups, domain_name) -> tuple:
         """Select families for validation set from one domain."""
         total_organisms = family_stats_df["count"].sum()
         target_val = total_organisms * 0.1  # Aim for ~10% of organisms remaining in validation set (after defining test set organisms)
@@ -73,13 +73,13 @@ def partition_dataset(tax_info_genomes_df, testset_accessions, random_seed=42) -
 
             # For each unselected family, calculate its distance to nearest selected family
             # Prioritize families that are far from selected ones (fill gaps)
-            def __gap_score__(idx):
+            def gap_score(idx):
                 if not selected_family_indices:
                     return 0
                 min_dist = min(abs(idx - sel) for sel in selected_family_indices)
                 return min_dist
 
-            unselected.sort(key=__gap_score__, reverse=True)
+            unselected.sort(key=gap_score, reverse=True)
 
             for fam_idx in unselected:
                 if val_count >= target_val * 0.95:
@@ -152,8 +152,8 @@ def partition_dataset(tax_info_genomes_df, testset_accessions, random_seed=42) -
     print()
 
     # Step 5: Calculate statistics for each family within each domain, respectively
-    archaea_family_stats = __calculate_family_stats__(archaea_df, archaea_family_groups)
-    bacteria_family_stats = __calculate_family_stats__(bacteria_df, bacteria_family_groups)
+    archaea_family_stats = calculate_family_stats(archaea_df, archaea_family_groups)
+    bacteria_family_stats = calculate_family_stats(bacteria_df, bacteria_family_groups)
 
     print("Step 5 complete: Calculated family statistics for each domain.")
     print()
@@ -161,8 +161,8 @@ def partition_dataset(tax_info_genomes_df, testset_accessions, random_seed=42) -
     # Step 6: Select validation families for each domain independently
     # Select validation sets for each domain
     print("Step 6 complete: Selected validation families for each domain.")
-    archaea_val_families, archaea_val_indices = __select_validation_families__(archaea_family_stats, archaea_family_groups, "Archaea")
-    bacteria_val_families, bacteria_val_indices = __select_validation_families__(bacteria_family_stats, bacteria_family_groups, "Bacteria")
+    archaea_val_families, archaea_val_indices = select_validation_families(archaea_family_stats, archaea_family_groups, "Archaea")
+    bacteria_val_families, bacteria_val_indices = select_validation_families(bacteria_family_stats, bacteria_family_groups, "Bacteria")
     print()
 
     # Step 7: Create training sets (all non-validation families)
