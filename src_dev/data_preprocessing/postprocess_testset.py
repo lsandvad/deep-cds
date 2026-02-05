@@ -181,7 +181,13 @@ def process_test_data(test_accession, testset_type, seq_len, indels_present, pro
 
 
 #Process test sets without sequencing errors
-data_dir = ['without_errors_60bp', 'without_errors_75bp',  'without_errors_100bp', 'without_errors_150bp', 'without_errors_300bp', 'without_errors_700bp', 'without_errors_1000bp']
+data_dir = ['without_errors_60bp', 
+            'without_errors_75bp',  
+            'without_errors_100bp', 
+            'without_errors_150bp', 
+            'without_errors_300bp', 
+            'without_errors_700bp', 
+            'without_errors_1000bp']
 indels_present = False
 
 for testset_type in data_dir:

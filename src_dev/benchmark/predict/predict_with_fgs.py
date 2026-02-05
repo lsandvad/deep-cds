@@ -27,6 +27,8 @@ if args.predict_without_errors:
                     if d.startswith("without_errors")]
     data_dirs = [d for d in data_dirs
                     if not d.endswith("30bp")]
+    
+    data_dirs = ["without_errors_300bp"]
 
     for error_model in error_models:
         for data_dir in data_dirs:
