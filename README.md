@@ -4,28 +4,26 @@ Project workspace for DeepCDS project
 ### TO DO
 - [x] Make script to check number of reads in each length test set -> matches for all read lengths
 - [x] Adapt hyperparameter tuning scripts after fixed bug 
-    - [ ] Full model
+    - [ ] Full model -> Check!
     - [ ] ESM 2
     - [x] Codon encoding
 - [ ] Make plots nicer with scienceplots
 - [ ] Check more about Sanger sequencing on longer sequences (700 & 1000bp)
 - [ ] Reiterate model architecture sketch
 
-Thursday:
+Friday:
 - [ ] Work on postprocessing scripts to check that everything is as should be
-    - [ ] Test set
-    - [ ] Model predictions
-    - [ ] FGS
-    - [ ] MetaProdigal
+    - [x] Test set
+    - [x] Model predictions
+    - [x] FGS -> Reimplement with .out; check that this works!
+    - [x] MetaProdigal
 - [ ] Monitor trainings and predictions on cluster, keep adding
 - [ ] Implement prediction script for ESM-2 only model
 - [ ] Keep writing on manuscript 
-- [ ] Start working on plotting benchmark results without sequencng errors 
+- [ ] Start plotting of benchmark results without errors
 - [ ] Start working on review
 
-FGS:
-RERUN:
-/tmp/nrt204/FragmentPredictor/data/processed_data/predictions/raw_predictions/fgs_preds/with_errors_1.25e-05i_0.01s_150bp_complete/GCF_001457455.1/GCF_001457455.1.gff
+
 
 ### Scripts in development - A status
 #### Data preprocessing
@@ -36,6 +34,7 @@ RERUN:
 - [x] 4. /data_preprocessing/simulate_reads.py (simulate reads of user-defined coverage and length on both template and complement strands)
 - [x] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
 - [x] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
+- [x] 6. /data_preprocessing/postprocess_testset.py (Postprocess testset)
 - [x] 6. /data_preprocessing/get_label_encodings.py (map class labels to 3d vectors; use for model that processes all 3 reading frames)
 - [x] 7. /data_preprocessing/prepare_model_datasets.py (creates datasets specific for model input for each of the train and val splits)
 
@@ -51,38 +50,35 @@ RERUN:
 
 #### Performance and benchmark
 - [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
-    - [x] Predict all on datasets with no sequencing errors
-        - [x] Transfered to local
-    - [x] Predict all on datasets with sequencing errors
-        - [ ] Transfered to local
-- [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal)
-    - [x] Predict all on datasets with no sequencing errors
-        - [x] Transfered to local 
+    - [ ] Predict all on datasets with no sequencing errors
+        - REPREDICTING; bug found (predict_fgs_no_errors)
     - [ ] Predict all on datasets with sequencing errors
-        - [ ] Test data: 60 bp reads  -> running (predict_with_prodigal)
-        - [ ] Test data: 75 bp reads  -> running (predict_with_prodigal)
-        - [x] Test data: 100 bp reads
-        - [x] Test data: 150 bp reads
-        - [x] Test data: 300 bp reads
+        - REPREDICTING; bug found (predict_fgs_errors_60_75_100_150)
+        - REPREDICTING; bug found (predict_fgs_errors_300_700_1000) -> START THIS
+
+- [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal)
+    - [ ] All preds are processed, so raw_predictions can be removed to save space
+    - [x] Predict all on datasets with no sequencing errors
+    - [x] Predict all on datasets with sequencing errors
+
 - [ ] 1. /benchmark/predict/predict_with_DeepCDS.py (Predict with DeepCDS)
     - [ ] Predict all on datasets with no sequencing errors (100 genome model)
         - [x] 100 genomes (transfered to local pc)
         - [x] 200 genomes (transfered to local pc)
         - [x] 400 genomes (transfered to local pc)
         - [ ] All genomes (run all datasets)
-            - [ ] Test data: 60 bp reads
-            - [ ] Test data: 75 bp reads
-            - [ ] Test data: 100 bp reads
-            - [ ] Test data: 150 bp reads
-            - [ ] Test data: 300 bp reads
-            - [ ] Test data: 700 bp reads
-            - [ ] Test data: 1000 bp reads
-
+            - [ ] Test data: 60 bp reads RUNNING
+            - [ ] Test data: 75 bp reads RUNNING
+            - [ ] Test data: 100 bp reads RUNNING
+            - [ ] Test data: 150 bp reads RUNNING
+            - [ ] Test data: 300 bp reads RUNNING
+            - [ ] Test data: 700 bp reads RUNNING
+            - [x] Test data: 1000 bp reads RUNNING
     - [ ] Predict all on datasets with sequencing errors
         - [ ] Substitution errors
             - [x] 100 genomes
             - [x] 200 genomes
-            - [ ] 400 genomes -> Running (predict_with_DeepCDS_400_genomes_subs_errors)
+            - [x] 400 genomes
             - [ ] All genomes (run all datasets)
                 - [ ] Test data: 60 bp reads
                 - [ ] Test data: 75 bp reads
@@ -94,7 +90,7 @@ RERUN:
 
         - [ ] Indel and substitution errors
             - [x] 100 genomes 
-            - [ ] 200 genomes Running (predict_with_DeepCDS_200_genomes_errors)
+            - [x] 200 genomes 
             - [ ] 400 genomes
             - [ ] All genomes (run all datasets)
                 - [ ] Test data: 60 bp reads
@@ -105,10 +101,49 @@ RERUN:
                 - [ ] Test data: 700 bp reads
                 - [ ] Test data: 1000 bp reads
 
-- [ ] 2. /postprocess_preds/postprocess_testset.ipynb (Postprocess testset)
+- [ ] 1. /benchmark/predict/predict_with_ESM2.py (DEVELOP)
+    - [ ] Predict all on datasets with no sequencing errors
+        - [ ] All genomes (run all datasets)
+            - [ ] Test data: 60 bp reads
+            - [ ] Test data: 75 bp reads
+            - [ ] Test data: 100 bp reads
+            - [ ] Test data: 150 bp reads
+            - [ ] Test data: 300 bp reads
+            - [ ] Test data: 700 bp reads
+            - [ ] Test data: 1000 bp reads
+    - [ ] Predict all on datasets with sequencing errors
+        - [ ] Substitution errors
+            - [ ] All genomes (run all datasets)
+                - [ ] Test data: 60 bp reads
+                - [ ] Test data: 75 bp reads
+                - [ ] Test data: 100 bp reads
+                - [ ] Test data: 150 bp reads
+                - [ ] Test data: 300 bp reads
+                - [ ] Test data: 700 bp reads
+                - [ ] Test data: 1000 bp reads
+
+        - [ ] Indel and substitution errors
+            - [ ] All genomes (run all datasets)
+                - [ ] Test data: 60 bp reads
+                - [ ] Test data: 75 bp reads
+                - [ ] Test data: 100 bp reads
+                - [ ] Test data: 150 bp reads
+                - [ ] Test data: 300 bp reads
+                - [ ] Test data: 700 bp reads
+                - [ ] Test data: 1000 bp reads
+
 - [ ] 2. /postprocess_preds/postprocess_model_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_prodigal_predictions.ipynb (Postprocess testset)
+
+
+
+POSTPROCESSING LOCAL DONE:
+- [x] All test sets (all seq length, with and without errors) 
+- [x] Prodigal ALL (all seq length, with and without errors)
+- [x] FGS all without seq errors
+- [x] DeepCDS 100, 200, 400 genome models without seq errors (300 bp)
+
 
 
 
