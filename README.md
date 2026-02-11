@@ -32,7 +32,6 @@ Thursday:
 - [x] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
 - [x] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
 - [x] 6. /data_preprocessing/postprocess_testset.py (Postprocess testset)
-- [ ] check_testsets.py: WAIT FOR ANSWER! 
 - [x] 6. /data_preprocessing/get_label_encodings.py (map class labels to 3d vectors; use for model that processes all 3 reading frames)
 - [x] 7. /data_preprocessing/prepare_model_datasets.py (creates datasets specific for model input for each of the train and val splits)
 
