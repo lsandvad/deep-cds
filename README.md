@@ -4,25 +4,22 @@ Project workspace for DeepCDS project
 ### TO DO
 - [x] Make script to check number of reads in each length test set -> matches for all read lengths
 - [x] Adapt hyperparameter tuning scripts after fixed bug 
-    - [ ] Full model -> Check!
+    - [x] Full model
     - [ ] ESM 2
     - [x] Codon encoding
 - [ ] Make plots nicer with scienceplots
-- [ ] Check more about Sanger sequencing on longer sequences (700 & 1000bp)
+- [ ] Check more about Sanger sequencing on longer sequences (700 & 1000bp)?
 - [ ] Reiterate model architecture sketch
 
-Friday:
-- [ ] Work on postprocessing scripts to check that everything is as should be
-    - [x] Test set
-    - [x] Model predictions
-    - [x] FGS -> Reimplement with .out; check that this works!
-    - [x] MetaProdigal
-- [ ] Monitor trainings and predictions on cluster, keep adding
-- [ ] Implement prediction script for ESM-2 only model
-- [ ] Keep writing on manuscript 
-- [ ] Start plotting of benchmark results without errors
-- [ ] Start working on review
 
+Thursday:
+- Fjern 4 testgenomer:
+    - [ ] Opdater ALLE plots og tabeller efter 4 testgenomer er fjernet
+    - [ ] Find ud af at fjerne de 4 testgenomer på ERDA + (genkør noget kode)
+- [ ] Start nye predictions
+- [ ] Overfør flere FGS raw predictions
+- [ ] Arbejd på kode til at demonstrere evne til at detektere overlappende CDS fra forskellige rammer
+- [ ] Dokumenter udviklede metrics!
 
 
 ### Scripts in development - A status
@@ -35,6 +32,7 @@ Friday:
 - [x] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
 - [x] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
 - [x] 6. /data_preprocessing/postprocess_testset.py (Postprocess testset)
+- [ ] check_testsets.py: WAIT FOR ANSWER! 
 - [x] 6. /data_preprocessing/get_label_encodings.py (map class labels to 3d vectors; use for model that processes all 3 reading frames)
 - [x] 7. /data_preprocessing/prepare_model_datasets.py (creates datasets specific for model input for each of the train and val splits)
 
@@ -50,43 +48,26 @@ Friday:
 
 #### Performance and benchmark
 - [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
-    - [ ] Predict all on datasets with no sequencing errors
-        - REPREDICTING; bug found (predict_fgs_no_errors)
-    - [ ] Predict all on datasets with sequencing errors
-        - REPREDICTING; bug found (predict_fgs_errors_60_75_100_150)
-        - REPREDICTING; bug found (predict_fgs_errors_300_700_1000) -> START THIS
-
-- [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal)
-    - [ ] All preds are processed, so raw_predictions can be removed to save space
-    - [x] Predict all on datasets with no sequencing errors
+    - [x] Predict all on datasets with no sequencing errors -> POSTPROCESSED
     - [x] Predict all on datasets with sequencing errors
+        - All 5e-06i processed!
+
+- [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal) -> ALL POSTPROCESSED
 
 - [ ] 1. /benchmark/predict/predict_with_DeepCDS.py (Predict with DeepCDS)
-    - [ ] Predict all on datasets with no sequencing errors (100 genome model)
-        - [x] 100 genomes (transfered to local pc)
-        - [x] 200 genomes (transfered to local pc)
-        - [x] 400 genomes (transfered to local pc)
-        - [ ] All genomes (run all datasets)
-            - [ ] Test data: 60 bp reads RUNNING
-            - [ ] Test data: 75 bp reads RUNNING
-            - [ ] Test data: 100 bp reads RUNNING
-            - [ ] Test data: 150 bp reads RUNNING
-            - [ ] Test data: 300 bp reads RUNNING
-            - [ ] Test data: 700 bp reads RUNNING
-            - [x] Test data: 1000 bp reads RUNNING
+    - [x] Predict all on datasets with no sequencing errors
+
     - [ ] Predict all on datasets with sequencing errors
         - [ ] Substitution errors
             - [x] 100 genomes
             - [x] 200 genomes
             - [x] 400 genomes
             - [ ] All genomes (run all datasets)
-                - [ ] Test data: 60 bp reads
-                - [ ] Test data: 75 bp reads
-                - [ ] Test data: 100 bp reads
-                - [ ] Test data: 150 bp reads
-                - [ ] Test data: 300 bp reads
-                - [ ] Test data: 700 bp reads
-                - [ ] Test data: 1000 bp reads
+                - [ ] Test data: 60 bp reads (predict_deepcds_substitution_60)
+                - [ ] Test data: 75 bp reads (predict_deepcds_substitution_75)
+                - [ ] Test data: 100 bp reads (predict_deepcds_substitution_100)
+                - [x] Test data: 150 bp reads
+                - [x] Test data: 300 bp reads 
 
         - [ ] Indel and substitution errors
             - [x] 100 genomes 
@@ -98,39 +79,27 @@ Friday:
                 - [ ] Test data: 100 bp reads
                 - [ ] Test data: 150 bp reads
                 - [ ] Test data: 300 bp reads
-                - [ ] Test data: 700 bp reads
-                - [ ] Test data: 1000 bp reads
 
-- [ ] 1. /benchmark/predict/predict_with_ESM2.py (DEVELOP)
-    - [ ] Predict all on datasets with no sequencing errors
-        - [ ] All genomes (run all datasets)
-            - [ ] Test data: 60 bp reads
-            - [ ] Test data: 75 bp reads
-            - [ ] Test data: 100 bp reads
-            - [ ] Test data: 150 bp reads
-            - [ ] Test data: 300 bp reads
-            - [ ] Test data: 700 bp reads
-            - [ ] Test data: 1000 bp reads
+- [ ] 1. /benchmark/predict/predict_with_ESM2.py
+    - [x] Predict all on datasets with no sequencing errors
+
     - [ ] Predict all on datasets with sequencing errors
         - [ ] Substitution errors
             - [ ] All genomes (run all datasets)
-                - [ ] Test data: 60 bp reads
-                - [ ] Test data: 75 bp reads
-                - [ ] Test data: 100 bp reads
-                - [ ] Test data: 150 bp reads
-                - [ ] Test data: 300 bp reads
-                - [ ] Test data: 700 bp reads
-                - [ ] Test data: 1000 bp reads
+                - [ ] Test data: 60 bp reads (predict_esm2_substitution_60bp)
+                - [ ] Test data: 75 bp reads (predict_esm2_substitution_75)
+                - [ ] Test data: 100 bp reads (predict_esm2_substitution_100)
+                - [ ] Test data: 150 bp reads (predict_esm2_substitution_150)
+                - [x] Test data: 300 bp reads
+                - NOTE: All lengths with_errors_5e-06i_0.004s are done. 
 
         - [ ] Indel and substitution errors
             - [ ] All genomes (run all datasets)
-                - [ ] Test data: 60 bp reads
-                - [ ] Test data: 75 bp reads
-                - [ ] Test data: 100 bp reads
-                - [ ] Test data: 150 bp reads
-                - [ ] Test data: 300 bp reads
-                - [ ] Test data: 700 bp reads
-                - [ ] Test data: 1000 bp reads
+                - [ ] Test data: 60 bp reads 
+                - [ ] Test data: 75 bp reads 
+                - [ ] Test data: 100 bp reads 
+                - [ ] Test data: 150 bp reads 
+                - [ ] Test data: 300 bp reads 
 
 - [ ] 2. /postprocess_preds/postprocess_model_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
@@ -192,3 +161,15 @@ Raw data transferred to ERDA
 ### Make public - notes
 - [ ] Use ```pipreqs <dir>``` on both ```src_dev``` and ```src``` to get out required packages and versions (requirements and requirements_dev.txt). UPDATE THIS IN THE END!!! Does not take into account notebooks. 
 - [ ] Write tool versions used for development + benchmark (Mason, FGS, MetaProdigal?)
+
+
+Fjern nedenstående (få annoteringer):
+ ['GCF_042926695.1', 'GCF_900635955.1', 'GCF_900636915.1', 'GCF_000026105.1']
+
+find . -name "*GCF_042926695.1*" -exec rm -rf {} +
+find . -name "*GCF_900635955.1*" -exec rm -rf {} +
+find . -name "*GCF_900636915.1*" -exec rm -rf {} +
+find . -name "*GCF_000026105.1*" -exec rm -rf {} +
+
+
+model = CodonTranslator.from_pretrained(model_path="./final_model", device="cuda")

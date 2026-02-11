@@ -70,13 +70,13 @@ def process_test_data(test_accession, testset_type, seq_len, indels_present, pro
         seq_len (int): length of sequences in specific test set 
 
     Returns:
-        test_data_processed_dict (dict): A dictionary where keys are read names and values are dictionaries with 'read' (sequence) and 'cds_coords' (CDS coordinates).
-        test_data_processed_dict_short_fragments (dict): A dictionary for ground-truth short fragments (<= 60 bps).
+        test_data_processed_dict (dict): A dictionary with CDS > 60bp.
+        test_data_processed_dict_30 (dict): A dictionary with CDS > 30bp (superset of test_data_processed_dict).
         all_test_read_names (list): A list of all unique read names in the test dataset.
     """
     # Initialize
     test_data_processed_dict = dict()
-    test_data_processed_dict_short_fragments = dict()
+    test_data_processed_dict_30 = dict()
     
     # Load test dataset
     test_data_df = pd.read_csv(f"{project_root}/data/processed_data/reads_processed/test/{testset_type}/csv/{test_accession}.csv.gz", index_col=0, compression="gzip")
@@ -106,12 +106,12 @@ def process_test_data(test_accession, testset_type, seq_len, indels_present, pro
             test_data_processed_dict[read_name]["cds_fragments_connection"] = []
             test_data_processed_dict[read_name]["seq_error_positions"] = []
 
-            test_data_processed_dict_short_fragments[read_name] = dict()
-            test_data_processed_dict_short_fragments[read_name]["cds_coords"] = []
-            test_data_processed_dict_short_fragments[read_name]["cds_fragments_connection"] = []
-            test_data_processed_dict_short_fragments[read_name]["seq_error_positions"] = []
+            test_data_processed_dict_30[read_name] = dict()
+            test_data_processed_dict_30[read_name]["cds_coords"] = []
+            test_data_processed_dict_30[read_name]["cds_fragments_connection"] = []
+            test_data_processed_dict_30[read_name]["seq_error_positions"] = []
 
-            cds_connection_short_fragments_index = 0
+            cds_connection_30_index = 0
             cds_connection_index = 0
 
             # Loop over each set of connected CDS coordinates
@@ -125,59 +125,54 @@ def process_test_data(test_accession, testset_type, seq_len, indels_present, pro
                 for cds_frag_pos in cds_connections:
                     cds_coords_fragment = cds_coords[cds_frag_pos]
 
-                    #Modify end position to fit FGS predictions format
-                    if cds_coords_fragment[1] == seq_len:
-                        cds_coords_fragment[1] = seq_len - 3 
+                    #if cds_coords_fragment[1] == seq_len:  #REMOVED
+                    #    cds_coords_fragment[1] = seq_len - 3 
+
                     cds_fragments_to_store.append(cds_coords_fragment)
                     cds_positions += cds_coords_fragment[0:2] #store start and stop coordinates
                 
                 #Figure out if CDS should go into "short fragments" (single-standing fragment shorter than 60 bp)
                 full_cds_stretch = max(cds_positions) - min(cds_positions) + 1
 
-                #Store all fragments longer than 60 bps (FGS length limitation is > 60 bp)
+                errors_in_cds = get_errors_within_cds(cds_positions, indel_errors)
+
                 if full_cds_stretch > 60:
-
-                    #Re-index connection between fragmented CDSs if any (necessary due to sorting into short and longer fragments)
+                    # Store in both testset_dict (>60bp) and testset_dict_30 (>30bp)
                     cds_connections_reindexed = [index_pos for index_pos in range(cds_connection_index, cds_connection_index + len(cds_connections))]
-
                     test_data_processed_dict[read_name]["cds_coords"] += cds_fragments_to_store
                     test_data_processed_dict[read_name]["cds_fragments_connection"].append(cds_connections_reindexed)
-
-                    #Get errors within boundaries of detected CDSs
-                    errors_in_cds = get_errors_within_cds(cds_positions, indel_errors)
                     test_data_processed_dict[read_name]["seq_error_positions"] += errors_in_cds
-
                     cds_connection_index += len(cds_connections)
 
-                else:
-                    #Only store fragments longer than 30 bps
-                    if full_cds_stretch > 30:
+                    cds_connections_30_reindexed = [index_pos for index_pos in range(cds_connection_30_index, cds_connection_30_index + len(cds_connections))]
+                    test_data_processed_dict_30[read_name]["cds_coords"] += cds_fragments_to_store
+                    test_data_processed_dict_30[read_name]["cds_fragments_connection"].append(cds_connections_30_reindexed)
+                    test_data_processed_dict_30[read_name]["seq_error_positions"] += errors_in_cds
+                    cds_connection_30_index += len(cds_connections)
 
-                        #Re-index connection between fragmented CDSs if any (necessary due to sorting into short and longer fragments)
-                        cds_connection_short_fragments_reindexed = [index_pos for index_pos in range(cds_connection_short_fragments_index, cds_connection_short_fragments_index + len(cds_connections))]
+                elif full_cds_stretch > 30 and full_cds_stretch <= 60:
+                    # Store only in testset_dict_30 (>30bp)
+                    cds_connections_30_reindexed = [index_pos for index_pos in range(cds_connection_30_index, cds_connection_30_index + len(cds_connections))]
+                    test_data_processed_dict_30[read_name]["cds_coords"] += cds_fragments_to_store
+                    test_data_processed_dict_30[read_name]["cds_fragments_connection"].append(cds_connections_30_reindexed)
+                    test_data_processed_dict_30[read_name]["seq_error_positions"] += errors_in_cds
+                    cds_connection_30_index += len(cds_connections)
 
-                        test_data_processed_dict_short_fragments[read_name]["cds_coords"] += cds_fragments_to_store
-                        test_data_processed_dict_short_fragments[read_name]["cds_fragments_connection"].append(cds_connection_short_fragments_reindexed)
-                        #Get errors within boundaries of detected CDSs
-                        errors_in_cds = get_errors_within_cds(cds_positions, indel_errors)
-                        test_data_processed_dict_short_fragments[read_name]["seq_error_positions"] += errors_in_cds
-
-                        cds_connection_short_fragments_index += len(cds_connections)
 
     #Only include reads with coding sequences
-    test_data_processed_dict_short_fragments = {
-        read_name: data 
-        for read_name, data in test_data_processed_dict_short_fragments.items() 
-        if data["cds_coords"]  #Check CDS is not empty
-    }
-
     test_data_processed_dict = {
-        read_name: data 
-        for read_name, data in test_data_processed_dict.items() 
+        read_name: data
+        for read_name, data in test_data_processed_dict.items()
         if data["cds_coords"]  #Check CDS is not empty
     }
 
-    return test_data_processed_dict, test_data_processed_dict_short_fragments, all_test_read_names
+    test_data_processed_dict_30 = {
+        read_name: data
+        for read_name, data in test_data_processed_dict_30.items()
+        if data["cds_coords"]  #Check CDS is not empty
+    }
+
+    return test_data_processed_dict, test_data_processed_dict_30, all_test_read_names
 
 
 #Process test sets without sequencing errors
@@ -197,13 +192,13 @@ for testset_type in data_dir:
     for test_accession in tqdm(test_accessions, desc="Processing test accessions..."):
         os.makedirs(f"{project_root}/data/processed_data/testset_processed/{testset_type}/{test_accession}", exist_ok=True)
 
-        testset_dict, testset_dict_short_fragments, all_test_read_names_list = process_test_data(test_accession, testset_type, seq_len, indels_present=indels_present)
+        testset_dict, testset_dict_30, all_test_read_names_list = process_test_data(test_accession, testset_type, seq_len, indels_present=indels_present)
 
         with open(f"{project_root}/data/processed_data/testset_processed/{testset_type}/{test_accession}/testset_dict.pkl", "wb") as processed_testset_file:
             pickle.dump(testset_dict, processed_testset_file)
 
-        with open(f"{project_root}/data/processed_data/testset_processed/{testset_type}/{test_accession}/testset_dict_short_fragments.pkl", "wb") as processed_testset_short_file:
-            pickle.dump(testset_dict_short_fragments, processed_testset_short_file)
+        with open(f"{project_root}/data/processed_data/testset_processed/{testset_type}/{test_accession}/testset_dict_30.pkl", "wb") as processed_testset_30_file:
+            pickle.dump(testset_dict_30, processed_testset_30_file)
 
         with open(f"{project_root}/data/processed_data/testset_processed/{testset_type}/{test_accession}/read_names_list.pkl", "wb") as read_names_file:
             pickle.dump(all_test_read_names_list, read_names_file)
@@ -235,13 +230,13 @@ for testset_type in data_dir:
     for test_accession in tqdm(test_accessions, desc="Processing test accessions..."):
         os.makedirs(f"{project_root}/data/processed_data/testset_processed/{testset_type}/{test_accession}", exist_ok=True)
 
-        testset_dict, testset_dict_short_fragments, all_test_read_names_list = process_test_data(test_accession, testset_type, seq_len, indels_present=indels_present)
+        testset_dict, testset_dict_30, all_test_read_names_list = process_test_data(test_accession, testset_type, seq_len, indels_present=indels_present)
 
         with open(f"{project_root}/data/processed_data/testset_processed/{testset_type}/{test_accession}/testset_dict.pkl", "wb") as processed_testset_file:
             pickle.dump(testset_dict, processed_testset_file)
 
-        with open(f"{project_root}/data/processed_data/testset_processed/{testset_type}/{test_accession}/testset_dict_short_fragments.pkl", "wb") as processed_testset_short_file:
-            pickle.dump(testset_dict_short_fragments, processed_testset_short_file)
+        with open(f"{project_root}/data/processed_data/testset_processed/{testset_type}/{test_accession}/testset_dict_30.pkl", "wb") as processed_testset_30_file:
+            pickle.dump(testset_dict_30, processed_testset_30_file)
 
         with open(f"{project_root}/data/processed_data/testset_processed/{testset_type}/{test_accession}/read_names_list.pkl", "wb") as read_names_file:
             pickle.dump(all_test_read_names_list, read_names_file)

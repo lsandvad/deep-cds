@@ -27,6 +27,7 @@ README.txt
 /**/archive
 #ignore jobscripts to run all data
 /src_dev/data_preprocessing/process_all_model_datasets_to_npy.sh
+/src_dev/benchmark/eval/**
 
 ###ignore models dir
 /models/**

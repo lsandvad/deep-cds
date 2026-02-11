@@ -54,8 +54,10 @@ def process_model_preds(test_accession, testset_type, seq_len):
                 #Get CDS coordinates and reading frame
                 cds_start = int(line.split("\t")[3])
                 cds_end = int(line.split("\t")[4])
-                if cds_end == seq_len:
-                    cds_end -= 3
+                
+                #REMOVE
+                #if cds_end == seq_len:
+                #    cds_end -= 3
 
                 if cds_start % 3 == 1:
                     rf = 0
