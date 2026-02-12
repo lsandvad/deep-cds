@@ -4,6 +4,8 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 
+mount_point = "/tmp/nrt204/FragmentPredictor" #local "../.."
+
 # Purpose: Make lists of genome IDs that go into train, val and test partitions
 
 
@@ -239,7 +241,7 @@ def main() -> None:
     4. Save accession lists to text files.
     """
 
-    tax_info_genomes_df = pd.read_csv("../../data/processed_data/dataset_information/genomes_info.csv", index_col=None).rename(columns={"Unnamed: 0": "accession"})
+    tax_info_genomes_df = pd.read_csv(f"{mount_point}/data/processed_data/dataset_information/genomes_info.csv", index_col=None).rename(columns={"Unnamed: 0": "accession"})
 
     # Define the accessions we want to include in the test set from both archaeal and bacterial species
     testset_accessions_archaea = {
@@ -270,14 +272,14 @@ def main() -> None:
     partitions = partition_dataset(tax_info_genomes_df, testset_accessions)
 
     # Save to files
-    os.makedirs("../../data/processed_data/genome_partitions/", exist_ok=True)
-    with open("../../data/processed_data/genome_partitions/train_partition_accessions.txt", "w") as f:
+    os.makedirs(f"{mount_point}/data/processed_data/genome_partitions/", exist_ok=True)
+    with open(f"{mount_point}/data/processed_data/genome_partitions/train_partition_accessions.txt", "w") as f:
         f.write("\n".join(partitions["train"]))
 
-    with open("../../data/processed_data/genome_partitions/val_partition_accessions.txt", "w") as f:
+    with open(f"{mount_point}/data/processed_data/genome_partitions/val_partition_accessions.txt", "w") as f:
         f.write("\n".join(partitions["val"]))
 
-    with open("../../data/processed_data/genome_partitions/test_partition_accessions.txt", "w") as f:
+    with open(f"{mount_point}/data/processed_data/genome_partitions/test_partition_accessions.txt", "w") as f:
         f.write("\n".join(partitions["test"]))
 
 

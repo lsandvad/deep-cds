@@ -10,16 +10,14 @@ Project workspace for DeepCDS project
 - [ ] Make plots nicer with scienceplots
 - [ ] Check more about Sanger sequencing on longer sequences (700 & 1000bp)?
 - [ ] Reiterate model architecture sketch
-
-
-Thursday:
-- Fjern 4 testgenomer:
-    - [ ] Opdater ALLE plots og tabeller efter 4 testgenomer er fjernet
-    - [ ] Find ud af at fjerne de 4 testgenomer på ERDA + (genkør noget kode)
-- [ ] Start nye predictions
-- [ ] Overfør flere FGS raw predictions
 - [ ] Arbejd på kode til at demonstrere evne til at detektere overlappende CDS fra forskellige rammer
-- [ ] Dokumenter udviklede metrics!
+- [ ] Når ALLE predictions er færdige (kode står "stille"): dobbelttjek at alle dirs og filer med ['GCF_042926695.1', 'GCF_900635955.1', 'GCF_900636915.1', 'GCF_000026105.1'] er fjernet!
+
+Friday:
+- [ ] Kig datasæt igennem -> møde speciale
+- [ ] Check status og start nye predictions
+- [ ] Overfør alle data/processed_data/predictions/raw_predictions/fgs_preds/with_errors_3.75e-05i_0.03s_75bp_illumina_5 og processér -> fjern
+- [ ] Dokumenter metrics i overleaf!
 
 
 ### Scripts in development - A status
@@ -73,24 +71,17 @@ Thursday:
             - [x] 200 genomes 
             - [ ] 400 genomes
             - [ ] All genomes (run all datasets)
-                - [ ] Test data: 60 bp reads
-                - [ ] Test data: 75 bp reads
-                - [ ] Test data: 100 bp reads
-                - [ ] Test data: 150 bp reads
-                - [ ] Test data: 300 bp reads
+                - [ ] Test data: 60 bp reads (predict_deepcds_errors_60)
+                - [ ] Test data: 75 bp reads (predict_deepcds_errors_75)
+                - [ ] Test data: 100 bp reads (predict_deepcds_errors_100)
+                - [ ] Test data: 150 bp reads (predict_deepcds_errors_150)
+                - [x] Test data: 300 bp reads
 
 - [ ] 1. /benchmark/predict/predict_with_ESM2.py
     - [x] Predict all on datasets with no sequencing errors
 
     - [ ] Predict all on datasets with sequencing errors
-        - [ ] Substitution errors
-            - [ ] All genomes (run all datasets)
-                - [ ] Test data: 60 bp reads (predict_esm2_substitution_60bp)
-                - [ ] Test data: 75 bp reads (predict_esm2_substitution_75)
-                - [ ] Test data: 100 bp reads (predict_esm2_substitution_100)
-                - [ ] Test data: 150 bp reads (predict_esm2_substitution_150)
-                - [x] Test data: 300 bp reads
-                - NOTE: All lengths with_errors_5e-06i_0.004s are done. 
+        - [x] Substitution errors
 
         - [ ] Indel and substitution errors
             - [ ] All genomes (run all datasets)

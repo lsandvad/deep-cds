@@ -6,6 +6,13 @@ This module contains the neural network model classes for the DeepCDS CDS predic
 - TransformerEncoderBlock: Transformer encoder for combining nucleotide and amino acid features
 - LinearChainCRF: Conditional Random Field layer for structured prediction
 - CDSPredictor: Full model combining all components
+
+Shape notation used throughout this module:
+    B = batch size
+    N = sequence length (number of codons / amino acids)
+    m = ESM-2 hidden size
+    C = label classes per reading frame
+    L = num_encoded_labels (combined label space across all reading frames)
 """
 
 import pickle
@@ -53,20 +60,22 @@ class SequenceEncoder(nn.Module):
             embeddings_aa (torch.Tensor): Amino acid embeddings with CLS/EOS removed, shape (batch_size, seq_len-2, hidden_size)
             attention_mask_trimmed (torch.Tensor): Attention mask with CLS/EOS removed, shape (batch_size, seq_len-2)
         """
+        # x_aa: (B, N+2) — tokenized AA ids including CLS and EOS
+        # attention_mask_aa: (B, N+2)
+
         # Extract features from pretrained ESM-2 model
         features_aa = self.pretrained_model_aa(x_aa, attention_mask=attention_mask_aa)
 
-        # Get last hidden state: [batch_size, tokens, hidden_size]
-        sequence_output_aa = features_aa["last_hidden_state"]
+        sequence_output_aa = features_aa["last_hidden_state"]  # (B, N+2, m)
 
-        # Remove CLS and EOS token embeddings: [batch_size, aa_seq_len, hidden_size]
-        sequence_output_aa = sequence_output_aa[:, 1:-1, :]
+        # Remove CLS and EOS token embeddings
+        sequence_output_aa = sequence_output_aa[:, 1:-1, :]  # (B, N, m)
 
         # Apply dropout before transformer head
-        embeddings_aa = self.dropout_1(sequence_output_aa)
+        embeddings_aa = self.dropout_1(sequence_output_aa)  # (B, N, m)
 
-        # Remove CLS/EOS from attention mask for transformer head
-        attention_mask_trimmed = attention_mask_aa[:, 1:-1]
+        # Remove CLS/EOS from attention mask
+        attention_mask_trimmed = attention_mask_aa[:, 1:-1]  # (B, N)
 
         return embeddings_aa, attention_mask_trimmed
 
@@ -122,22 +131,28 @@ class TransformerEncoderBlock(nn.Module):
                 Logits of shape (batch_size, seq_len, num_labels) representing class scores for each token position.
         """
 
-        # Concatenate ESM-2 embeddings and one hot encoded codons
-        combined_codon_and_aa_embeddings = torch.cat([encoded_embeddings_aa, encoded_seqs_nt], dim=-1)
+        # encoded_seqs_nt: (B, N, 12)
+        # encoded_embeddings_aa: (B, N, m)
+        # trimmed_attention_mask: (B, N)
 
-        combined_codon_and_aa_embeddings = combined_codon_and_aa_embeddings.permute(1, 0, 2)  # [seq_len, batch, hidden + 12]
-        attention_mask_transformer = ~trimmed_attention_mask.bool()
+        # Concatenate ESM-2 embeddings and one-hot encoded codons
+        combined_codon_and_aa_embeddings = torch.cat([encoded_embeddings_aa, encoded_seqs_nt], dim=-1)  # (B, N, m+12)
+
+        combined_codon_and_aa_embeddings = combined_codon_and_aa_embeddings.permute(1, 0, 2)  # (N, B, m+12)
+        attention_mask_transformer = ~trimmed_attention_mask.bool()  # (B, N) — True = padded
 
         # Pass through transformer encoder layers
-        combined_codon_and_aa_embeddings = self.encoder(combined_codon_and_aa_embeddings, src_key_padding_mask=attention_mask_transformer)
+        combined_codon_and_aa_embeddings = self.encoder(
+            combined_codon_and_aa_embeddings, src_key_padding_mask=attention_mask_transformer
+        )  # (N, B, m+12)
 
-        combined_codon_and_aa_embeddings = combined_codon_and_aa_embeddings.permute(1, 0, 2)  # [batch, seq_len, hidden + 12]
+        combined_codon_and_aa_embeddings = combined_codon_and_aa_embeddings.permute(1, 0, 2)  # (B, N, m+12)
 
         # Apply layer normalization
-        combined_codon_and_aa_embeddings = self.norm(combined_codon_and_aa_embeddings)
+        combined_codon_and_aa_embeddings = self.norm(combined_codon_and_aa_embeddings)  # (B, N, m+12)
 
-        # Get RF-specific class logits out
-        logits = self.linear(combined_codon_and_aa_embeddings)  # [batch, seq_len, num_labels]
+        # Get RF-specific class logits
+        logits = self.linear(combined_codon_and_aa_embeddings)  # (B, N, C)
 
         return logits
 
@@ -187,24 +202,28 @@ class LinearChainCRF(nn.Module):
                     - **'predictions' (list[list[int]])**: Decoded most probable label sequence per sample.
                     - **'logits' (torch.Tensor)**: Input logits passed through the CRF.
         """
+        # logits: (B, N, L)
+        # attention_mask: (B, N)
+        # labels: (B, N) or None
+
         # Training
         if labels is not None:
 
             # Use label-based mask instead of attention mask
-            crf_mask = (labels != -1)
+            crf_mask = (labels != -1)  # (B, N)
 
             # Replace -1 with 0 in labels (masked positions don't matter, but -1 is invalid index)
-            safe_labels = labels.clone()
+            safe_labels = labels.clone()  # (B, N)
             safe_labels[safe_labels == -1] = 0
 
-            log_likelihood = self.crf(logits, safe_labels, mask=crf_mask, reduction="none")
-            loss = -log_likelihood.mean()
+            log_likelihood = self.crf(logits, safe_labels, mask=crf_mask, reduction="none")  # (B,)
+            loss = -log_likelihood.mean()  # scalar
 
             return {"loss": loss, "logits": logits}
 
         else:
-            crf_mask = attention_mask.bool()
-            predictions = self.crf.decode(logits, mask=crf_mask)
+            crf_mask = attention_mask.bool()  # (B, N)
+            predictions = self.crf.decode(logits, mask=crf_mask)  # list of B lists, each length N
             return {"predictions": predictions, "logits": logits}
 
 
@@ -297,43 +316,47 @@ class CDSPredictor(nn.Module):
 
         """
 
+        # Per-RF inputs: encoded_seqs_nt_rf*: (B, N, 12), x_aa_rf*: (B, N+2), attention_mask_aa_rf*: (B, N+2)
+        # labels: (B, N) or None
+
         # Encode amino acid sequences for each reading frame
         encoded_embeddings_aa_rf0, trimmed_attention_mask_rf0 = self.sequence_encoder(x_aa_rf0, attention_mask_aa_rf0)
         encoded_embeddings_aa_rf1, trimmed_attention_mask_rf1 = self.sequence_encoder(x_aa_rf1, attention_mask_aa_rf1)
         encoded_embeddings_aa_rf2, trimmed_attention_mask_rf2 = self.sequence_encoder(x_aa_rf2, attention_mask_aa_rf2)
+        # encoded_embeddings_aa_rf*: (B, N, m), trimmed_attention_mask_rf*: (B, N)
 
         # Process each RF through its transformer encoder blocks
         logits_rf0 = self.TransformerEncoderBlock(
             encoded_seqs_nt=encoded_seqs_nt_rf0,
             encoded_embeddings_aa=encoded_embeddings_aa_rf0,
             trimmed_attention_mask=trimmed_attention_mask_rf0,
-        )
+        )  # (B, N, C)
         logits_rf1 = self.TransformerEncoderBlock(
             encoded_seqs_nt=encoded_seqs_nt_rf1,
             encoded_embeddings_aa=encoded_embeddings_aa_rf1,
             trimmed_attention_mask=trimmed_attention_mask_rf1,
-        )
+        )  # (B, N, C)
         logits_rf2 = self.TransformerEncoderBlock(
             encoded_seqs_nt=encoded_seqs_nt_rf2,
             encoded_embeddings_aa=encoded_embeddings_aa_rf2,
             trimmed_attention_mask=trimmed_attention_mask_rf2,
-        )
+        )  # (B, N, C)
 
         # Concatenate logits from all reading frames along the feature (class logit) dimension
-        combined_codon_and_aa_embeddings = torch.cat([logits_rf0, logits_rf1, logits_rf2], dim=-1)
+        combined_codon_and_aa_embeddings = torch.cat([logits_rf0, logits_rf1, logits_rf2], dim=-1)  # (B, N, 3*C)
 
         # Map combined frame representations to encoded, shared label space
-        logits_encoded_labels = self.linear_transform(combined_codon_and_aa_embeddings)
+        logits_encoded_labels = self.linear_transform(combined_codon_and_aa_embeddings)  # (B, N, L)
 
         # Compute combined attention mask (intersection of all three RF masks)
-        combined_attention_mask = trimmed_attention_mask_rf0 & trimmed_attention_mask_rf1 & trimmed_attention_mask_rf2
+        combined_attention_mask = trimmed_attention_mask_rf0 & trimmed_attention_mask_rf1 & trimmed_attention_mask_rf2  # (B, N)
 
         # Apply CRF for structured decoding or training
         output = self.CRF(
             logits=logits_encoded_labels,
             attention_mask=combined_attention_mask,
             labels=labels,
-        )
+        )  # {'loss': scalar, 'logits': (B, N, L)} or {'predictions': list of B lists, 'logits': (B, N, L)}
 
         return output
 

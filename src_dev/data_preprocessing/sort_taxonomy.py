@@ -4,7 +4,9 @@ import zipfile
 
 from tqdm import tqdm
 
-os.makedirs("../../data/processed_data/taxonomy/", exist_ok=True)
+mount_point = "/tmp/nrt204/FragmentPredictor" #local "../.."
+
+os.makedirs(f"{mount_point}/data/processed_data/taxonomy/", exist_ok=True)
 
 
 def extract_species_tax_ids() -> dict:
@@ -17,14 +19,14 @@ def extract_species_tax_ids() -> dict:
 
     species_tax_ids = dict()
 
-    accessions = os.listdir("../../data/raw_data/genome_data/")
+    accessions = os.listdir(f"{mount_point}/data/raw_data/genome_data/")
 
     # Only extract accessions with RefSeq annotations (starts with GCF_)
     accessions = [accession for accession in accessions if accession.startswith("GCF_")]
 
     # Iterate through each accession and extract the species taxonomic ID from the GFF file
     for accession in accessions:
-        gff_file = open(f"../../data/raw_data/genome_data/{accession}/genomic.gff", "r")
+        gff_file = open(f"{mount_point}/data/raw_data/genome_data/{accession}/genomic.gff", "r")
         for line in gff_file:
             if line.startswith("##species"):
                 species_tax_id = line.strip().split("=")[-1]
@@ -58,7 +60,7 @@ def sort_organisms_taxonomies(species_tax_ids) -> None:
 
     print("Extracting taxonomical information from NCBI Taxonomy database...")
 
-    with zipfile.ZipFile("../../data/raw_data/taxonomy_data/taxdmp.zip", "r") as zip_file:
+    with zipfile.ZipFile(f"{mount_point}/data/raw_data/taxonomy_data/taxdmp.zip", "r") as zip_file:
         with zip_file.open("taxdmp/nodes.dmp", "r") as file:
             nodes = io.TextIOWrapper(file, encoding="utf-8")
 
@@ -96,7 +98,7 @@ def sort_organisms_taxonomies(species_tax_ids) -> None:
             names.close()
 
     # Initialize
-    output_taxa = open("../../data/processed_data/taxonomy/genomes_tax_info.tab", "w")
+    output_taxa = open(f"{mount_point}/data/processed_data/taxonomy/genomes_tax_info.tab", "w")
     count_org = 0
     ranks_identified = dict()
 
