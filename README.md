@@ -14,11 +14,14 @@ Project workspace for DeepCDS project
 - [ ] Når ALLE predictions er færdige (kode står "stille"): dobbelttjek at alle dirs og filer med ['GCF_042926695.1', 'GCF_900635955.1', 'GCF_900636915.1', 'GCF_000026105.1'] er fjernet!
 
 Friday:
-- [ ] Kig datasæt igennem -> møde speciale
 - [ ] Check status og start nye predictions
-- [ ] Overfør alle data/processed_data/predictions/raw_predictions/fgs_preds/with_errors_3.75e-05i_0.03s_75bp_illumina_5 og processér -> fjern
 - [ ] Dokumenter metrics i overleaf!
+- [ ] Test codon translator igen! 
 
+Monday: 
+- [ ] Dokumenter metrics i overleaf!
+- [ ] OVerfør de sidste FGS raw preds (1.25)
+- [ ] Check status og start nye predictions
 
 ### Scripts in development - A status
 #### Data preprocessing
@@ -62,7 +65,7 @@ Friday:
             - [ ] All genomes (run all datasets)
                 - [ ] Test data: 60 bp reads (predict_deepcds_substitution_60)
                 - [ ] Test data: 75 bp reads (predict_deepcds_substitution_75)
-                - [ ] Test data: 100 bp reads (predict_deepcds_substitution_100)
+                - [x] Test data: 100 bp reads
                 - [x] Test data: 150 bp reads
                 - [x] Test data: 300 bp reads 
 
@@ -89,7 +92,7 @@ Friday:
                 - [ ] Test data: 75 bp reads 
                 - [ ] Test data: 100 bp reads 
                 - [ ] Test data: 150 bp reads 
-                - [ ] Test data: 300 bp reads 
+                - [ ] Test data: 300 bp reads (predict_em2_errors_300)
 
 - [ ] 2. /postprocess_preds/postprocess_model_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
