@@ -17,6 +17,9 @@ README.txt
 /src_dev/**/*.log
 # Ignore macOS DS_Store files
 **/.DS_Store
+# Ignore Python bytecode cache
+**/__pycache__/
+*.pyc
 # Ignore JSON
 /src_dev/**/*.json
 #Ignore txt
@@ -31,4 +34,3 @@ README.txt
 
 ###ignore models dir
 /models/**
-
