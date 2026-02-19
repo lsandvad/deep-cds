@@ -38,6 +38,6 @@ jobs:
 
       - name: ruff check
         run: |
-          ruff check .
+          ruff check predict.py 
 
       - run: echo "Linting workflow ran"

@@ -1,0 +1,50 @@
+name: Unit tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Run unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: "3.12"
+          auto-activate-base: true
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-tests-${{ hashFiles('requirements_dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-tests-
+            ${{ runner.os }}-pip-
+
+      - name: Install test dependencies
+        run: |
+          pip install pytest
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install transformers==4.36.0 omegaconf==2.3.0 pytorch-crf==0.7.2 tqdm numpy pandas
+
+      # Model checkpoints live in data/ which is not tracked by git.
+      # Tests that require them (test_model_loads_correctly, test_prediction_runs_on_test_fasta)
+      # are skipped automatically in CI. To run them here, add a step that downloads
+      # the checkpoints into data/processed_data/model_data/ before pytest.
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v
+
+      - run: echo "Tests workflow ran"
