@@ -35,20 +35,20 @@ from tqdm import tqdm
 # Add project root to path for imports
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
+from src import TRAINED_WINDOW_SIZE_AA, encode_data, load_model
+from src.sliding_window import (
+    DEFAULT_STRIDE_AA,
+    _create_windowed_dataframe,
+    _decode_predictions,
+    _merge_window_logits,
+    _run_model_on_windows,
+    get_window_positions,
+)
+
 # Suppress noisy third-party library warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="transformers")
 warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub")
 warnings.filterwarnings("ignore", message="enable_nested_tensor", category=UserWarning)
-
-from src import encode_data, load_model, TRAINED_WINDOW_SIZE_AA
-from src.sliding_window import (
-    get_window_positions,
-    _create_windowed_dataframe,
-    _run_model_on_windows,
-    _merge_window_logits,
-    _decode_predictions,
-    DEFAULT_STRIDE_AA,
-)
 
 logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
@@ -669,12 +669,12 @@ def main():
         args.output = f"{fasta_stem}_deepcds_predictions.gff"
 
     # ── Model configuration ─────────────────────────────────────────────────
-    _ERROR_TYPE_TO_DIR = {
+    error_type_to_dir_name = {
         "none": "model_without_errors",
         "substitution": "model_with_substitution_errors",
         "indel_substitution": "model_with_errors",
     }
-    error_type_dir = _ERROR_TYPE_TO_DIR[args.error_type]
+    error_type_dir = error_type_to_dir_name[args.error_type]
     label_classes = 6 if args.error_type == "indel_substitution" else 4
 
     # ── Device setup ────────────────────────────────────────────────────────
