@@ -669,6 +669,12 @@ def main():
         args.output = f"{fasta_stem}_deepcds_predictions.gff"
 
     # ── Model configuration ─────────────────────────────────────────────────
+    _ERROR_TYPE_TO_DIR = {
+        "none": "model_without_errors",
+        "substitution": "model_with_substitution_errors",
+        "indel_substitution": "model_with_errors",
+    }
+    error_type_dir = _ERROR_TYPE_TO_DIR[args.error_type]
     label_classes = 6 if args.error_type == "indel_substitution" else 4
 
     # ── Device setup ────────────────────────────────────────────────────────
@@ -702,13 +708,13 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     model_name_ckpt = f"full_model_{args.model}_seed_42_trained_final.pth"
 
-    ckpt_path = os.path.join(script_dir, "models", args.error_type, model_name_ckpt)
-    label_mapping_path = os.path.join(script_dir, "configs", args.error_type, "label_mapping.pkl")
-    hyperparams_path = os.path.join(script_dir, "configs", args.error_type, "hyperparameters.yaml")
+    ckpt_path = os.path.join(script_dir, "models", error_type_dir, model_name_ckpt)
+    label_mapping_path = os.path.join(script_dir, "configs", error_type_dir, "label_mapping.pkl")
+    hyperparams_path = os.path.join(script_dir, "configs", error_type_dir, "hyperparameters.yaml")
 
     if not os.path.isfile(ckpt_path):
         print(f"Error: Model checkpoint not found: {ckpt_path}")
-        models_dir = os.path.join(script_dir, "models", args.error_type)
+        models_dir = os.path.join(script_dir, "models", error_type_dir)
         if os.path.isdir(models_dir):
             available = os.listdir(models_dir)
             if available:
