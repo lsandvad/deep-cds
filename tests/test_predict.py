@@ -18,14 +18,14 @@ sys.path.insert(0, ROOT_DIR)
 
 # Paths under the production layout
 _MODEL_CKPT_NAME = "full_model_all_genomes_seed_42_trained_final.pth"
-_CKPT_PATH = os.path.join(ROOT_DIR, "models", "none", _MODEL_CKPT_NAME)
-_LABEL_MAPPING_PATH = os.path.join(ROOT_DIR, "configs", "none", "label_mapping.pkl")
-_HYPERPARAMS_PATH = os.path.join(ROOT_DIR, "configs", "none", "hyperparameters.yaml")
+_CKPT_PATH = os.path.join(ROOT_DIR, "models", "model_without_errors", _MODEL_CKPT_NAME)
+_LABEL_MAPPING_PATH = os.path.join(ROOT_DIR, "configs", "model_without_errors", "label_mapping.pkl")
+_HYPERPARAMS_PATH = os.path.join(ROOT_DIR, "configs", "model_without_errors", "hyperparameters.yaml")
 _TEST_FASTA = os.path.join(ROOT_DIR, "test.fasta")
 
 requires_model = pytest.mark.skipif(
     not os.path.isfile(_CKPT_PATH),
-    reason="Model checkpoint not found in models/none/ — copy the .pth file there to run this test",
+    reason="Model checkpoint not found in models/model_without_errors/ — copy the .pth file there to run this test",
 )
 
 
