@@ -25,7 +25,7 @@ from .deepcds_dataset import encode_data
 
 # Training configuration
 TRAINED_WINDOW_SIZE_AA = 100  # max_aa_len used during training
-DEFAULT_STRIDE_AA = 70        # stride in codons (30 codon overlap by default)
+DEFAULT_STRIDE_AA = 50        # stride in codons (50 codon overlap by default)
 
 
 def get_window_positions(seq_len_nt, window_size_nt=300, stride_nt=210):

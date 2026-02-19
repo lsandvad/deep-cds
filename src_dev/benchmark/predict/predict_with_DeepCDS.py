@@ -23,7 +23,7 @@ from transformers import AutoModel, AutoTokenizer
 # Add project root to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
-from src_dev.modeling import encode_data, load_model
+from src_dev.modeling import encode_data, load_model, sliding_window_inference, TRAINED_WINDOW_SIZE_AA
 
 logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
@@ -62,6 +62,12 @@ parser.add_argument(
     type=int,
     default=256,
     help="Batch size for inference (default: 256)",
+)
+parser.add_argument(
+    "--stride_aa",
+    type=int,
+    default=70,
+    help="Sliding window stride in amino acids/codons for long sequences (default: 70, overlap=30 codons)",
 )
 
 args = parser.parse_args()
@@ -732,6 +738,83 @@ def run_model_predictions(data_dir, model, mapping_dict_to_class, max_aa_len,
         model = model.float()
 
 
+def run_sliding_window_predictions(data_dir, model, mapping_dict_to_class, seq_len,
+                                    test_samples=test_samples, batch_size=256,
+                                    stride_aa=70, use_half_precision=True):
+    """
+    Run model predictions using sliding window inference for long sequences.
+
+    Sequences are split into overlapping windows matching the training length (300 nt),
+    logits are averaged in overlapping regions, and CRF decodes the full merged sequence.
+
+    Args:
+        data_dir: Directory containing test data
+        model: The trained model
+        mapping_dict_to_class: Label mapping dictionary
+        seq_len: Nucleotide sequence length for this dataset
+        test_samples: List of test sample identifiers
+        batch_size: Base batch size for inference
+        stride_aa: Sliding window stride in amino acids/codons
+        use_half_precision: Whether to use FP16 inference
+    """
+    if use_half_precision and device_type in ("cuda", "mps"):
+        model = model.half()
+        dtype = torch.float16
+        print(f"Using half precision (FP16) inference on {device_type}")
+    else:
+        dtype = torch.float32
+
+    tokenizer = get_tokenizer()
+
+    for test_sample in tqdm(test_samples, desc="Processing samples"):
+        test_df = pd.read_csv(
+            f"{base_data_path}/reads_processed/test/{data_dir}/csv/{test_sample}.csv.gz",
+            index_col=None,
+            compression="gzip"
+        )
+
+        print(f"Data samples: {test_df.shape[0]}")
+
+        dir_path = f"{base_data_path}/predictions/raw_predictions/DeepCDS/{model_dir_path_suffix}/{data_dir}/{model_name_ckpt.split('.')[0]}/"
+        os.makedirs(dir_path, exist_ok=True)
+        outfile_gff = open(f"{dir_path}/predictions_{test_sample}.gff", "w")
+        outfile_gff.write("##gff-version 3\n")
+
+        with torch.inference_mode():
+            model.eval()
+            chunk_counter = 0
+
+            for (preds_rf0, preds_rf1, preds_rf2,
+                 read_names, cds_coords, seq_errors, chunk_size) in sliding_window_inference(
+                    model=model,
+                    sequences_df=test_df,
+                    seq_len=seq_len,
+                    mapping_dict_to_class=mapping_dict_to_class,
+                    tokenizer=tokenizer,
+                    device=device,
+                    dtype=dtype,
+                    batch_size=batch_size,
+                    stride_aa=stride_aa,
+                    num_workers_cpu=num_workers_cpu,
+                    pin_memory=pin_memory,
+            ):
+                process_predictions_enhanced(
+                    preds_rf0, preds_rf1, preds_rf2,
+                    read_names, cds_coords, seq_errors, outfile_gff, chunk_size
+                )
+
+                chunk_counter += 1
+                if chunk_counter % 10 == 0:
+                    clear_memory()
+
+        outfile_gff.close()
+        del test_df
+        clear_memory(sync=True)
+
+    if use_half_precision and device_type in ("cuda", "mps"):
+        model = model.float()
+
+
 ################################################################################################################################
 ################################################Main Entry Point################################################################
 ################################################################################################################################
@@ -785,8 +868,18 @@ if __name__ == "__main__":
         label_classes=label_classes
     )
 
+    trained_window_nt = TRAINED_WINDOW_SIZE_AA * 3  # 300 nt
+
     for data_dir in data_dirs:
         print(data_dir, flush=True)
         seq_len = int(data_dir.split("_")[-1].strip("bp"))
-        max_aa_len = int(np.ceil(seq_len / 3)) + 5 # add padding buffer
-        run_model_predictions(data_dir, model, mapping_dict_to_class, max_aa_len, batch_size=args.batch_size)
+
+        if seq_len > trained_window_nt:
+            print(f"  Using sliding window inference (seq_len={seq_len} > trained window={trained_window_nt})")
+            run_sliding_window_predictions(
+                data_dir, model, mapping_dict_to_class, seq_len,
+                batch_size=args.batch_size, stride_aa=args.stride_aa,
+            )
+        else:
+            max_aa_len = int(np.ceil(seq_len / 3)) + 5  # add padding buffer
+            run_model_predictions(data_dir, model, mapping_dict_to_class, max_aa_len, batch_size=args.batch_size)

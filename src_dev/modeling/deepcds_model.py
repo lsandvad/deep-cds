@@ -422,6 +422,7 @@ def load_model(model_name_ckpt, input_data_dir_path, device, esm2_model, label_c
     if invalid_missing:
         raise RuntimeError(f"Missing keys that should have been in checkpoint: {invalid_missing}")
 
-    print(f"Successfully loaded model. {len(missing)} ESM-2 pretrained weights loaded from HuggingFace.")
+    assert len(missing) <= 1, f"Expected at most 1 missing key from ESM-2, but found {len(missing)}: {missing}. Please report this."
+    print(f"Successfully loaded model.")
 
     return model, mapping_dict_to_class

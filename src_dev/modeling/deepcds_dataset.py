@@ -72,7 +72,7 @@ def one_hot_encode(sequence):
     encoding = torch.zeros(4, seq_len, dtype=torch.float32)
 
     # Vectorized approach using byte conversion
-    seq_bytes = torch.frombuffer(sequence.encode('ascii'), dtype=torch.uint8)
+    seq_bytes = torch.frombuffer(bytearray(sequence.encode('ascii')), dtype=torch.uint8)
 
     # Map nucleotides to indices: A(65)->0, C(67)->1, G(71)->2, T(84)->3
     for nuc, idx in ((65, 0), (67, 1), (71, 2), (84, 3)):

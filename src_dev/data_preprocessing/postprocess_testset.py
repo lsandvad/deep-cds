@@ -150,7 +150,7 @@ def process_test_data(test_accession, testset_type, seq_len, indels_present, pro
                     test_data_processed_dict_30[read_name]["seq_error_positions"] += errors_in_cds
                     cds_connection_30_index += len(cds_connections)
 
-                elif full_cds_stretch > 30 and full_cds_stretch <= 60:
+                elif full_cds_stretch >= 30 and full_cds_stretch <= 60:
                     # Store only in testset_dict_30 (>30bp)
                     cds_connections_30_reindexed = [index_pos for index_pos in range(cds_connection_30_index, cds_connection_30_index + len(cds_connections))]
                     test_data_processed_dict_30[read_name]["cds_coords"] += cds_fragments_to_store

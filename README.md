@@ -12,16 +12,29 @@ Project workspace for DeepCDS project
 - [ ] Reiterate model architecture sketch
 - [ ] Arbejd på kode til at demonstrere evne til at detektere overlappende CDS fra forskellige rammer
 - [ ] Når ALLE predictions er færdige (kode står "stille"): dobbelttjek at alle dirs og filer med ['GCF_042926695.1', 'GCF_900635955.1', 'GCF_900636915.1', 'GCF_000026105.1'] er fjernet!
+- [ ] Label space diagrams of allowed transitions
 
-Friday:
-- [ ] Check status og start nye predictions
-- [ ] Dokumenter metrics i overleaf!
-- [ ] Test codon translator igen! 
 
-Monday: 
-- [ ] Dokumenter metrics i overleaf!
-- [ ] OVerfør de sidste FGS raw preds (1.25)
-- [ ] Check status og start nye predictions
+## TODO efter møde 18. Februar
+- [ ] !!!OVERFØR 400 GENOM PREDICTIONS DER MANGLER!!!
+- [ ] Resultater
+    - [ ] Omdøb A1 -> pLM
+    - [ ] Colorblind farveskema & og samme farve pr. model altid
+    - [ ] For barplots og tabeller med overordnet, aggregeret performance: tilføj error bars (målt pr. genom; hvad er maks- og min)?
+    - [ ] Tilføj codon-level metrics 
+    - [ ] Kør model uden sekventeringsfejl på testsæt med sekventeringsfejl -> medtag også 
+    - [ ] Plot performance som funktion af fejlrate i et diagram (300 bp datasæt); ingen fejl -> ... -> stres-test fejl
+    - [ ] Større fonts på plots
+    - [ ] Test på Metagenomisk data fra GeneRFinder (model uden sekventeringsfejl)
+    - [ ] “Validation on ancient damage” -> Gargammels substitutionsmodul (testsæt uden fejl)
+    - [ ] Korrelationsanalyse
+    - [ ] Vent med 650M udgave. Evt. senere.
+    - [ ] Evt. senere undersøg andre overlapkriterier
+- [ ] Dokumenter i overleaf
+    - [ ] Mht. codon encoding ablation, citer NetStart 2 “previous work shows”... og skriv at vi fik dårlig performance uden pLM
+    - [ ] Skriv at vi undersøgt performance som funktion af træningsdata størrelse (antal genomer) og det ikke giver så meget fra XX til XX… (enkelt sætning)
+
+
 
 ### Scripts in development - A status
 #### Data preprocessing
@@ -47,52 +60,36 @@ Monday:
 - [ ] 2. /modeling/training_shared_crf/train_*.ipynb
 
 #### Performance and benchmark
-- [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
-    - [x] Predict all on datasets with no sequencing errors -> POSTPROCESSED
-    - [x] Predict all on datasets with sequencing errors
-        - All 5e-06i processed!
-
+- [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS) -> ALL POSTPROCESSED
 - [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal) -> ALL POSTPROCESSED
 
 - [ ] 1. /benchmark/predict/predict_with_DeepCDS.py (Predict with DeepCDS)
     - [x] Predict all on datasets with no sequencing errors
-
-    - [ ] Predict all on datasets with sequencing errors
-        - [ ] Substitution errors
-            - [x] 100 genomes
-            - [x] 200 genomes
-            - [x] 400 genomes
-            - [ ] All genomes (run all datasets)
-                - [ ] Test data: 60 bp reads (predict_deepcds_substitution_60)
-                - [ ] Test data: 75 bp reads (predict_deepcds_substitution_75)
-                - [x] Test data: 100 bp reads
-                - [x] Test data: 150 bp reads
-                - [x] Test data: 300 bp reads 
+        - Predict on data with errors:
+         - [x] 300bp
+         - [ ] 150 (running predict_deepcds_150)
+         - [ ] 100 (running predict_deepcds_100_75)
+         - [ ] 75 (running predict_deepcds_100_75)
+         - [ ] 60 (running predict_deepcds_60)
+    - [x] Predict all on datasets with sequencing errors
 
         - [ ] Indel and substitution errors
             - [x] 100 genomes 
             - [x] 200 genomes 
-            - [ ] 400 genomes
-            - [ ] All genomes (run all datasets)
-                - [ ] Test data: 60 bp reads (predict_deepcds_errors_60)
-                - [ ] Test data: 75 bp reads (predict_deepcds_errors_75)
-                - [ ] Test data: 100 bp reads (predict_deepcds_errors_100)
-                - [ ] Test data: 150 bp reads (predict_deepcds_errors_150)
-                - [x] Test data: 300 bp reads
+            - [x] 400 genomes -> DONE; Transfer to local and preprocess!
+            - [x] All genomes -> ALL POSTPORCESSED
 
 - [ ] 1. /benchmark/predict/predict_with_ESM2.py
     - [x] Predict all on datasets with no sequencing errors
-
-    - [ ] Predict all on datasets with sequencing errors
+            - Predict on data with errors:
+                - [ ] 300bp
+                - [ ] 150
+                - [ ] 100
+                - [ ] 75
+                - [ ] 60
+    - [x] Predict all on datasets with sequencing errors
         - [x] Substitution errors
-
-        - [ ] Indel and substitution errors
-            - [ ] All genomes (run all datasets)
-                - [ ] Test data: 60 bp reads 
-                - [ ] Test data: 75 bp reads 
-                - [ ] Test data: 100 bp reads 
-                - [ ] Test data: 150 bp reads 
-                - [ ] Test data: 300 bp reads (predict_em2_errors_300)
+        - [x] Indel and substitution errors
 
 - [ ] 2. /postprocess_preds/postprocess_model_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
@@ -100,14 +97,10 @@ Monday:
 
 
 
-POSTPROCESSING LOCAL DONE:
-- [x] All test sets (all seq length, with and without errors) 
-- [x] Prodigal ALL (all seq length, with and without errors)
-- [x] FGS all without seq errors
-- [x] DeepCDS 100, 200, 400 genome models without seq errors (300 bp)
-
-
-
+Mangler:
+- [ ] Transfer 400 genomes DeepCDS with errors and postprocess
+- [ ] Predict with DeepCDS No errors on testsets with errors
+- [ ] Predict with ESM2 No errors on testsets with errors
 
 ### Project structure
 Raw data transferred to ERDA
@@ -165,4 +158,5 @@ find . -name "*GCF_900636915.1*" -exec rm -rf {} +
 find . -name "*GCF_000026105.1*" -exec rm -rf {} +
 
 
-model = CodonTranslator.from_pretrained(model_path="./final_model", device="cuda")
+
+
