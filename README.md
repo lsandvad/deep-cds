@@ -3,35 +3,26 @@ Project workspace for DeepCDS project
 
 ### TO DO
 - [x] Make script to check number of reads in each length test set -> matches for all read lengths
-- [x] Adapt hyperparameter tuning scripts after fixed bug 
-    - [x] Full model
-    - [ ] ESM 2
-    - [x] Codon encoding
 - [ ] Make plots nicer with scienceplots
 - [ ] Check more about Sanger sequencing on longer sequences (700 & 1000bp)?
 - [ ] Reiterate model architecture sketch
 - [ ] Arbejd på kode til at demonstrere evne til at detektere overlappende CDS fra forskellige rammer
 - [ ] Når ALLE predictions er færdige (kode står "stille"): dobbelttjek at alle dirs og filer med ['GCF_042926695.1', 'GCF_900635955.1', 'GCF_900636915.1', 'GCF_000026105.1'] er fjernet!
-- [ ] Label space diagrams of allowed transitions
 
 
 ## TODO efter møde 18. Februar
-- [ ] !!!OVERFØR 400 GENOM PREDICTIONS DER MANGLER!!!
 - [ ] Resultater
-    - [ ] Omdøb A1 -> pLM
-    - [ ] Colorblind farveskema & og samme farve pr. model altid
-    - [ ] For barplots og tabeller med overordnet, aggregeret performance: tilføj error bars (målt pr. genom; hvad er maks- og min)?
-    - [ ] Tilføj codon-level metrics 
-    - [ ] Kør model uden sekventeringsfejl på testsæt med sekventeringsfejl -> medtag også 
+    - [x] Omdøb A1 -> pLM
+    - [x] Colorblind farveskema & og samme farve pr. model altid
+    - [x] For barplots og tabeller med overordnet, aggregeret performance: tilføj error bars (målt pr. genom; hvad er maks- og min)?
     - [ ] Plot performance som funktion af fejlrate i et diagram (300 bp datasæt); ingen fejl -> ... -> stres-test fejl
     - [ ] Større fonts på plots
-    - [ ] Test på Metagenomisk data fra GeneRFinder (model uden sekventeringsfejl)
+    - [ ] Test på Metagenomisk data fra GeneRFinder (model uden sekventeringsfejl)?
     - [ ] “Validation on ancient damage” -> Gargammels substitutionsmodul (testsæt uden fejl)
     - [ ] Korrelationsanalyse
     - [ ] Vent med 650M udgave. Evt. senere.
     - [ ] Evt. senere undersøg andre overlapkriterier
 - [ ] Dokumenter i overleaf
-    - [ ] Mht. codon encoding ablation, citer NetStart 2 “previous work shows”... og skriv at vi fik dårlig performance uden pLM
     - [ ] Skriv at vi undersøgt performance som funktion af træningsdata størrelse (antal genomer) og det ikke giver så meget fra XX til XX… (enkelt sætning)
 
 
@@ -62,34 +53,8 @@ Project workspace for DeepCDS project
 #### Performance and benchmark
 - [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS) -> ALL POSTPROCESSED
 - [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal) -> ALL POSTPROCESSED
-
-- [ ] 1. /benchmark/predict/predict_with_DeepCDS.py (Predict with DeepCDS)
-    - [x] Predict all on datasets with no sequencing errors
-        - Predict on data with errors:
-         - [x] 300bp
-         - [ ] 150 (running predict_deepcds_150)
-         - [ ] 100 (running predict_deepcds_100_75)
-         - [ ] 75 (running predict_deepcds_100_75)
-         - [ ] 60 (running predict_deepcds_60)
-    - [x] Predict all on datasets with sequencing errors
-
-        - [ ] Indel and substitution errors
-            - [x] 100 genomes 
-            - [x] 200 genomes 
-            - [x] 400 genomes -> DONE; Transfer to local and preprocess!
-            - [x] All genomes -> ALL POSTPORCESSED
-
-- [ ] 1. /benchmark/predict/predict_with_ESM2.py
-    - [x] Predict all on datasets with no sequencing errors
-            - Predict on data with errors:
-                - [ ] 300bp
-                - [ ] 150
-                - [ ] 100
-                - [ ] 75
-                - [ ] 60
-    - [x] Predict all on datasets with sequencing errors
-        - [x] Substitution errors
-        - [x] Indel and substitution errors
+- [x] 1. /benchmark/predict/predict_with_DeepCDS.py (Predict with DeepCDS)
+- [x] 1. /benchmark/predict/predict_with_ESM2.py
 
 - [ ] 2. /postprocess_preds/postprocess_model_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
@@ -98,9 +63,21 @@ Project workspace for DeepCDS project
 
 
 Mangler:
-- [ ] Transfer 400 genomes DeepCDS with errors and postprocess
-- [ ] Predict with DeepCDS No errors on testsets with errors
-- [ ] Predict with ESM2 No errors on testsets with errors
+- [ ] Træning af DeepCDS S (pLM) -> Running (train_esm2_substitution_errors_new_config_all_genomes)
+- DeepCDS S (pLM) -> repredict (KAN FØRST KØRE NÅR TRÆNING ER FÆRDIG!)
+    - [ ] Lav error rate
+    - [ ] Middel error rate
+    - [ ] Høj error rate
+- [ ] ancient DNA predictions (testset without errors, 60-300bp)
+    - [ ] DeepCDS, No errors -> Running (predict_deepcds_no_errors_ancient_damage)
+    - [ ] DeepCDS, Substitution errors -> Running (predict_deepcds_subs_errors_ancient_damage)
+    - [ ] DeepCDS, errors -> Running (predict_deepcds_errors_ancient_damage)
+    - [ ] DeepCDS (pLM), No errors -> Running (predict_esm2_no_errors_ancient_damage)
+    - [ ] DeepCDS (pLM), Substitution errors (KAN FØRST KØRE NÅR TRÆNING ER FÆRDIG!)
+    - [ ] DeepCDS (pLM), Errors -> Running (predict_esm2_errors_ancient_damage)
+
+
+
 
 ### Project structure
 Raw data transferred to ERDA
@@ -156,7 +133,3 @@ find . -name "*GCF_042926695.1*" -exec rm -rf {} +
 find . -name "*GCF_900635955.1*" -exec rm -rf {} +
 find . -name "*GCF_900636915.1*" -exec rm -rf {} +
 find . -name "*GCF_000026105.1*" -exec rm -rf {} +
-
-
-
-
