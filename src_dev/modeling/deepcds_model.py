@@ -63,8 +63,8 @@ class SequenceEncoder(nn.Module):
         # x_aa: (B, N+2) — tokenized AA ids including CLS and EOS
         # attention_mask_aa: (B, N+2)
 
-        # Extract features from pretrained ESM-2 model
         features_aa = self.pretrained_model_aa(x_aa, attention_mask=attention_mask_aa)
+
 
         sequence_output_aa = features_aa["last_hidden_state"]  # (B, N+2, m)
 

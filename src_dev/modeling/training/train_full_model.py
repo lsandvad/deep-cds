@@ -51,7 +51,7 @@ parser.add_argument(
     "--esm_model",
     type=str,
     default="8M",
-    choices=["8M", "650M"],
+    choices=["8M", "35M", "650M"],
     help="ESM-2 model size to use (default: 8M)",
 )
 parser.add_argument(
@@ -83,9 +83,9 @@ else:
 debug_mode = False  # Set to True for debugging with smaller dataset
 
 if debug_mode == True:
-    steps_between_vals = 50 * 5
-    frac_train = 0.005 * 5 # 2.5 % of 2.4 M samples = 12000 samples
-    frac_val = 0.0005 * 5  # 0.05 % of 25 % of 2.3 M samples = 1150 samples
+    steps_between_vals = 5000
+    frac_train = 0.005
+    frac_val = 0.0025 
     model_checkpoint_extension = "_debug"
     wandb_project_name = "debug"
 
@@ -94,8 +94,13 @@ else:
     frac_val = 0.25
     model_checkpoint_extension = "_final"
 
-# Configure CUDA memory allocations (manage fragmentation in the GPU memory)
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
+# Configure CUDA memory allocations.
+# expandable_segments:True (PyTorch 2.0+) eliminates allocator fragmentation by using
+# memory-mapped regions that can grow/shrink on demand, instead of fixed-size blocks.
+# This replaces the old max_split_size_mb:128 setting which was causing ~2.4 GB of
+# fragmentation to accumulate per backward pass (fp16 forward blocks vs fp32 backward
+# gradient buffers have different sizes and cannot reuse each other's cache slots).
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 if args.healthtech_cluster:
     input_data_dir_path = f"/home/projects/DeepCDStmp/data/processed_data/model_data/{model_dir_path_suffix}"
@@ -123,6 +128,13 @@ elif args.scarb_cluster:
     assert device.type == "cuda", "SCARB cluster run should be on a CUDA GPU."
     print(f"Device type: {device_type}, GPU: {args.gpu if device_type == 'cuda' else 'N/A'}", flush=True)
 
+    # Cap PyTorch's CUDA memory usage to avoid starving other GPU users.
+    # Scarb GPUs have 80 GB; we claim 48 GB, leaving ~32 GB for others.
+    _cuda_mem_limit_gb = 48
+    _total_vram = torch.cuda.get_device_properties(device).total_memory
+    torch.cuda.set_per_process_memory_fraction(_cuda_mem_limit_gb * 1e9 / _total_vram, device)
+    print(f"CUDA memory capped at {_cuda_mem_limit_gb} GB / {_total_vram / 1e9:.1f} GB total", flush=True)
+
     os.makedirs(f"{input_data_dir_path}/models/", exist_ok=True)
     models_output_dir_path = f"{input_data_dir_path}/models/"
 
@@ -148,7 +160,15 @@ if args.esm_model == "650M":
     if not args.gradient_checkpointing:
         print("WARNING: 650M model selected without --gradient_checkpointing. This may cause OOM errors.", flush=True)
     # Smaller batch sizes for larger model
-    default_train_batch_size = 8
+    default_train_batch_size = 32
+    default_val_batch_size = 64
+elif args.esm_model == "35M":
+    esm2_model = "facebook/esm2_t12_35M_UR50D"
+    # Recommend gradient checkpointing for 35M model
+    if not args.gradient_checkpointing:
+        print("WARNING: 35M model selected without --gradient_checkpointing. This may cause OOM errors.", flush=True)
+    # Smaller batch sizes for larger model
+    default_train_batch_size = 32
     default_val_batch_size = 64
 else:
     esm2_model = "facebook/esm2_t6_8M_UR50D"
@@ -1479,6 +1499,11 @@ def training_iteration(i, batch, scaler, model, optimizer, device, train_losses,
 
     encoded_labels = batch["label_encodings"].to(device, non_blocking=True).long()
 
+    # DEBUG: log memory for first 5 training batches
+    _debug_mem = torch.cuda.is_available() and i < 5
+    if _debug_mem:
+        print(f"[TRAIN MEM] batch {i} pre-forward  | alloc: {torch.cuda.memory_allocated(device)/1e9:.2f} GB | reserved: {torch.cuda.memory_reserved(device)/1e9:.2f} GB", flush=True)
+
     # Forward pass; use mixed precision if available
     if scaler is not None:
         with autocast("cuda"):
@@ -1511,6 +1536,9 @@ def training_iteration(i, batch, scaler, model, optimizer, device, train_losses,
         )
         loss = outputs["loss"]
 
+    if _debug_mem:
+        print(f"[TRAIN MEM] batch {i} post-forward | alloc: {torch.cuda.memory_allocated(device)/1e9:.2f} GB | reserved: {torch.cuda.memory_reserved(device)/1e9:.2f} GB", flush=True)
+
     # Check for NaN loss before backward pass
     if torch.isnan(loss) or torch.isinf(loss):
         print(f"WARNING: NaN/Inf loss detected at batch {i}! Skipping this batch.", flush=True)
@@ -1522,6 +1550,9 @@ def training_iteration(i, batch, scaler, model, optimizer, device, train_losses,
     if scaler is not None:
         # Mixed precision backward pass
         scaler.scale(loss).backward()
+
+        if _debug_mem:
+            print(f"[TRAIN MEM] batch {i} post-backward | alloc: {torch.cuda.memory_allocated(device)/1e9:.2f} GB | reserved: {torch.cuda.memory_reserved(device)/1e9:.2f} GB", flush=True)
 
         # Unscale before gradient clipping
         scaler.unscale_(optimizer)
@@ -1535,10 +1566,16 @@ def training_iteration(i, batch, scaler, model, optimizer, device, train_losses,
         # Regular backward pass
         loss.backward()
 
+        if _debug_mem:
+            print(f"[TRAIN MEM] batch {i} post-backward | alloc: {torch.cuda.memory_allocated(device)/1e9:.2f} GB | reserved: {torch.cuda.memory_reserved(device)/1e9:.2f} GB", flush=True)
+
         # Gradient clipping (CRITICAL for CRF stability!)
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
         optimizer.step()
+
+    if _debug_mem:
+        print(f"[TRAIN MEM] batch {i} post-optim   | alloc: {torch.cuda.memory_allocated(device)/1e9:.2f} GB | reserved: {torch.cuda.memory_reserved(device)/1e9:.2f} GB", flush=True)
 
     # Handle warmup if ESM-2 layers were unfrozen
     if warmup_state is not None and warmup_state["counter"] < warmup_state["total_steps"]:
@@ -1751,7 +1788,7 @@ steps_per_epoch = len(train_data) / batch_size
 print("Steps per epoch: ", steps_per_epoch, flush=True)
 eval_every_n_steps = steps_between_vals  #Validate every 10000 batches = 10000 * 32 samples #MODIFY
 print(f"Evaluating {round(steps_per_epoch / eval_every_n_steps, 1)} times per epoch", flush=True)
-freeze_esm_validations = int(3000000 / batch_size / eval_every_n_steps)  # unfreeze after having seen 2 million samples # MODIFY
+freeze_esm_validations = int(3000000 / batch_size / eval_every_n_steps)  # unfreeze after having seen 3 million samples # MODIFY
 
 # Initialize the loss tracker
 tracker = CategoricalLossTracker(sequence_types)
@@ -1842,6 +1879,10 @@ for epoch in range(start_epoch, epochs):
 
                 tracker = CategoricalLossTracker(sequence_types) #MODIFY
 
+                # DEBUG: memory at start of validation
+                if torch.cuda.is_available():
+                    print(f"[MEM] Val start | allocated: {torch.cuda.memory_allocated(device)/1e9:.2f} GB | reserved: {torch.cuda.memory_reserved(device)/1e9:.2f} GB", flush=True)
+
                 for counter, val_batch in enumerate(val_loader):
                     v_inputs_nt_rf0 = val_batch["nt_encodings_rf0"].to(device, non_blocking=True)
                     v_inputs_aa_rf0 = val_batch["aa_encodings_rf0"]["input_ids"].to(device, non_blocking=True)
@@ -1893,6 +1934,10 @@ for epoch in range(start_epoch, epochs):
                         v_loss = v_outputs["loss"]
 
                     val_losses.append(v_loss.item())
+
+                    # DEBUG: memory after forward pass
+                    if counter < 5 and torch.cuda.is_available():
+                        print(f"[MEM] Val batch {counter} (post-forward) | allocated: {torch.cuda.memory_allocated(device)/1e9:.2f} GB | reserved: {torch.cuda.memory_reserved(device)/1e9:.2f} GB", flush=True)
 
                     # Calculate category-specific losses
                     seq_descs_batch = val_batch["seq_desc"]
@@ -1966,6 +2011,9 @@ for epoch in range(start_epoch, epochs):
                         )
                         del v_outputs, v_loss
                         clear_memory()
+                        # DEBUG: memory after cleanup
+                        if torch.cuda.is_available():
+                            print(f"[MEM] Val batch {counter} (post-cleanup) | allocated: {torch.cuda.memory_allocated(device)/1e9:.2f} GB | reserved: {torch.cuda.memory_reserved(device)/1e9:.2f} GB", flush=True)
 
             # Calculate validation metrics
             if val_losses:
