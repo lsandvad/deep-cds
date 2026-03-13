@@ -88,11 +88,11 @@ Examples:
         ),
     )
     parser.add_argument(
-        "--model",
+        "--model_type",
         type=str,
-        default="all_genomes",
-        choices=["100_genomes", "all_genomes"],
-        help="Model variant to use (default: all_genomes)",
+        default="full",
+        choices=["plm", "full"],
+        help="Model variant to use (default: full)",
     )
     parser.add_argument(
         "--output",
@@ -100,12 +100,13 @@ Examples:
         default=None,
         help="Output GFF file path (default: <fasta_stem>_deepcds_predictions.gff)",
     )
-    parser.add_argument(
-        "--gpu",
-        type=int,
-        default=0,
-        help="GPU index to use (default: 0)",
-    )
+    parser.add_argument('--compute_device',
+                        type = str,
+                        default = "cuda",
+                        choices=["cuda", "mps", "cpu"], 
+                        help='Hardware accelerator to use. Options: "cuda" (NVIDIA GPU), "mps" (Apple Silicon), or "cpu". The program will automatically fall back to CPU if the requested device is unavailable.')
+        
+
     parser.add_argument(
         "--batch_size",
         type=int,
@@ -678,12 +679,12 @@ def main():
     label_classes = 6 if args.error_type == "indel_substitution" else 4
 
     # ── Device setup ────────────────────────────────────────────────────────
-    if torch.cuda.is_available():
-        device = torch.device(f"cuda:{args.gpu}")
+    if args.compute_device == "cuda":
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         num_workers_cpu = 2
         pin_memory = True
-    elif torch.backends.mps.is_available():
-        device = torch.device("mps")
+    elif args.compute_device == "mps":
+        device = torch.device("mps" if torch.mps.is_available() else "cpu")
         num_workers_cpu = 0
         pin_memory = False
     else:
@@ -706,7 +707,13 @@ def main():
 
     # ── Load model ──────────────────────────────────────────────────────────
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    model_name_ckpt = f"full_model_{args.model}_seed_42_trained_final.pth"
+    if args.model_type == "full":
+        model_name_ckpt = f"full_model_all_genomes_seed_42_trained_final.pth"
+    elif args.model_type == "plm":
+        model_name_ckpt = f"esm2_8m_all_genomes_seed_42_trained_final.pth"
+    else:
+        print(f"Error: Invalid model type: {args.model_type}. Must be 'full' or 'plm'.")
+        sys.exit(1)
 
     ckpt_path = os.path.join(script_dir, "models", error_type_dir, model_name_ckpt)
     label_mapping_path = os.path.join(script_dir, "configs", error_type_dir, "label_mapping.pkl")

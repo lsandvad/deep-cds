@@ -3,15 +3,39 @@ Project workspace for DeepCDS project
 
 # Installation
 
-# Usage 
+# Usage Instructions
+DeepCDS can be run via the command line by cloning this repository and installing the required packages. 
+To test the installation, run the following command from project root:
+```
+python3 ./predict_with_deepcds.py -model MODEL_FIX-in ./data_example/FILE_FIX.fasta
+```
+
+DeepCDS can be run to predict on your own data using the general command:
+```
+python3 ./predict_with_deepcds.py [optional arguments] -model MODEL -in INPUT_FILENAME 
+```
+Please note that the program uses the information in the /src, /models, and /configs directories. 
+
+The input file (in FASTA format) and model type arguments are required. Additionally, DeepCDS accepts a range of optional arguments:
+
+| Input Argument                      | Description                                     |
+|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--batch_size`                  | IMPLEMENT ME! Specifies the number of samples to process together in a single pass during prediction. Default value: `64`.                                     |
+| `-in`, `--input_filename`       | IMPLEMENT ME! Input file in FASTA format. The allowed input alphabet is A, C, G, T, U and N (unknown). All the other letters will be converted to N before processing. T and U are treated as equivalent. The input file can also be provided in gzipped version with a .gz extension.                                                                        |
+|`--compute_device` | IMPLEMENT ME! Which hardware accelerator to use. Options are:  `cuda` (NVIDIA GPU), `mps` (Apple Silicon), or `cpu`. The program will automatically fall back to CPU if the requested device is unavailable.|
+
 - Giv eksempel
 - Skriv hvad input er
 - Beskriv input argumenter
 - Skriv hvad output er! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser
 
 ### TO DO
-- [ ] Arbejd på kode til at demonstrere evne til at detektere overlappende CDS fra forskellige rammer
+- [ ] Skriv et afsnit i overleaf om outputs (gff og fastaformater)
+- [ ] Få prediction script til at outputte fastafilerne med CDS sekvenser (både nukleotid og aminosyre-niveau)
+- [ ] Henriks mail: sekventeringsfejlrater i ét plot og GC scatterplot
+- [ ] Dobbelttjek FGS predictions ift. start- og stop codons 
 - [ ] Når ALLE predictions er færdige (kode står "stille"): dobbelttjek at alle dirs og filer med ['GCF_042926695.1', 'GCF_900635955.1', 'GCF_900636915.1', 'GCF_000026105.1'] er fjernet!
+- [ ] Optional og required argumenter i argparse! Se netstart 2!
 
 
 ## TODO efter møde 18. Februar
@@ -33,7 +57,6 @@ Project workspace for DeepCDS project
 - [x] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
 - [x] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
 - [x] 6. /data_preprocessing/postprocess_testset.py (Postprocess testset)
-- [ ] 6. /data_preprocessing/apply_ancient_damage.py (Apply ancient damage patterns to test set sequences)
 - [x] 6. /data_preprocessing/get_label_encodings.py (map class labels to 3d vectors; use for model that processes all 3 reading frames)
 - [x] 7. /data_preprocessing/prepare_model_datasets.py (creates datasets specific for model input for each of the train and val splits)
 
@@ -114,3 +137,34 @@ find . -name "*GCF_042926695.1*" -exec rm -rf {} +
 find . -name "*GCF_900635955.1*" -exec rm -rf {} +
 find . -name "*GCF_900636915.1*" -exec rm -rf {} +
 find . -name "*GCF_000026105.1*" -exec rm -rf {} +
+
+
+
+Eksempler: 
+Deletion: 
+GCF_000007365.1_simulated_reads_template1608|+|NC_004061.1|[[2,	DeepCDS	CDS	2	124	.	+	1	start=internal_region;end=indel_stop;group_id=group_1.0;indel_type=deletion
+GCF_000007365.1_simulated_reads_template1608|+|NC_004061.1|[[2,	DeepCDS	CDS	127	300	.	+	0	start=indel_start;end=internal_region;group_id=group_1.1;indel_type=deletion
+
+Insertion:
+GCF_000007365.1_simulated_reads_template528|+|NC_004061.1|[[2,	DeepCDS	CDS	2	220	.	+	1	start=internal_region;end=indel_stop;group_id=group_1.0;indel_type=insertion
+GCF_000007365.1_simulated_reads_template528|+|NC_004061.1|[[2,	DeepCDS	CDS	222	299	.	+	2	start=indel_start;end=internal_region;group_id=group_1.1;indel_type=insertion
+GCF_000007365.1_simulated_reads_template528|+|NC_004061.1|[[2,	DeepCDS	insertion	221	221	.	+	.	ID=insertion_GCF_000007365.1_simulated_reads_template528|+|NC_004061.1|[[2,_0
+
+Start codon: 
+
+Stop codon: 
+
+CDS-eksempler uden interruptions:
+GCF_000007365.1_simulated_reads_template498|+|NC_004061.1|[[1,	DeepCDS	CDS	1	300	.	+	0	start=internal_region;end=internal_region
+GCF_000007365.1_simulated_reads_template500|+|NC_004061.1|[[3,	DeepCDS	CDS	3	98	.	+	2	start=internal_region;end=stop_codon
+GCF_000007365.1_simulated_reads_template456|+|NC_004061.1|[[1,	DeepCDS	CDS	154	300	.	+	0	start=start_codon;end=internal_region
+
+
+
+Deletion: 
+- AAAGGNAAA (nukleotid; N deleted) og AXA (ukendt aminosyre i midten)
+
+Insertion:
+- Fjern inserted position, ret nemt
+
+
