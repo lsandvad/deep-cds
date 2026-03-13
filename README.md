@@ -1,29 +1,25 @@
 # DeepCDS
 Project workspace for DeepCDS project
 
+# Installation
+
+# Usage 
+- Giv eksempel
+- Skriv hvad input er
+- Beskriv input argumenter
+- Skriv hvad output er! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser
+
 ### TO DO
-- [x] Make script to check number of reads in each length test set -> matches for all read lengths
-- [ ] Make plots nicer with scienceplots
-- [ ] Check more about Sanger sequencing on longer sequences (700 & 1000bp)?
-- [ ] Reiterate model architecture sketch
 - [ ] Arbejd på kode til at demonstrere evne til at detektere overlappende CDS fra forskellige rammer
 - [ ] Når ALLE predictions er færdige (kode står "stille"): dobbelttjek at alle dirs og filer med ['GCF_042926695.1', 'GCF_900635955.1', 'GCF_900636915.1', 'GCF_000026105.1'] er fjernet!
 
 
 ## TODO efter møde 18. Februar
 - [ ] Resultater
-    - [x] Omdøb A1 -> pLM
-    - [x] Colorblind farveskema & og samme farve pr. model altid
-    - [x] For barplots og tabeller med overordnet, aggregeret performance: tilføj error bars (målt pr. genom; hvad er maks- og min)?
-    - [ ] Plot performance som funktion af fejlrate i et diagram (300 bp datasæt); ingen fejl -> ... -> stres-test fejl
-    - [ ] Større fonts på plots
-    - [ ] Test på Metagenomisk data fra GeneRFinder (model uden sekventeringsfejl)?
-    - [ ] “Validation on ancient damage” -> Gargammels substitutionsmodul (testsæt uden fejl)
-    - [ ] Korrelationsanalyse
-    - [ ] Vent med 650M udgave. Evt. senere.
-    - [ ] Evt. senere undersøg andre overlapkriterier
+    - [ ] Plot performance som funktion af fejlrate i et diagram (300 bp datasæt); ingen fejl -> ... -> stres-test fejl -> igang
+    - [ ] Modeltræninger størrelser
 - [ ] Dokumenter i overleaf
-    - [ ] Skriv at vi undersøgt performance som funktion af træningsdata størrelse (antal genomer) og det ikke giver så meget fra XX til XX… (enkelt sætning)
+    - [ ] Skriv at vi har undersøgt performance som funktion af træningsdata størrelsen (antal genomer) og det ikke giver så meget fra XX til XX… (enkelt sætning)
 
 
 
@@ -37,6 +33,7 @@ Project workspace for DeepCDS project
 - [x] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
 - [x] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
 - [x] 6. /data_preprocessing/postprocess_testset.py (Postprocess testset)
+- [ ] 6. /data_preprocessing/apply_ancient_damage.py (Apply ancient damage patterns to test set sequences)
 - [x] 6. /data_preprocessing/get_label_encodings.py (map class labels to 3d vectors; use for model that processes all 3 reading frames)
 - [x] 7. /data_preprocessing/prepare_model_datasets.py (creates datasets specific for model input for each of the train and val splits)
 
@@ -51,30 +48,14 @@ Project workspace for DeepCDS project
 - [ ] 2. /modeling/training_shared_crf/train_*.ipynb
 
 #### Performance and benchmark
-- [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS) -> ALL POSTPROCESSED
-- [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal) -> ALL POSTPROCESSED
+- [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
+- [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal) 
 - [x] 1. /benchmark/predict/predict_with_DeepCDS.py (Predict with DeepCDS)
 - [x] 1. /benchmark/predict/predict_with_ESM2.py
 
 - [ ] 2. /postprocess_preds/postprocess_model_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_prodigal_predictions.ipynb (Postprocess testset)
-
-
-
-Mangler:
-- [ ] Træning af DeepCDS S (pLM) -> Running (train_esm2_substitution_errors_new_config_all_genomes)
-- DeepCDS S (pLM) -> repredict (KAN FØRST KØRE NÅR TRÆNING ER FÆRDIG!)
-    - [ ] Lav error rate
-    - [ ] Middel error rate
-    - [ ] Høj error rate
-- [ ] ancient DNA predictions (testset without errors, 60-300bp)
-    - [ ] DeepCDS, No errors -> Running (predict_deepcds_no_errors_ancient_damage)
-    - [ ] DeepCDS, Substitution errors -> Running (predict_deepcds_subs_errors_ancient_damage)
-    - [ ] DeepCDS, errors -> Running (predict_deepcds_errors_ancient_damage)
-    - [ ] DeepCDS (pLM), No errors -> Running (predict_esm2_no_errors_ancient_damage)
-    - [ ] DeepCDS (pLM), Substitution errors (KAN FØRST KØRE NÅR TRÆNING ER FÆRDIG!)
-    - [ ] DeepCDS (pLM), Errors -> Running (predict_esm2_errors_ancient_damage)
 
 
 
