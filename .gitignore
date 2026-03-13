@@ -1,6 +1,9 @@
 ###Ignore private readme
 README.txt
 
+###Ignore requirements for all dev
+requirements_dev.txt
+
 ###Ignore pyproject.tomal for now
 ##pyproject.toml
 
