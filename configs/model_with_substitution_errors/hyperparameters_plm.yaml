@@ -1,0 +1,10 @@
+hyperparameters:
+  act_function: "gelu" 
+  depth_transformer_encoder_blocks: 6 
+  dropout_rate_1: 0.1
+  dropout_rate_2: 0.2
+  lr_esm2: 0.00000140086801695844
+  lr_scratch: 0.00001496523976186828
+  n_attention_heads: 2
+  transition_weight: -2.994601693390854
+

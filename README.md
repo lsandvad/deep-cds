@@ -22,7 +22,7 @@ The input file (in FASTA format) and model type arguments are required. Addition
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `--batch_size`                  | IMPLEMENT ME! Specifies the number of samples to process together in a single pass during prediction. Default value: `64`.                                     |
 | `-in`, `--input_filename`       | IMPLEMENT ME! Input file in FASTA format. The allowed input alphabet is A, C, G, T, U and N (unknown). All the other letters will be converted to N before processing. T and U are treated as equivalent. The input file can also be provided in gzipped version with a .gz extension.                                                                        |
-|`--compute_device` | IMPLEMENT ME! Which hardware accelerator to use. Options are:  `cuda` (NVIDIA GPU), `mps` (Apple Silicon), or `cpu`. The program will automatically fall back to CPU if the requested device is unavailable.|
+|`--compute_device` | Which hardware accelerator to use. Options are:  `cuda` (NVIDIA GPU), `mps` (Apple Silicon), or `cpu`. The program will automatically fall back to CPU if the requested device is unavailable.|
 
 - Giv eksempel
 - Skriv hvad input er
@@ -30,17 +30,25 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - Skriv hvad output er! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser
 
 ### TO DO
-- [ ] Skriv et afsnit i overleaf om outputs (gff og fastaformater)
-- [ ] Få prediction script til at outputte fastafilerne med CDS sekvenser (både nukleotid og aminosyre-niveau)
-- [ ] Henriks mail: sekventeringsfejlrater i ét plot og GC scatterplot
-- [ ] Dobbelttjek FGS predictions ift. start- og stop codons 
-- [ ] Når ALLE predictions er færdige (kode står "stille"): dobbelttjek at alle dirs og filer med ['GCF_042926695.1', 'GCF_900635955.1', 'GCF_900636915.1', 'GCF_000026105.1'] er fjernet!
+- [ ] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
+- [ ] Læs alle resultat captions igennem
 - [ ] Optional og required argumenter i argparse! Se netstart 2!
+
+Implementering af script:
+- [ ] Output fasta filer
+    - [ ] Nukleotidsekvens
+    - [ ] Aminosyresekvens
+- [ ] Sorter GFF filer så start og stop codons ikke placeres i bunden
+- [ ] Complement streng
+- [ ] Implementér bruger-option til at sætte threshold for minimum CDS længde de vil have rapport om (minimum: 30 - eller i hvert fald anbefaler vi ikke at gå længere ned!)
+- [ ] Tillad input af gzipped input fasta
+- [ ] Optio for output fastafiler gzipped eller ej 
+- [ ] Til aller sidst: opdater "Supplementary Note X" i prediction script. 
+
 
 
 ## TODO efter møde 18. Februar
 - [ ] Resultater
-    - [ ] Plot performance som funktion af fejlrate i et diagram (300 bp datasæt); ingen fejl -> ... -> stres-test fejl -> igang
     - [ ] Modeltræninger størrelser
 - [ ] Dokumenter i overleaf
     - [ ] Skriv at vi har undersøgt performance som funktion af træningsdata størrelsen (antal genomer) og det ikke giver så meget fra XX til XX… (enkelt sætning)
@@ -168,3 +176,4 @@ Insertion:
 - Fjern inserted position, ret nemt
 
 
+CCTCAATTCGAACTAGAGCAGCATATGGAACCAAAGATTAGAAGATCCTCAATAAGGAATTGCAAAGACAAAGAGATGGA...

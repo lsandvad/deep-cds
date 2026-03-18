@@ -1,0 +1,11 @@
+hyperparameters:
+  act_function: 'relu'
+  depth_transformer_encoder_blocks: 8
+  dropout_rate_1: 0.1
+  dropout_rate_2: 0.4
+  lr_esm2: 0.000001232
+  lr_scratch: 0.00001326
+  n_attention_heads: 2
+  transition_weight: -1.043
+
+

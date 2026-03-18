@@ -92,13 +92,13 @@ Examples:
         type=str,
         default="full",
         choices=["plm", "full"],
-        help="Model variant to use (default: full)",
+        help="Model variant to use. (default: full)",
     )
     parser.add_argument(
         "--output",
         type=str,
         default=None,
-        help="Output GFF file path (default: <fasta_stem>_deepcds_predictions.gff)",
+        help="Output file path and name without file format extension (default: <fasta_stem>_deepcds_predictions)",
     )
     parser.add_argument('--compute_device',
                         type = str,
@@ -117,7 +117,7 @@ Examples:
         "--stride_aa",
         type=int,
         default=50,
-        help="Sliding window stride in codons for long sequences (default: 50)",
+        help="Sliding window stride in codons for long sequences (how many codons the prediction window advances between each inference step). Smaller stride gives larger overlap between consecutive windows and may improve accuracy, but increases computation time (default: 50)",
     )
     return parser.parse_args()
 
@@ -158,17 +158,30 @@ def parse_fasta(fasta_path):
 
 
 def validate_sequences(sequences):
-    """Validate nucleotide sequences and warn about potential issues."""
+    """
+    Validate nucleotide sequences and warn about potential issues.
+
+    Args:
+        sequences: List of (name, sequence) tuples.
+    """
+    # Get sets of valid and certain nucleotides for quick checks
     valid_nucs = set("ACGTNRYSWKMBDHV")
+    certain_nucs = set("ACGT")
+
     filtered = []
     for name, seq in sequences:
-        if len(seq) < 9:
-            print(f"  Warning: Skipping '{name}' — sequence too short ({len(seq)} nt, minimum 9 nt)")
+        #Replace U to T if present, as our model is trained on DNA sequences
+        seq = seq.replace("U", "T")
+        # Skip sequences shorter than 30 nt, a we only validate CDS fragments of >= 30 nt
+        if len(seq) < 30:
+            print(f"  Warning: Skipping '{name}' — sequence too short ({len(seq)} nt, minimum 30 nt)")
             continue
         invalid_chars = set(seq) - valid_nucs
         if invalid_chars:
             print(f"  Warning: '{name}' contains non-standard characters: {invalid_chars} — treating as N")
-            seq = "".join(c if c in valid_nucs else "N" for c in seq)
+
+            #Convert all unknown/ambiguous chars to N
+            seq = "".join(c if c in certain_nucs else "N" for c in seq)
         filtered.append((name, seq))
     return filtered
 
@@ -667,15 +680,18 @@ def main():
     # ── Output path ─────────────────────────────────────────────────────────
     if args.output is None:
         fasta_stem = os.path.splitext(os.path.basename(args.fasta))[0]
-        args.output = f"{fasta_stem}_deepcds_predictions.gff"
+        args.output = f"{fasta_stem}_deepcds_predictions"
 
     # ── Model configuration ─────────────────────────────────────────────────
+    # Choice of model trained on different error profiles. This determines which checkpoint and config to load.
     error_type_to_dir_name = {
         "none": "model_without_errors",
         "substitution": "model_with_substitution_errors",
-        "indel_substitution": "model_with_errors",
-    }
+        "indel_substitution": "model_with_errors"}
+
     error_type_dir = error_type_to_dir_name[args.error_type]
+
+    # For indel+substitution model, we have 6 classes (0-5) to capture indel transitions. For the others, we have 4 classes (0-3).
     label_classes = 6 if args.error_type == "indel_substitution" else 4
 
     # ── Device setup ────────────────────────────────────────────────────────
@@ -693,7 +709,7 @@ def main():
         pin_memory = False
 
     device_type = device.type
-    print(f"Device: {device}")
+    print(f"Running on device: {device}")
 
     # ── Parse FASTA ─────────────────────────────────────────────────────────
     print(f"Reading FASTA: {args.fasta}")
@@ -707,17 +723,28 @@ def main():
 
     # ── Load model ──────────────────────────────────────────────────────────
     script_dir = os.path.dirname(os.path.abspath(__file__))
+    # Determine checkpoint name based on model type
+
+    # Use full model including one-hot codon encoding (DeepCDS-Full)
     if args.model_type == "full":
         model_name_ckpt = f"full_model_all_genomes_seed_42_trained_final.pth"
+        
+        # Load model configurations (hyperparameters) based on error and model type
+        ckpt_path = os.path.join(script_dir, "models", error_type_dir, model_name_ckpt)
+        hyperparams_path = os.path.join(script_dir, "configs", error_type_dir, "hyperparameters_full.yaml")
+
+    # Use PLM-only model without one-hot codon encoding (DeepCDS-PLM)
     elif args.model_type == "plm":
         model_name_ckpt = f"esm2_8m_all_genomes_seed_42_trained_final.pth"
+        # Load model configurations (label mapping and hyperparameters) based on error type
+        ckpt_path = os.path.join(script_dir, "models", error_type_dir, model_name_ckpt)
+        hyperparams_path = os.path.join(script_dir, "configs", error_type_dir, "hyperparameters_plm.yaml")
     else:
         print(f"Error: Invalid model type: {args.model_type}. Must be 'full' or 'plm'.")
         sys.exit(1)
 
-    ckpt_path = os.path.join(script_dir, "models", error_type_dir, model_name_ckpt)
+    # Load label mapping for the specific error type (used to decode model outputs into class labels)
     label_mapping_path = os.path.join(script_dir, "configs", error_type_dir, "label_mapping.pkl")
-    hyperparams_path = os.path.join(script_dir, "configs", error_type_dir, "hyperparameters.yaml")
 
     if not os.path.isfile(ckpt_path):
         print(f"Error: Model checkpoint not found: {ckpt_path}")
@@ -787,7 +814,8 @@ def main():
         if short_seqs:
             print(f"\nProcessing {len(short_seqs)} short sequences...")
             max_seq_len = max(len(s) for s in short_seqs)
-            max_aa_len = int(np.ceil(max_seq_len / 3)) + 5
+            # Ensure that we pad enough to cover the longest sequence and allow for some extra padding to reach the next multiple of 3 codons for each reading frame. See "Supplementary Note X. Inference on sequence ends".
+            max_aa_len = int(np.ceil(max_seq_len / 3)) + 3 
             df_short = sequences_to_dataframe(short_names, short_seqs)
 
             # Create per-sequence buffers
@@ -801,7 +829,7 @@ def main():
             del df_short
             clear_memory()
 
-        # Process long sequences individually with sliding window
+        # Process long sequences individually with sliding window: See "Supplementary Note X. Inference on longer sequences"
         if long_seqs:
             print(f"\nProcessing {len(long_seqs)} long sequences with sliding window...")
             for name, seq in tqdm(zip(long_names, long_seqs), total=len(long_seqs), desc="Long sequences"):
@@ -814,7 +842,7 @@ def main():
                 clear_memory()
 
     # Write GFF output in original FASTA order
-    with open(args.output, "w") as outfile_gff:
+    with open(f"{args.output}.gff", "w") as outfile_gff:
         outfile_gff.write("##gff-version 3\n")
         for name, _ in input_order:
             if name in gff_buffers:
@@ -822,7 +850,7 @@ def main():
 
     clear_memory(sync=True)
 
-    print(f"\nDone! Predictions written to: {args.output}")
+    print(f"\nDeepCDS finished succesfully! Predictions are written to: {args.output}.gff")
 
 
 if __name__ == "__main__":
