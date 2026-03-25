@@ -20,24 +20,27 @@ import argparse
 import gc
 import logging
 import os
+import io
 import sys
 import warnings
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import List, Optional
+from Bio import SeqIO
+import csv
 
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from transformers import AutoTokenizer
 
 # Add project root to path for imports
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 from src import TRAINED_WINDOW_SIZE_AA, encode_data, load_model
 from src.sliding_window import (
-    DEFAULT_STRIDE_AA,
     _create_windowed_dataframe,
     _decode_predictions,
     _merge_window_logits,
@@ -111,8 +114,16 @@ Examples:
         "--batch_size",
         type=int,
         default=256,
-        help="Batch size for inference (default: 256)",
+        help="Batch size for inference (how many sequences are processed together in one iteration). If you have limited memory, try a smaller batch size (default: 256)",
     )
+
+    parser.add_argument(
+        "--min_cds_length",
+        type=int,
+        default=60,
+        help="Minimum length for predicted CDS sequences. We recommend not going below 30 nt as this may affect prediction accuracy to a large extent (default: 60)",
+    )
+
     parser.add_argument(
         "--stride_aa",
         type=int,
@@ -205,7 +216,6 @@ def get_tokenizer():
     """Get cached ESM-2 tokenizer."""
     global _cached_tokenizer
     if _cached_tokenizer is None:
-        from transformers import AutoTokenizer
         _cached_tokenizer = AutoTokenizer.from_pretrained(
             "facebook/esm2_t6_8M_UR50D",
             do_lower_case=False,
@@ -277,25 +287,37 @@ class UncertainRegion:
 
 
 def get_cds_coords(labels_rf0, labels_rf1, labels_rf2):
-    """Get predicted CDS coordinates with frameshift handling."""
+    """
+    Get predicted CDS coordinates with frameshift handling if any. Returns connected CDS segments, uncertain regions, and transition info.
+
+    Args: 
+        - labels_rf0, labels_rf1, labels_rf2: Lists of predicted labels for each reading frame
+    """
+
+    # Initialize
     uncertain_regions = []
     transition_positions = {
         'start_codon': [], 'stop_codon': [],
-        'indel_start': [], 'indel_stop': []
-    }
+        'indel_start': [], 'indel_stop': []}
     all_cds_fragments = []
     transitions_info = []
 
+    # Extract CDS segments and transitions from each reading frame's predictions
     for rf, labels in enumerate([labels_rf0, labels_rf1, labels_rf2]):
         labels = np.array(labels)
         frame_segments, start_stop_transitions = _extract_segments_from_frame(labels, rf, transition_positions)
         all_cds_fragments.extend(frame_segments)
         transitions_info.extend(start_stop_transitions)
 
+    # Connect frameshift segments, create uncertain regions, and sort final results
     all_cds_fragments.sort(key=lambda x: x.start)
+
+    # Identify and connect frameshift segments that are predicted to belong to same CDS and locate potential uncertain regions between them
     connected_segments = _connect_frameshift_segments(all_cds_fragments)
     uncertain_regions, transitions_info = _create_uncertain_regions_from_groups(connected_segments, transitions_info)
     connected_segments.sort(key=lambda x: x.start)
+
+    # Sort transitions (non-coding <-> CDS) by position for consistent output
     transitions_info.sort(key=lambda x: x.start_position)
 
     return connected_segments, uncertain_regions, transitions_info, transition_positions
@@ -318,10 +340,6 @@ def _extract_segments_from_frame(labels, rf, transition_positions):
                 start = nt_pos
                 if label == 2:
                     start_type = 'start_codon'
-                    transition_positions['start_codon'].append(nt_pos)
-                    start_stop_codon_transitions.append(
-                        Transition(type="start_codon", start_position=nt_pos, end_position=nt_pos + 2, frame=rf)
-                    )
                 elif label == 4:
                     start_type = 'indel_start'
                     transition_positions['indel_start'].append(nt_pos)
@@ -333,10 +351,6 @@ def _extract_segments_from_frame(labels, rf, transition_positions):
                 if label == 3:
                     end_type = 'stop_codon'
                     end = nt_pos + 2
-                    transition_positions['stop_codon'].append(end)
-                    start_stop_codon_transitions.append(
-                        Transition(type="stop_codon", start_position=nt_pos, end_position=end, frame=rf)
-                    )
                 elif label == 5:
                     end_type = 'indel_stop'
                     end = nt_pos + 2
@@ -498,7 +512,7 @@ def _create_uncertain_regions_from_groups(segments, transitions):
 # GFF Output
 # ══════════════════════════════════════════════════════════════════════════════
 
-def write_gff(segments, uncertain_regions, transitions_info, read_name, outfile_gff):
+def write_gff(segments, uncertain_regions, transitions_info, read_name, outfile_gff, min_cds_length):
     """Write CDS predictions to GFF file."""
     counter_cds_frags_interrupted = {}
 
@@ -517,11 +531,20 @@ def write_gff(segments, uncertain_regions, transitions_info, read_name, outfile_
         if segment.indel_type:
             attributes.append(f"indel_type={segment.indel_type}")
 
+        # Discard complete CDS fragments and their start/stop codon annotations shorter than 30 bp. Only discard these if they are not interrupted by indels; TOGGLE LATER AS USER OPTION!!
+        if segment.end - segment.start < min_cds_length and segment.indel_type == None:
+            continue
+
         attr_string = ";".join(attributes)
         outfile_gff.write(
             f"{read_name}\tDeepCDS\tCDS\t{segment.start}\t{segment.end}\t"
             f".\t+\t{segment.frame}\t{attr_string}\n"
         )
+
+        if segment.start_type == 'start_codon':
+            transitions_info.append(Transition(type="start_codon", start_position=segment.start, end_position=segment.start + 2, frame=segment.frame))
+        if segment.end_type == 'stop_codon':
+            transitions_info.append(Transition(type="stop_codon", start_position=segment.end - 2, end_position=segment.end, frame=segment.frame))
 
     for i, transition in enumerate(transitions_info):
         attributes = [f"ID={transition.type}_{read_name}_{i}"]
@@ -543,22 +566,47 @@ def write_gff(segments, uncertain_regions, transitions_info, read_name, outfile_
 
 
 def process_predictions(predictions_rf0, predictions_rf1, predictions_rf2,
-                        read_names, gff_buffers, count):
-    """Process decoded predictions and write GFF output to per-sequence buffers."""
+                        read_names, gff_buffers, count, min_cds_length):
+    """
+    Postprocess decoded predictions and write GFF output to per-sequence buffers.
+
+    Args:
+        - predictions_rf0, predictions_rf1, predictions_rf2: Lists of predicted labels for each reading frame
+        - read_names: List of sequence names corresponding to the predictions
+        - gff_buffers: Dictionary mapping read names to their corresponding GFF output buffers
+        - count: Number of sequences in the current batch (used for progress tracking)
+        - min_cds_length: Minimum length for predicted CDS sequences
+    """
     for i in range(count):
         segments, uncertain_regions, transitions_info, _ = get_cds_coords(
-            predictions_rf0[i], predictions_rf1[i], predictions_rf2[i]
-        )
-        write_gff(segments, uncertain_regions, transitions_info, read_names[i], gff_buffers[read_names[i]])
+            predictions_rf0[i], predictions_rf1[i], predictions_rf2[i])
+        
+        write_gff(segments, uncertain_regions, transitions_info, read_names[i], gff_buffers[read_names[i]], min_cds_length)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Inference — Short Sequences (direct)
+# Inference — Short Sequences: 300 nt or shorter (direct)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_direct_inference(model, df, mapping_dict_to_class, max_aa_len,
-                         device, dtype, batch_size, num_workers_cpu, pin_memory, gff_buffers):
-    """Run direct (non-sliding-window) inference on sequences that fit within the trained window."""
+                         device, dtype, batch_size, num_workers_cpu, pin_memory, gff_buffers, 
+                         min_cds_length):
+    """
+    Run direct (non-sliding-window) inference on sequences that fit within the trained window.
+    
+    Args: 
+    - model: Loaded DeepCDS model
+    - df: DataFrame containing sequences and metadata for the short sequence group
+    - mapping_dict_to_class: Dict mapping model output indices to class labels
+    - max_aa_len: Maximum amino acid length for padding sequences in this group
+    - device: Computation device (CPU, CUDA, etc.)
+    - dtype: Data type for model inputs (e.g. torch.float16)
+    - batch_size: Batch size for inference
+    - num_workers_cpu: Number of CPU workers for data loading
+    - pin_memory: Whether to use pinned memory for DataLoader
+    - gff_buffers: Dictionary of GFF buffers for each read
+    """
+
     tokenizer = get_tokenizer()
     dataset = encode_data(df, max_aa_len, tokenizer)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
@@ -566,7 +614,7 @@ def run_direct_inference(model, df, mapping_dict_to_class, max_aa_len,
 
     with torch.inference_mode():
         model.eval()
-        for batch in tqdm(loader, desc="Short sequences"):
+        for batch in tqdm(loader, desc="Predicting on the short sequences..."):
             aa_rf0 = batch['aa_encodings_rf0']['input_ids'].to(device)
             mask_rf0 = batch['aa_encodings_rf0']['attention_mask'].to(device)
             aa_rf1 = batch['aa_encodings_rf1']['input_ids'].to(device)
@@ -580,14 +628,15 @@ def run_direct_inference(model, df, mapping_dict_to_class, max_aa_len,
 
             read_names = batch['read_name']
 
+            # Model outputs shared label class sequence 
             outputs = model(
                 nt_rf0, aa_rf0, mask_rf0,
                 nt_rf1, aa_rf1, mask_rf1,
-                nt_rf2, aa_rf2, mask_rf2,
-            )
+                nt_rf2, aa_rf2, mask_rf2)
 
             predictions_encoded = outputs["predictions"]
 
+            # Map shared label across RFs to class label and separate into per-RF predictions
             preds_rf0, preds_rf1, preds_rf2 = [], [], []
             for preds_sample in predictions_encoded:
                 preds = [mapping_dict_to_class[p] for p in preds_sample]
@@ -595,13 +644,16 @@ def run_direct_inference(model, df, mapping_dict_to_class, max_aa_len,
                 preds_rf1.append([rf[1] for rf in preds])
                 preds_rf2.append([rf[2] for rf in preds])
 
+            # Trim prediction sequences to actual sequence length based on EOS token in input_ids for each RF
             preds_rf0 = trim_predictions_by_eos(preds_rf0, aa_rf0)
             preds_rf1 = trim_predictions_by_eos(preds_rf1, aa_rf1)
             preds_rf2 = trim_predictions_by_eos(preds_rf2, aa_rf2)
 
+            # Write CDS predictions to GFF buffers for each sequence in the batch
             process_predictions(preds_rf0, preds_rf1, preds_rf2,
-                                read_names, gff_buffers, len(read_names))
+                                read_names, gff_buffers, len(read_names), min_cds_length)
 
+            # Cleanup to free memory after each batch
             del aa_rf0, aa_rf1, aa_rf2, mask_rf0, mask_rf1, mask_rf2
             del nt_rf0, nt_rf1, nt_rf2, outputs, predictions_encoded
 
@@ -609,12 +661,13 @@ def run_direct_inference(model, df, mapping_dict_to_class, max_aa_len,
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Inference — Long Sequences (sliding window, variable length)
+# Inference — Long Sequences, longer than 300 nt (sliding window, variable length)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_sliding_window_single(model, name, seq, mapping_dict_to_class,
                                device, dtype, batch_size, stride_aa,
-                               num_workers_cpu, pin_memory, gff_buffers):
+                               num_workers_cpu, pin_memory, gff_buffers,
+                               min_cds_length):
     """Run sliding window inference on a single long sequence."""
     tokenizer = get_tokenizer()
     seq_len = len(seq)
@@ -643,7 +696,7 @@ def run_sliding_window_single(model, name, seq, mapping_dict_to_class,
     # Reshape: (1, n_windows, window_size_aa, num_labels)
     all_logits = all_logits.view(1, n_windows, window_size_aa, num_labels)
 
-    # Merge overlapping windows
+    # Merge shared label space logits from overlapping window positions
     merged_logits, merged_mask = _merge_window_logits(
         all_logits, window_starts, window_size_aa, full_aa_len, num_labels, device
     )
@@ -660,10 +713,78 @@ def run_sliding_window_single(model, name, seq, mapping_dict_to_class,
         predictions_encoded, mapping_dict_to_class, seq_len
     )
 
-    process_predictions(preds_rf0, preds_rf1, preds_rf2, [name], gff_buffers, 1)
+    process_predictions(preds_rf0, preds_rf1, preds_rf2, [name], gff_buffers, 1, min_cds_length)
 
     del all_logits, merged_logits, merged_mask, windowed_df, window_dataset
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Write sequences to fasta file
+# ══════════════════════════════════════════════════════════════════════════════
+
+def extract_cds_from_gff(fasta_path, gff_path, output_path):
+    sequences = SeqIO.index(fasta_path, "fasta")
+
+    # Collect grouped (indel-interrupted) and ungrouped CDS entries
+    ungrouped = []
+    groups = defaultdict(list)  # group_id -> list of GFF field rows, in order
+
+    try:
+        with open(gff_path) as gff_f:
+            for line in gff_f:
+                if line.startswith("#"):
+                    continue
+                fields = line.strip().split("\t")
+                if len(fields) < 9 or fields[2] != "CDS":
+                    continue
+
+                attrs = dict(item.split("=") for item in fields[8].split(";"))
+
+                #CDS fragments interrupted by indels will have group_id attribute in the format "group_X.Y" where X is the group number and Y is the fragment number within the group. 
+                if "group_id" in attrs:
+                    group_base = attrs["group_id"].rsplit(".", 1)[0] 
+                    key = (fields[0], group_base)
+                    groups[key].append((fields, attrs))
+                
+                # Complete CDS fragments without indels will not have group_id and will be processed separately
+                else:
+                    ungrouped.append((fields, attrs))
+
+        with open(output_path, "w") as out_f:
+
+            for fields, attrs in ungrouped:
+                seq_name = fields[0]
+                start, end, strand = int(fields[3]), int(fields[4]), fields[6]
+                cds_seq = sequences[seq_name].seq[start - 1 : end]
+                out_f.write(f">{seq_name}_{start}_{end}_{strand}\n{cds_seq}\n")
+
+            for (seq_name, group_id), members in groups.items(): 
+                members.sort(key=lambda x: int(x[0][3]))
+
+                strand     = members[0][0][6]
+                indel_type = members[0][1]["indel_type"]
+
+                group_start = int(members[0][0][3])
+                group_end   = int(members[-1][0][4])
+
+                fragments = [
+                    sequences[seq_name].seq[int(f[3]) - 1 : int(f[4])]
+                    for f, _ in members
+                ]
+
+                #Insertion is removed
+                if indel_type == "insertion":
+                    merged_seq = "".join(str(f) for f in fragments)
+                
+                #An NNN gap is inserted to represent the deleted region, as the model cannot predict the exact sequence of the deleted region
+                elif indel_type == "deletion":
+                    merged_seq = "NNN".join(str(f) for f in fragments)
+
+                header = f">{seq_name}_{group_start}_{group_end}_{strand}"
+                out_f.write(f"{header}\n{merged_seq}\n")
+
+    except ValueError as e:
+        print(f"Error processing GFF file: {e}")
+        sys.exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Main
@@ -746,14 +867,6 @@ def main():
     # Load label mapping for the specific error type (used to decode model outputs into class labels)
     label_mapping_path = os.path.join(script_dir, "configs", error_type_dir, "label_mapping.pkl")
 
-    if not os.path.isfile(ckpt_path):
-        print(f"Error: Model checkpoint not found: {ckpt_path}")
-        models_dir = os.path.join(script_dir, "models", error_type_dir)
-        if os.path.isdir(models_dir):
-            available = os.listdir(models_dir)
-            if available:
-                print(f"  Available checkpoints: {available}")
-        sys.exit(1)
     if not os.path.isfile(label_mapping_path):
         print(f"Error: Label mapping not found: {label_mapping_path}")
         sys.exit(1)
@@ -761,8 +874,10 @@ def main():
         print(f"Error: Hyperparameters not found: {hyperparams_path}")
         sys.exit(1)
 
+    """
     esm2_model_name = "facebook/esm2_t6_8M_UR50D"
-    print(f"Loading model: {model_name_ckpt} (error_type={args.error_type})")
+
+    print(f"Loading DeepCDS (Model version: {args.model_type}) (error_type: {args.error_type})")
 
     model, mapping_dict_to_class = load_model(
         ckpt_path=ckpt_path,
@@ -770,8 +885,7 @@ def main():
         hyperparams_path=hyperparams_path,
         device=device,
         esm2_model=esm2_model_name,
-        label_classes=label_classes,
-    )
+        label_classes=label_classes)
 
     # Half precision for GPU/MPS
     use_half = device_type in ("cuda", "mps")
@@ -783,7 +897,7 @@ def main():
         dtype = torch.float32
 
     # ── Split sequences into short vs long ──────────────────────────────────
-    trained_window_nt = TRAINED_WINDOW_SIZE_AA * 3  # 300 nt
+    trained_window_nt = 300
 
     # Preserve original FASTA order: record (name, seq, original_index, is_long)
     input_order = []  # list of (name, original_index)
@@ -804,7 +918,6 @@ def main():
 
     # ── Run inference ───────────────────────────────────────────────────────
     # Collect GFF lines per sequence into buffers, then write in original order
-    import io
     gff_buffers = {}  # name -> StringIO
 
     with torch.inference_mode():
@@ -813,6 +926,8 @@ def main():
         # Process short sequences in a single batch (padded to max length in group)
         if short_seqs:
             print(f"\nProcessing {len(short_seqs)} short sequences...")
+
+            # Determine max sequence length in short sequence group for padding. 
             max_seq_len = max(len(s) for s in short_seqs)
             # Ensure that we pad enough to cover the longest sequence and allow for some extra padding to reach the next multiple of 3 codons for each reading frame. See "Supplementary Note X. Inference on sequence ends".
             max_aa_len = int(np.ceil(max_seq_len / 3)) + 3 
@@ -824,7 +939,7 @@ def main():
 
             run_direct_inference(
                 model, df_short, mapping_dict_to_class, max_aa_len,
-                device, dtype, args.batch_size, num_workers_cpu, pin_memory, gff_buffers,
+                device, dtype, args.batch_size, num_workers_cpu, pin_memory, gff_buffers, args.min_cds_length
             )
             del df_short
             clear_memory()
@@ -837,7 +952,7 @@ def main():
                 run_sliding_window_single(
                     model, name, seq, mapping_dict_to_class,
                     device, dtype, args.batch_size, args.stride_aa,
-                    num_workers_cpu, pin_memory, gff_buffers,
+                    num_workers_cpu, pin_memory, gff_buffers, args.min_cds_length
                 )
                 clear_memory()
 
@@ -848,9 +963,15 @@ def main():
             if name in gff_buffers:
                 outfile_gff.write(gff_buffers[name].getvalue())
 
+    """
+
+    extract_cds_from_gff(args.fasta, f"{args.output}.gff", f"{args.output}.fna")
+
     clear_memory(sync=True)
 
-    print(f"\nDeepCDS finished succesfully! Predictions are written to: {args.output}.gff")
+    print(f"\nDeepCDS finished succesfully!")
+    print(f"\tPredicted CDS coordinates in GFF format are written to: {args.output}.gff")
+    print(f"\tPredicted CDS sequences in FASTA format are written to: {args.output}.fna")
 
 
 if __name__ == "__main__":

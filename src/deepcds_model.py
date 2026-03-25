@@ -3,16 +3,16 @@ DeepCDS Model Classes
 
 This module contains the neural network model classes for the DeepCDS CDS prediction system:
 - SequenceEncoder: ESM-2 based amino acid sequence encoder
-- TransformerEncoderBlock: Transformer encoder for combining nucleotide and amino acid features
-- LinearChainCRF: Conditional Random Field layer for structured prediction
+- TransformerEncoderBlock: Transformer encoder for combining one-hot encoded nucleotide and contextualized amino acid embeddings per frame
+- LinearChainCRF: Linear-chain Conditional Random Field layer for structured prediction
 - CDSPredictor: Full model combining all components
 
 Shape notation used throughout this module:
     B = batch size
-    N = sequence length (number of codons / amino acids)
+    L = sequence length (number of codons / amino acids)
     m = ESM-2 hidden size
     C = label classes per reading frame
-    L = num_encoded_labels (combined label space across all reading frames)
+    K = num_encoded_labels (combined label space across all reading frames)
 """
 
 import pickle
@@ -60,22 +60,22 @@ class SequenceEncoder(nn.Module):
             embeddings_aa (torch.Tensor): Amino acid embeddings with CLS/EOS removed, shape (batch_size, seq_len-2, hidden_size)
             attention_mask_trimmed (torch.Tensor): Attention mask with CLS/EOS removed, shape (batch_size, seq_len-2)
         """
-        # x_aa: (B, N+2) — tokenized AA ids including CLS and EOS
-        # attention_mask_aa: (B, N+2)
+        # x_aa: (B, L+2) — tokenized AA ids including CLS and EOS
+        # attention_mask_aa: (B, L+2)
 
         # Extract features from pretrained ESM-2 model
         features_aa = self.pretrained_model_aa(x_aa, attention_mask=attention_mask_aa)
 
-        sequence_output_aa = features_aa["last_hidden_state"]  # (B, N+2, m)
+        sequence_output_aa = features_aa["last_hidden_state"]  # (B, L+2, m)
 
         # Remove CLS and EOS token embeddings
-        sequence_output_aa = sequence_output_aa[:, 1:-1, :]  # (B, N, m)
+        sequence_output_aa = sequence_output_aa[:, 1:-1, :]  # (B, L, m)
 
         # Apply dropout before transformer head
-        embeddings_aa = self.dropout_1(sequence_output_aa)  # (B, N, m)
+        embeddings_aa = self.dropout_1(sequence_output_aa)  # (B, L, m)
 
         # Remove CLS/EOS from attention mask
-        attention_mask_trimmed = attention_mask_aa[:, 1:-1]  # (B, N)
+        attention_mask_trimmed = attention_mask_aa[:, 1:-1]  # (B, L)
 
         return embeddings_aa, attention_mask_trimmed
 
@@ -131,28 +131,27 @@ class TransformerEncoderBlock(nn.Module):
                 Logits of shape (batch_size, seq_len, num_labels) representing class scores for each token position.
         """
 
-        # encoded_seqs_nt: (B, N, 12)
-        # encoded_embeddings_aa: (B, N, m)
-        # trimmed_attention_mask: (B, N)
+        # encoded_seqs_nt: (B, L, 12)
+        # encoded_embeddings_aa: (B, L, m)
+        # trimmed_attention_mask: (B, L)
 
         # Concatenate ESM-2 embeddings and one-hot encoded codons
-        combined_codon_and_aa_embeddings = torch.cat([encoded_embeddings_aa, encoded_seqs_nt], dim=-1)  # (B, N, m+12)
+        combined_codon_and_aa_embeddings = torch.cat([encoded_embeddings_aa, encoded_seqs_nt], dim=-1)  # (B, L, m+12)
 
-        combined_codon_and_aa_embeddings = combined_codon_and_aa_embeddings.permute(1, 0, 2)  # (N, B, m+12)
-        attention_mask_transformer = ~trimmed_attention_mask.bool()  # (B, N) — True = padded
+        combined_codon_and_aa_embeddings = combined_codon_and_aa_embeddings.permute(1, 0, 2)  # (L, B, m+12)
+        attention_mask_transformer = ~trimmed_attention_mask.bool()  # (B, L) — True = padded
 
         # Pass through transformer encoder layers
         combined_codon_and_aa_embeddings = self.encoder(
-            combined_codon_and_aa_embeddings, src_key_padding_mask=attention_mask_transformer
-        )  # (N, B, m+12)
+            combined_codon_and_aa_embeddings, src_key_padding_mask=attention_mask_transformer)  # (L, B, m+12)
 
-        combined_codon_and_aa_embeddings = combined_codon_and_aa_embeddings.permute(1, 0, 2)  # (B, N, m+12)
+        combined_codon_and_aa_embeddings = combined_codon_and_aa_embeddings.permute(1, 0, 2)  # (B, L, m+12)
 
         # Apply layer normalization
-        combined_codon_and_aa_embeddings = self.norm(combined_codon_and_aa_embeddings)  # (B, N, m+12)
+        combined_codon_and_aa_embeddings = self.norm(combined_codon_and_aa_embeddings)  # (B, L, m+12)
 
         # Get RF-specific class logits
-        logits = self.linear(combined_codon_and_aa_embeddings)  # (B, N, C)
+        logits = self.linear(combined_codon_and_aa_embeddings)  # (B, L, C)
 
         return logits
 
@@ -202,18 +201,18 @@ class LinearChainCRF(nn.Module):
                     - **'predictions' (list[list[int]])**: Decoded most probable label sequence per sample.
                     - **'logits' (torch.Tensor)**: Input logits passed through the CRF.
         """
-        # logits: (B, N, L)
-        # attention_mask: (B, N)
-        # labels: (B, N) or None
+        # logits: (B, L, K)
+        # attention_mask: (B, L)
+        # labels: (B, L) or None
 
         # Training
         if labels is not None:
 
             # Use label-based mask instead of attention mask
-            crf_mask = (labels != -1)  # (B, N)
+            crf_mask = (labels != -1)  # (B, L)
 
             # Replace -1 with 0 in labels (masked positions don't matter, but -1 is invalid index)
-            safe_labels = labels.clone()  # (B, N)
+            safe_labels = labels.clone()  # (B, L)
             safe_labels[safe_labels == -1] = 0
 
             log_likelihood = self.crf(logits, safe_labels, mask=crf_mask, reduction="none")  # (B,)
@@ -222,8 +221,8 @@ class LinearChainCRF(nn.Module):
             return {"loss": loss, "logits": logits}
 
         else:
-            crf_mask = attention_mask.bool()  # (B, N)
-            predictions = self.crf.decode(logits, mask=crf_mask)  # list of B lists, each length N
+            crf_mask = attention_mask.bool()  # (B, L)
+            predictions = self.crf.decode(logits, mask=crf_mask)  # list of B lists, each length L
             return {"predictions": predictions, "logits": logits}
 
 
@@ -316,47 +315,48 @@ class CDSPredictor(nn.Module):
 
         """
 
-        # Per-RF inputs: encoded_seqs_nt_rf*: (B, N, 12), x_aa_rf*: (B, N+2), attention_mask_aa_rf*: (B, N+2)
-        # labels: (B, N) or None
+        # Per-RF inputs: encoded_seqs_nt_rf*: (B, L, 12), x_aa_rf*: (B, L+2), attention_mask_aa_rf*: (B, L+2)
+        # labels: (B, L) or None
 
         # Encode amino acid sequences for each reading frame
         encoded_embeddings_aa_rf0, trimmed_attention_mask_rf0 = self.sequence_encoder(x_aa_rf0, attention_mask_aa_rf0)
         encoded_embeddings_aa_rf1, trimmed_attention_mask_rf1 = self.sequence_encoder(x_aa_rf1, attention_mask_aa_rf1)
         encoded_embeddings_aa_rf2, trimmed_attention_mask_rf2 = self.sequence_encoder(x_aa_rf2, attention_mask_aa_rf2)
-        # encoded_embeddings_aa_rf*: (B, N, m), trimmed_attention_mask_rf*: (B, N)
+        # encoded_embeddings_aa_rf*: (B, L, m), trimmed_attention_mask_rf*: (B, L)
 
         # Process each RF through its transformer encoder blocks
         logits_rf0 = self.TransformerEncoderBlock(
             encoded_seqs_nt=encoded_seqs_nt_rf0,
             encoded_embeddings_aa=encoded_embeddings_aa_rf0,
             trimmed_attention_mask=trimmed_attention_mask_rf0,
-        )  # (B, N, C)
+        )  # (B, L, C)
         logits_rf1 = self.TransformerEncoderBlock(
             encoded_seqs_nt=encoded_seqs_nt_rf1,
             encoded_embeddings_aa=encoded_embeddings_aa_rf1,
             trimmed_attention_mask=trimmed_attention_mask_rf1,
-        )  # (B, N, C)
+        )  # (B, L, C)
         logits_rf2 = self.TransformerEncoderBlock(
             encoded_seqs_nt=encoded_seqs_nt_rf2,
             encoded_embeddings_aa=encoded_embeddings_aa_rf2,
             trimmed_attention_mask=trimmed_attention_mask_rf2,
-        )  # (B, N, C)
+        )  # (B, L, C)
 
         # Concatenate logits from all reading frames along the feature (class logit) dimension
-        combined_codon_and_aa_embeddings = torch.cat([logits_rf0, logits_rf1, logits_rf2], dim=-1)  # (B, N, 3*C)
+        combined_codon_and_aa_embeddings = torch.cat([logits_rf0, logits_rf1, logits_rf2], dim=-1)  # (B, L, 3*C)
 
         # Map combined frame representations to encoded, shared label space
-        logits_encoded_labels = self.linear_transform(combined_codon_and_aa_embeddings)  # (B, N, L)
+        logits_encoded_labels = self.linear_transform(combined_codon_and_aa_embeddings)  # (B, L, K)
 
         # Compute combined attention mask (intersection of all three RF masks)
-        combined_attention_mask = trimmed_attention_mask_rf0 & trimmed_attention_mask_rf1 & trimmed_attention_mask_rf2  # (B, N)
+        combined_attention_mask = trimmed_attention_mask_rf0 & trimmed_attention_mask_rf1 & trimmed_attention_mask_rf2  # (B, L)
 
         # Apply CRF for structured decoding or training
         output = self.CRF(
             logits=logits_encoded_labels,
             attention_mask=combined_attention_mask,
-            labels=labels,
-        )  # {'loss': scalar, 'logits': (B, N, L)} or {'predictions': list of B lists, 'logits': (B, N, L)}
+            labels=labels)  
+        
+        # {'loss': scalar, 'logits': (B, L, K)} or {'predictions': list of B lists, 'logits': (B, L, K)}
 
         return output
 
@@ -378,12 +378,13 @@ def load_model(ckpt_path, label_mapping_path, hyperparams_path, device, esm2_mod
         mapping_dict_to_class (dict): Mapping from encoded labels to RF tuples.
     """
 
+    # Open label mapping pickle file to get the mapping from encoded label indices to RF combinations
     with open(label_mapping_path, "rb") as mapping_file:
         mapping_dict_to_class = pickle.load(mapping_file)
 
     num_encoded_labels = len(mapping_dict_to_class.keys())
-    print(f"Number of encoded label classes: {num_encoded_labels}")
 
+    # Load hyperparameters from YAML config file to initialize model architecture
     cfg = OmegaConf.load(hyperparams_path)
 
     act_function = cfg.hyperparameters.act_function
@@ -392,6 +393,7 @@ def load_model(ckpt_path, label_mapping_path, hyperparams_path, device, esm2_mod
     dropout_rate_2 = cfg.hyperparameters.dropout_rate_2
     n_attention_heads = cfg.hyperparameters.n_attention_heads
 
+    # Initialize model architecture with loaded hyperparameters and label mapping
     model = CDSPredictor(
         esm2_model=esm2_model,
         num_layers=num_layers,
@@ -401,9 +403,9 @@ def load_model(ckpt_path, label_mapping_path, hyperparams_path, device, esm2_mod
         act_function=act_function,
         num_encoded_labels=num_encoded_labels,
         encoded_labels_mapping=mapping_dict_to_class,
-        label_classes=label_classes
-    )
+        label_classes=label_classes)
 
+    # Move model to specified device before loading checkpoint weights
     model.to(device)
 
     # Load checkpoint with strict=False but validate the result
@@ -422,7 +424,7 @@ def load_model(ckpt_path, label_mapping_path, hyperparams_path, device, esm2_mod
     if invalid_missing:
         raise RuntimeError(f"Missing keys that should have been in checkpoint: {invalid_missing}")
 
-    assert len(missing) <= 1, f"Expected at most 1 missing key from ESM-2, but found {len(missing)}: {missing}. Please report this."
+    assert len(missing) <= 1, f"Expected 1 missing key from ESM-2, but found {len(missing)}: {missing}. Please report this before usage."
     print(f"Successfully loaded model.")
 
     return model, mapping_dict_to_class

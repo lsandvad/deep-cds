@@ -78,9 +78,11 @@ parser.add_argument(
     help="Input file format: 'csv' (default) reads .csv.gz files, 'fasta' reads .fasta.gz files",
 )
 parser.add_argument(
-    "--ancient_damage",
-    action="store_true",
-    help="Predict on ancient DNA samples (reads from fasta_ancient_damage/ subdirectory)",
+    "--esm_model",
+    type=str,
+    default="8M",
+    choices=["8M", "35M", "150M", "650M"],
+    help="ESM-2 model size to use (default: 8M)",
 )
 
 args = parser.parse_args()
@@ -130,9 +132,19 @@ else:
 print(f"Device: {device}", flush=True)
 print(f"DataLoader workers: {num_workers_cpu}, pin_memory: {pin_memory}")
 
-model_name_ckpt = f"full_model_{args.model}_seed_42_trained_final.pth"
+if args.esm_model == "8M":
+    model_name_ckpt = f"full_model_{args.model}_seed_42_trained_final.pth"
+    esm2_model_name = "facebook/esm2_t6_8M_UR50D"
+elif args.esm_model == "35M":
+    model_name_ckpt = f"full_model_{args.model}_seed_42_trained_final_35M.pth"
+    esm2_model_name = "facebook/esm2_t12_35M_UR50D"
+elif args.esm_model == "150M":
+    model_name_ckpt = f"full_model_{args.model}_seed_42_trained_final_150M.pth"
+    esm2_model_name = "facebook/esm2_t30_150M_UR50D"
+elif args.esm_model == "650M":
+    model_name_ckpt = f"full_model_{args.model}_seed_42_trained_final_650M.pth"
+    esm2_model_name = "facebook/esm2_t33_650M_UR50D"
 
-esm2_model_name = "facebook/esm2_t6_8M_UR50D"
 esm2_model_abbr = esm2_model_name.split("/")[-1].split("_UR")[0]
 
 test_samples_file = open(f"{base_data_path}/genome_partitions/test_partition_accessions.txt", "r")
@@ -222,11 +234,7 @@ def load_and_process_data(test_sample, data_dir, batch_size, max_aa_len,
         DataLoader: DataLoader for the test data.
     """
     # Load data
-    if args.ancient_damage:
-        test_set = parse_fasta_gz_to_df(
-            f"{base_data_path}/reads_processed/test/{data_dir}/fasta_ancient_damage/{test_sample}_ancient.fasta.gz"
-        )
-    elif args.input_format == "fasta":
+    if args.input_format == "fasta":
         test_set = parse_fasta_gz_to_df(
             f"{base_data_path}/reads_processed/test/{data_dir}/fasta/{test_sample}.fasta.gz"
         )
@@ -723,7 +731,7 @@ def run_model_predictions(data_dir, model, mapping_dict_to_class, max_aa_len,
             pin_memory=pin_memory
         )
 
-        data_dir_out = f"{data_dir}_ancient_damage" if args.ancient_damage else data_dir
+        data_dir_out = data_dir if args.esm_model == "8M" else f"{data_dir}_esm2_{esm2_model_abbr}"
         dir_path = f"{base_data_path}/predictions/raw_predictions/DeepCDS/{model_dir_path_suffix}/{data_dir_out}/{model_name_ckpt.split('.')[0]}/"
         os.makedirs(dir_path, exist_ok=True)
         outfile_gff = open(f"{dir_path}/predictions_{test_sample}.gff", "w")
@@ -829,11 +837,7 @@ def run_sliding_window_predictions(data_dir, model, mapping_dict_to_class, seq_l
     tokenizer = get_tokenizer()
 
     for test_sample in tqdm(test_samples, desc="Processing samples"):
-        if args.ancient_damage:
-            test_df = parse_fasta_gz_to_df(
-                f"{base_data_path}/reads_processed/test/{data_dir}/fasta_ancient_damage/{test_sample}_ancient.fasta.gz"
-            )
-        elif args.input_format == "fasta":
+        if args.input_format == "fasta":
             test_df = parse_fasta_gz_to_df(
                 f"{base_data_path}/reads_processed/test/{data_dir}/fasta/{test_sample}.fasta.gz"
             )
@@ -846,7 +850,8 @@ def run_sliding_window_predictions(data_dir, model, mapping_dict_to_class, seq_l
 
         print(f"Data samples: {test_df.shape[0]}")
 
-        data_dir_out = f"{data_dir}_ancient_damage" if args.ancient_damage else data_dir
+
+        data_dir_out = data_dir if args.esm_model == "8M" else f"{data_dir}_esm2_{esm2_model_abbr}"
         dir_path = f"{base_data_path}/predictions/raw_predictions/DeepCDS/{model_dir_path_suffix}/{data_dir_out}/{model_name_ckpt.split('.')[0]}/"
         os.makedirs(dir_path, exist_ok=True)
         outfile_gff = open(f"{dir_path}/predictions_{test_sample}.gff", "w")
@@ -896,96 +901,61 @@ if __name__ == "__main__":
     print(f"Error type: {args.error_type}")
     print(f"Batch size: {args.batch_size}")
 
-    if args.ancient_damage:
-        print("Ancient DNA damage patterns will be included in the input data (simulated C->T and G->A substitutions at read ends).")
-        data_dirs = [
-                    "without_errors_60bp",
-                    "without_errors_75bp",
-                    "without_errors_100bp",
-                    "without_errors_150bp",
-                    "without_errors_300bp"]
-        model, mapping_dict_to_class = load_model(
-            model_name_ckpt,
-            input_data_dir_path,
-            device=device,
-            esm2_model=esm2_model_name,
-            label_classes=label_classes
-        )
+    # Define data directories based on error type
+    if args.error_type == "none":
+        if args.model == "all_genomes":
+            data_dirs = [
+                "without_errors_60bp",
+                "without_errors_75bp",
+                "without_errors_100bp",
+                "without_errors_150bp",
+                "without_errors_300bp",
+                "without_errors_700bp",
+                "without_errors_1000bp",
+            ]
+        else:
+            # For smaller models, only predict on 300bp dataset
+            data_dirs = ["without_errors_300bp"]
+            print(f"Note: Using only 300bp dataset for model '{args.model}' (use --model all_genomes for full evaluation)")
 
-        trained_window_nt = TRAINED_WINDOW_SIZE_AA * 3  # 300 nt
-
-        for data_dir in data_dirs:
-            print(data_dir, flush=True)
-            seq_len = int(data_dir.split("_")[-1].strip("bp"))
-
-            if seq_len > trained_window_nt:
-                print(f"  Using sliding window inference (seq_len={seq_len} > trained window={trained_window_nt})")
-                run_sliding_window_predictions(
-                    data_dir, model, mapping_dict_to_class, seq_len,
-                    batch_size=args.batch_size, stride_aa=args.stride_aa,
-                )
-            else:
-                max_aa_len = int(np.ceil(seq_len / 3)) + 5  # add padding buffer
-                run_model_predictions(data_dir, model, mapping_dict_to_class, max_aa_len, batch_size=args.batch_size)
-
-        
+    elif args.error_type in ("indel_substitution", "substitution"):
+        # Error profiles: low (5e-06i/0.004s), medium (1.25e-05i/0.01s), high (3.75e-05i/0.03s)
+        error_profiles = [
+            "with_errors_5e-06i_0.004s",
+            "with_errors_1.25e-05i_0.01s",
+            "with_errors_3.75e-05i_0.03s",
+        ]
+        if args.model == "all_genomes":
+            read_lengths = ["60bp", "75bp", "100bp", "150bp", "300bp"]
+            data_dirs = [f"{profile}_{length}" for profile in error_profiles for length in read_lengths[::-1]]
+        else:
+            # For smaller models, only predict on 300bp datasets
+            data_dirs = [f"{profile}_300bp" for profile in error_profiles]
+            print(f"Note: Using only 300bp datasets for model '{args.model}' (use --model all_genomes for full evaluation)")
 
     else:
-        # Define data directories based on error type
-        if args.error_type == "none":
-            if args.model == "all_genomes":
-                data_dirs = [
-                    "without_errors_60bp",
-                    "without_errors_75bp",
-                    "without_errors_100bp",
-                    "without_errors_150bp",
-                    "without_errors_300bp",
-                    "without_errors_700bp",
-                    "without_errors_1000bp",
-                ]
-            else:
-                # For smaller models, only predict on 300bp dataset
-                data_dirs = ["without_errors_300bp"]
-                print(f"Note: Using only 300bp dataset for model '{args.model}' (use --model all_genomes for full evaluation)")
+        raise ValueError(f"Unknown error_type: '{args.error_type}'")
 
-        elif args.error_type in ("indel_substitution", "substitution"):
-            # Error profiles: low (5e-06i/0.004s), medium (1.25e-05i/0.01s), high (3.75e-05i/0.03s)
-            error_profiles = [
-                "with_errors_5e-06i_0.004s",
-                "with_errors_1.25e-05i_0.01s",
-                "with_errors_3.75e-05i_0.03s",
-            ]
-            if args.model == "all_genomes":
-                read_lengths = ["60bp", "75bp", "100bp", "150bp", "300bp", "700bp", "1000bp"]
-                data_dirs = [f"{profile}_{length}" for profile in error_profiles for length in read_lengths]
-            else:
-                # For smaller models, only predict on 300bp datasets
-                data_dirs = [f"{profile}_300bp" for profile in error_profiles]
-                print(f"Note: Using only 300bp datasets for model '{args.model}' (use --model all_genomes for full evaluation)")
+    model, mapping_dict_to_class = load_model(
+        model_name_ckpt,
+        input_data_dir_path,
+        device=device,
+        esm2_model=esm2_model_name,
+        label_classes=label_classes
+    )
 
+    trained_window_nt = TRAINED_WINDOW_SIZE_AA * 3  # 300 nt
+
+    for data_dir in data_dirs:
+        print(data_dir, flush=True)
+        seq_len = int(data_dir.split("_")[-1].strip("bp"))
+
+        if seq_len > trained_window_nt:
+            print(f"  Using sliding window inference (seq_len={seq_len} > trained window={trained_window_nt})")
+            run_sliding_window_predictions(
+                data_dir, model, mapping_dict_to_class, seq_len,
+                batch_size=args.batch_size, stride_aa=args.stride_aa,
+            )
         else:
-            raise ValueError(f"Unknown error_type: '{args.error_type}'")
-
-        model, mapping_dict_to_class = load_model(
-            model_name_ckpt,
-            input_data_dir_path,
-            device=device,
-            esm2_model=esm2_model_name,
-            label_classes=label_classes
-        )
-
-        trained_window_nt = TRAINED_WINDOW_SIZE_AA * 3  # 300 nt
-
-        for data_dir in data_dirs:
-            print(data_dir, flush=True)
-            seq_len = int(data_dir.split("_")[-1].strip("bp"))
-
-            if seq_len > trained_window_nt:
-                print(f"  Using sliding window inference (seq_len={seq_len} > trained window={trained_window_nt})")
-                run_sliding_window_predictions(
-                    data_dir, model, mapping_dict_to_class, seq_len,
-                    batch_size=args.batch_size, stride_aa=args.stride_aa,
-                )
-            else:
-                max_aa_len = int(np.ceil(seq_len / 3)) + 5  # add padding buffer
-                run_model_predictions(data_dir, model, mapping_dict_to_class, max_aa_len, batch_size=args.batch_size)
+            max_aa_len = int(np.ceil(seq_len / 3)) + 5  # add padding buffer
+            run_model_predictions(data_dir, model, mapping_dict_to_class, max_aa_len, batch_size=args.batch_size)

@@ -20,9 +20,10 @@ The input file (in FASTA format) and model type arguments are required. Addition
 
 | Input Argument                      | Description                                     |
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `--batch_size`                  | IMPLEMENT ME! Specifies the number of samples to process together in a single pass during prediction. Default value: `64`.                                     |
 | `-in`, `--input_filename`       | IMPLEMENT ME! Input file in FASTA format. The allowed input alphabet is A, C, G, T, U and N (unknown). All the other letters will be converted to N before processing. T and U are treated as equivalent. The input file can also be provided in gzipped version with a .gz extension.                                                                        |
 |`--compute_device` | Which hardware accelerator to use. Options are:  `cuda` (NVIDIA GPU), `mps` (Apple Silicon), or `cpu`. The program will automatically fall back to CPU if the requested device is unavailable.|
+| `--batch_size`    | Specifies the number of samples to process together in a single pass during prediction. Default value: `256`.                                     |
+|`--min_cds_length` | Minimum length (nt) for predicted CDS sequences. We recommend not going below 30 nt as predictive performance below this threshold has not been evaluated. Default value: `60`|
 
 - Giv eksempel
 - Skriv hvad input er
@@ -31,19 +32,28 @@ The input file (in FASTA format) and model type arguments are required. Addition
 
 ### TO DO
 - [ ] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
+- [ ] Marker med * for archaea i tabeller mm. 
+- [x] Stress test + no error boxplots i én samlet figur -> Main
+- [x] Figur 1A: Storytelling; Hele workflow -> data preprocessing box -> ML box -> decoding/postprocessing box -> metrics?
 - [ ] Læs alle resultat captions igennem
-- [ ] Optional og required argumenter i argparse! Se netstart 2!
+- [x] Flere resultater: Test separat på reads med indels (gennemsnitligt absolute error i prediction vs. korrekt placering + false positive og false negative rate)
+- [ ] Fint at kunne vise udvikling i performance som funktion af ESM-2 størrelse
+    - [ ] Afhængigt af resultater; måske vi også skal træne på 100, 200 og 400 genomer?
+- [ ] DOI på alle referencer
+- [ ] Lav tabel med read counts pr. organisme for samtlige organismer.
+- [ ] Skriv et sted hvor mange sekvenser det fulde træningssæt består af
 
 Implementering af script:
 - [ ] Output fasta filer
-    - [ ] Nukleotidsekvens
-    - [ ] Aminosyresekvens
-- [ ] Sorter GFF filer så start og stop codons ikke placeres i bunden
+    - [x] Nukleotidsekvens
+    - [ ] Aminosyresekvens (NNN encodes som X; stop codon encodes som *)
+- [x] Sorter GFF filer så start og stop codons ikke placeres i bunden
 - [ ] Complement streng
-- [ ] Implementér bruger-option til at sætte threshold for minimum CDS længde de vil have rapport om (minimum: 30 - eller i hvert fald anbefaler vi ikke at gå længere ned!)
+- [x] Implementér bruger-option til at sætte threshold for minimum CDS længde de vil have rapport om (minimum: 30 - eller i hvert fald anbefaler vi ikke at gå længere ned!)
 - [ ] Tillad input af gzipped input fasta
-- [ ] Optio for output fastafiler gzipped eller ej 
-- [ ] Til aller sidst: opdater "Supplementary Note X" i prediction script. 
+- [ ] Option for output fastafiler gzipped eller ej 
+- [ ] Til aller sidst: opdater "Supplementary Note X" kommentarer i prediction script. 
+- [ ] Optional og required argumenter i argparse! Se netstart 2!
 
 
 
@@ -150,8 +160,9 @@ find . -name "*GCF_000026105.1*" -exec rm -rf {} +
 
 Eksempler: 
 Deletion: 
-GCF_000007365.1_simulated_reads_template1608|+|NC_004061.1|[[2,	DeepCDS	CDS	2	124	.	+	1	start=internal_region;end=indel_stop;group_id=group_1.0;indel_type=deletion
-GCF_000007365.1_simulated_reads_template1608|+|NC_004061.1|[[2,	DeepCDS	CDS	127	300	.	+	0	start=indel_start;end=internal_region;group_id=group_1.1;indel_type=deletion
+GCF_000007365.1_simulated_reads_template706|+|NC_004061.1|[[1,	DeepCDS	CDS	1	204	.	+	0	start=internal_region;end=indel_stop;group_id=group_1.0;indel_type=deletion
+GCF_000007365.1_simulated_reads_template706|+|NC_004061.1|[[1,	DeepCDS	CDS	207	299	.	+	2	start=indel_start;end=internal_region;group_id=group_1.1;indel_type=deletion
+GCF_000007365.1_simulated_reads_template706|+|NC_004061.1|[[1,	DeepCDS	uncertain_region	205	206	.	+	.	Note=Uncertain region: Frameshift gap between RF0 and RF2;overlapping_frames=0,2
 
 Insertion:
 GCF_000007365.1_simulated_reads_template528|+|NC_004061.1|[[2,	DeepCDS	CDS	2	220	.	+	1	start=internal_region;end=indel_stop;group_id=group_1.0;indel_type=insertion

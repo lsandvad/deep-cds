@@ -121,15 +121,13 @@ class SeqDataset(Dataset):
         aa_encodings_rf1 (BatchEncoding): Tokenized amino acid encodings (dict) for reading frame 1
         nt_encodings_rf2 (list): List of nucleotide codon encodings (max_aa_len, 12) for reading frame 2
         aa_encodings_rf2 (BatchEncoding): Tokenized amino acid encodings (dict) for reading frame 2
-        seq_errors: Indel errors in sequence
-        cds_coords: CDS coordinates on read
         read_name: Unique read identifier for genome accession
     """
 
     def __init__(self, nt_encodings_rf0, aa_encodings_rf0,
                  nt_encodings_rf1, aa_encodings_rf1,
                  nt_encodings_rf2, aa_encodings_rf2,
-                 seq_errors, cds_coords, read_name):
+                 read_name):
 
         self.nt_encodings_rf0 = nt_encodings_rf0
         self.aa_encodings_rf0 = aa_encodings_rf0
@@ -140,8 +138,6 @@ class SeqDataset(Dataset):
         self.nt_encodings_rf2 = nt_encodings_rf2
         self.aa_encodings_rf2 = aa_encodings_rf2
 
-        self.seq_errors = seq_errors
-        self.cds_coords = cds_coords
         self.read_name = read_name
 
     def __getitem__(self, idx):
@@ -155,14 +151,12 @@ class SeqDataset(Dataset):
             'nt_encodings_rf2': torch.as_tensor(self.nt_encodings_rf2[idx], dtype=torch.float32),
             'aa_encodings_rf2': {key: val[idx] for key, val in self.aa_encodings_rf2.items()},
 
-            'seq_errors': str(self.seq_errors[idx]),
-            'cds_coords': self.cds_coords[idx],
             'read_name': self.read_name[idx]
         }
         return item
 
     def __len__(self):
-        return len(self.seq_errors)
+        return len(self.read_name)
 
 
 def encode_data(processed_samples_df, max_aa_len, tokenizer=None, esm2_model_name="facebook/esm2_t6_8M_UR50D"):
@@ -184,9 +178,9 @@ def encode_data(processed_samples_df, max_aa_len, tokenizer=None, esm2_model_nam
     if tokenizer is None:
         tokenizer = AutoTokenizer.from_pretrained(
             esm2_model_name,
-            do_lower_case=False,
-        )
+            do_lower_case=False)
 
+    # Initialize dictionaries to hold encodings for each reading frame
     encodings_nt = {}
     encodings_aa = {}
     max_nt_len = max_aa_len * 3
@@ -195,10 +189,9 @@ def encode_data(processed_samples_df, max_aa_len, tokenizer=None, esm2_model_nam
     # Process data from each RF separately
     for rf in ["rf0", "rf1", "rf2"]:
         # ==== Nucleotide sequence processing ====
-        # Trim sequences to ensure all RFs have equal length (N-3 for any sequence of length N)
-        # This matches training preprocessing: rf0=[:-3], rf1=[1:-2], rf2=[2:-1]
+        # Trim sequence starts according to reading frame (RF1 offsets by 1, RF2 offsets by 2 relative to start of read)
         if rf == "rf0":
-            processed_samples_df[f"{rf}_seq_nt"] = processed_samples_df["read"].apply(lambda seq: seq)   #Make sure there is enough sequence to toward end to fill out all RFs
+            processed_samples_df[f"{rf}_seq_nt"] = processed_samples_df["read"].apply(lambda seq: seq) 
         elif rf == "rf1":
             processed_samples_df[f"{rf}_seq_nt"] = processed_samples_df["read"].apply(lambda seq: seq[1:])
         elif rf == "rf2":
@@ -222,9 +215,10 @@ def encode_data(processed_samples_df, max_aa_len, tokenizer=None, esm2_model_nam
         encodings_aa[rf] = aa_encodings_rf
 
         # ==== Nucleotide sequence processing continued ====
+        # Pad or truncate nucleotide sequences to max_nt_len (3 * max_aa_len), which ensures full codon coverage in all three reading frames. 
+        # See "Supplementary Note X. Inference on sequence ends" 
         processed_samples_df[f"{rf}_seq_nt"] = processed_samples_df[f"{rf}_seq_nt"].apply(
-            lambda seq: seq + 'N' * (max_nt_len - len(seq)) if len(seq) < max_nt_len else seq[:max_nt_len]
-        )
+            lambda seq: seq + 'N' * (max_nt_len - len(seq)) if len(seq) < max_nt_len else seq[:max_nt_len])
 
         nt_sequences = [one_hot_encode(seq) for seq in processed_samples_df[f"{rf}_seq_nt"]]
 
@@ -232,15 +226,12 @@ def encode_data(processed_samples_df, max_aa_len, tokenizer=None, esm2_model_nam
         nt_encodings_rf = process_nt_sequences_to_codons(nt_sequences, max_aa_len)
         encodings_nt[rf] = nt_encodings_rf
 
-        cds_coords = processed_samples_df["cds_coords"]
         read_name = processed_samples_df["read_name"]
-        seq_errors = processed_samples_df["indel_positions"]
 
     dataset = SeqDataset(
         encodings_nt["rf0"], encodings_aa["rf0"],
         encodings_nt["rf1"], encodings_aa["rf1"],
         encodings_nt["rf2"], encodings_aa["rf2"],
-        seq_errors, cds_coords, read_name
-    )
+        read_name)
 
     return dataset

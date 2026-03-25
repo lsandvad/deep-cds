@@ -51,7 +51,7 @@ parser.add_argument(
     "--esm_model",
     type=str,
     default="8M",
-    choices=["8M", "35M", "650M"],
+    choices=["8M", "35M", "150M", "650M"],
     help="ESM-2 model size to use (default: 8M)",
 )
 parser.add_argument(
@@ -162,6 +162,14 @@ if args.esm_model == "650M":
     # Smaller batch sizes for larger model
     default_train_batch_size = 32
     default_val_batch_size = 64
+elif args.esm_model == "150M":
+    esm2_model = "facebook/esm2_t30_150M_UR50D"
+    # Recommend gradient checkpointing for 150M model
+    if not args.gradient_checkpointing:
+        print("WARNING: 150M model selected without --gradient_checkpointing. This may cause OOM errors.", flush=True)
+    # Smaller batch sizes for larger model
+    default_train_batch_size = 32
+    default_val_batch_size = 128
 elif args.esm_model == "35M":
     esm2_model = "facebook/esm2_t12_35M_UR50D"
     # Recommend gradient checkpointing for 35M model
@@ -641,7 +649,8 @@ class SequenceEncoder(nn.Module):
 
         # Enable gradient checkpointing to reduce memory usage (trades compute for memory)
         if use_gradient_checkpointing:
-            self.pretrained_model_aa.gradient_checkpointing_enable()
+            self.pretrained_model_aa.gradient_checkpointing_enable() 
+            self.pretrained_model_aa.enable_input_require_grads() # Necessary for fine-tuning with gradient checkpointing to allow gradients to flow back into the model inputs
             print("Gradient checkpointing enabled for ESM-2 model", flush=True)
 
         self.num_layers = len(self.pretrained_model_aa.encoder.layer)
