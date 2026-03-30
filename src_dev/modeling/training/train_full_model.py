@@ -54,11 +54,6 @@ parser.add_argument(
     choices=["8M", "35M", "150M", "650M"],
     help="ESM-2 model size to use (default: 8M)",
 )
-parser.add_argument(
-    "--gradient_checkpointing",
-    action="store_true",
-    help="Enable gradient checkpointing to reduce memory usage (recommended for 650M model)",
-)
 
 args = parser.parse_args()
 
@@ -157,24 +152,20 @@ else:
 if args.esm_model == "650M":
     esm2_model = "facebook/esm2_t33_650M_UR50D"
     # Recommend gradient checkpointing for 650M model
-    if not args.gradient_checkpointing:
-        print("WARNING: 650M model selected without --gradient_checkpointing. This may cause OOM errors.", flush=True)
+    gradient_checkpointing = True
     # Smaller batch sizes for larger model
     default_train_batch_size = 32
     default_val_batch_size = 64
 elif args.esm_model == "150M":
     esm2_model = "facebook/esm2_t30_150M_UR50D"
     # Recommend gradient checkpointing for 150M model
-    if not args.gradient_checkpointing:
-        print("WARNING: 150M model selected without --gradient_checkpointing. This may cause OOM errors.", flush=True)
+    gradient_checkpointing = True
     # Smaller batch sizes for larger model
     default_train_batch_size = 32
     default_val_batch_size = 128
 elif args.esm_model == "35M":
     esm2_model = "facebook/esm2_t12_35M_UR50D"
-    # Recommend gradient checkpointing for 35M model
-    if not args.gradient_checkpointing:
-        print("WARNING: 35M model selected without --gradient_checkpointing. This may cause OOM errors.", flush=True)
+    gradient_checkpointing = True
     # Smaller batch sizes for larger model
     default_train_batch_size = 32
     default_val_batch_size = 64
@@ -182,9 +173,10 @@ else:
     esm2_model = "facebook/esm2_t6_8M_UR50D"
     default_train_batch_size = 32
     default_val_batch_size = 450
+    gradient_checkpointing = False
 
 print(f"Using ESM-2 model: {esm2_model}", flush=True)
-print(f"Gradient checkpointing: {args.gradient_checkpointing}", flush=True)
+print(f"Gradient checkpointing (used by default for 35M, 150M and 650M versions of ESM-2): {gradient_checkpointing}", flush=True)
 
 dataset_size = args.dataset_size  # Use argparse value
 
@@ -650,7 +642,7 @@ class SequenceEncoder(nn.Module):
         # Enable gradient checkpointing to reduce memory usage (trades compute for memory)
         if use_gradient_checkpointing:
             self.pretrained_model_aa.gradient_checkpointing_enable() 
-            self.pretrained_model_aa.enable_input_require_grads() # Necessary for fine-tuning with gradient checkpointing to allow gradients to flow back into the model inputs
+            #self.pretrained_model_aa.enable_input_require_grads() # Necessary for fine-tuning with gradient checkpointing to allow gradients to flow back into the model inputs
             print("Gradient checkpointing enabled for ESM-2 model", flush=True)
 
         self.num_layers = len(self.pretrained_model_aa.encoder.layer)
@@ -1727,7 +1719,7 @@ wandb.init(
     config={
         "seed": args.seed,
         "esm_model": args.esm_model,
-        "gradient_checkpointing": args.gradient_checkpointing,
+        "gradient_checkpointing": gradient_checkpointing,
         "batch_size": batch_size,
         "depth_transformer_encoder_blocks": depth_transformer_encoder_blocks,
         "n_attention_heads": n_attention_heads,
@@ -1773,7 +1765,7 @@ model, mapping_dict_to_class = initialize_model(
     act_function=act_function,
     transition_weight=transition_weight,
     label_classes=label_classes,
-    use_gradient_checkpointing=args.gradient_checkpointing,
+    use_gradient_checkpointing=gradient_checkpointing,
 )
 
 #MODIFY
@@ -1971,45 +1963,6 @@ for epoch in range(start_epoch, epochs):
                             del desc_logits, desc_labels_original, safe_desc_labels, desc_valid_mask, desc_crf_loss
                         del desc_mask
                     
-                    """
-                    # Only calculate sequence metrics for every 5th validation iteration to save memory
-                    if val_times_counter % 5 == 0:
-                        logits_for_metrics = v_outputs["logits"]
-
-                        # Get all true labels and predicted labels
-                        for seq_idx in range(v_encoded_labels.shape[0]):
-                            mask = ~padding_mask[seq_idx]
-                            if mask.any():
-                                true_seq = v_encoded_labels[seq_idx][mask].cpu().numpy()
-
-                                seq_logits = logits_for_metrics[seq_idx : seq_idx + 1]
-                                seq_valid_mask = valid_mask[seq_idx : seq_idx + 1]
-                                pred_decoded = model.CRF.crf.decode(seq_logits, mask=seq_valid_mask)
-                                pred_seq = np.array(pred_decoded[0])
-
-                                seq_type = seq_descs_batch[seq_idx]
-
-                                all_val_true_sequences.append(true_seq)
-                                all_val_pred_sequences.append(pred_seq)
-                                all_val_sequence_types.append(seq_type)
-
-                        if counter == 0:
-                            show_examples(
-                                v_encoded_labels,
-                                padding_mask,
-                                logits_for_metrics,
-                                seq_descs_batch,
-                                mapping_dict_to_class,
-                                model,
-                                device,
-                                valid_mask,
-                            )
-
-                        if counter % 30 == 0:
-                            del logits_for_metrics, seq_descs_batch, v_encoded_labels, padding_mask, valid_mask
-                            clear_memory()
-                    """
-
                     if counter % 30 == 0:
                         del v_inputs_nt_rf0, v_inputs_aa_rf0, v_attention_mask_aa_rf0
                         del v_inputs_nt_rf1, v_inputs_aa_rf1, v_attention_mask_aa_rf1

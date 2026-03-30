@@ -32,18 +32,27 @@ The input file (in FASTA format) and model type arguments are required. Addition
 
 ### TO DO
 - [ ] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
-- [ ] Marker med * for archaea i tabeller mm. 
-- [x] Stress test + no error boxplots i én samlet figur -> Main
 - [x] Figur 1A: Storytelling; Hele workflow -> data preprocessing box -> ML box -> decoding/postprocessing box -> metrics?
 - [ ] Læs alle resultat captions igennem
-- [x] Flere resultater: Test separat på reads med indels (gennemsnitligt absolute error i prediction vs. korrekt placering + false positive og false negative rate)
-- [ ] Fint at kunne vise udvikling i performance som funktion af ESM-2 størrelse
-    - [ ] Afhængigt af resultater; måske vi også skal træne på 100, 200 og 400 genomer?
 - [ ] DOI på alle referencer
-- [ ] Lav tabel med read counts pr. organisme for samtlige organismer.
-- [ ] Skriv et sted hvor mange sekvenser det fulde træningssæt består af
+- [ ] Lav tabel med read counts pr. organisme for samtlige organismer -> excel supplementary tables
 
-Implementering af script:
+### Manuskript; mangler
+- Abstract
+- Metode: 
+    - [ ] Skriv et sted hvor mange sekvenser det fulde træningssæt består af
+- Resultater: 
+    - [x] Afsnit om performance ned til 30bp
+        - [x] lav pæn figur med boxplots til at vise dette for samtlige error conditions
+    - [x] skriv family, genome og GC-indhold afsnit
+        - [x] GC indhold figurer placeres hvor?
+    - [ ] Indledende resultatafsnit DeepCDS workflow mm
+    - [ ] "Findings from abalations..." ESM-2 ablations (træner stadig)
+        - [ ] 100, 200, 400 genomer?
+- [ ] Opdater modelfigur boxplots; y-akse range (se kommentarer i overleaf). 
+- [ ] Diskussion
+
+### Implementering af script til prediction
 - [ ] Output fasta filer
     - [x] Nukleotidsekvens
     - [ ] Aminosyresekvens (NNN encodes som X; stop codon encodes som *)
@@ -99,6 +108,22 @@ Implementering af script:
 - [ ] 2. /postprocess_preds/postprocess_prodigal_predictions.ipynb (Postprocess testset)
 
 
+# Process train and predict on larger models
+- 8M
+    - [ ] Train S+I with ESM2 frozen
+- 35M
+    - [x] Train S+I
+    - [ ] predict S+I -> running (predict_35M)
+- 150M
+    - [x] Train S+I (Find ud af konvergens...?)
+    - [ ] predict S+I -> running (predict_150M)
+- 650M
+    - [x] Train S+I
+    - [ ] predict S+I -> running (predict_650M)
+    - [ ] Train S -> running (train_650M_substitution_errors)
+    - [ ] predict S
+    - [ ] Train None -> running (train_650M_no_errors)
+    - [ ] predict None
 
 
 ### Project structure

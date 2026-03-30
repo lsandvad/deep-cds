@@ -9,9 +9,13 @@ requirements_dev.txt
 
 ###Ignore all datafiles
 /data/**
+/data_code_checks_dev/**
 
 ###Ignore all illustrations
 /illustrations/**
+
+###Ignore dir with supplementary material to upload
+/supplementary_information/**
 
 ###Ignore logfiles created in src dirs###
 # Ignore wandb outputs
