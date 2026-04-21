@@ -42,12 +42,6 @@ parser.add_argument(
     choices=["indel_substitution", "substitution", "none"],
     help="Type of data errors to include (default: indel_substitution)",
 )
-parser.add_argument(
-    "--resume",
-    action="store_true",
-    help="Resume training from the latest checkpoint",
-)
-
 args = parser.parse_args()
 
 # Set variables based on error type
@@ -168,122 +162,6 @@ def clear_memory():
     gc.collect()
 
 
-def save_checkpoint(
-    checkpoint_path,
-    model,
-    optimizer,
-    scheduler,
-    scaler,
-    epoch,
-    step,
-    val_times_counter,
-    best_val_loss,
-    counter_patience,
-    warmup_state,
-    esm2_initial_params=None,
-    wandb_run_id=None,
-):
-    """
-    Save a full training checkpoint for resumption.
-
-    Args:
-        checkpoint_path: Path to save the checkpoint
-        model: The model being trained
-        optimizer: The optimizer
-        scheduler: The learning rate scheduler
-        scaler: The gradient scaler for mixed precision (can be None)
-        epoch: Current epoch number
-        step: Current global step
-        val_times_counter: Number of validation runs completed
-        best_val_loss: Best validation loss seen so far
-        counter_patience: Current patience counter for early stopping
-        warmup_state: Warmup state dict (can be None)
-        esm2_initial_params: Initial ESM-2 parameters for tracking changes (can be None)
-        wandb_run_id: WandB run ID for resuming the same run (can be None)
-    """
-    checkpoint = {
-        "model_state_dict": model.state_dict(),
-        "optimizer_state_dict": optimizer.state_dict(),
-        "scheduler_state_dict": scheduler.state_dict(),
-        "scaler_state_dict": scaler.state_dict() if scaler is not None else None,
-        "epoch": epoch,
-        "step": step,
-        "val_times_counter": val_times_counter,
-        "best_val_loss": best_val_loss,
-        "counter_patience": counter_patience,
-        "warmup_state": warmup_state,
-        "esm2_initial_params": esm2_initial_params,
-        "wandb_run_id": wandb_run_id,
-    }
-    torch.save(checkpoint, checkpoint_path)
-    print(f"Checkpoint saved to {checkpoint_path}", flush=True)
-
-
-def load_checkpoint(checkpoint_path, model, optimizer, scheduler, scaler, device):
-    """
-    Load a training checkpoint and restore all training state.
-
-    Args:
-        checkpoint_path: Path to the checkpoint file
-        model: The model to load weights into
-        optimizer: The optimizer to restore state
-        scheduler: The learning rate scheduler to restore state
-        scaler: The gradient scaler (can be None)
-        device: The device to load tensors to
-
-    Returns:
-        dict: Dictionary containing restored training state variables
-    """
-    print(f"Loading checkpoint from {checkpoint_path}", flush=True)
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-
-    # Check if ESM-2 layers were unfrozen when checkpoint was saved
-    # by comparing optimizer param group counts
-    saved_param_groups = len(checkpoint["optimizer_state_dict"]["param_groups"])
-    current_param_groups = len(optimizer.param_groups)
-
-    if saved_param_groups > current_param_groups:
-        # ESM-2 was unfrozen - need to add those params to optimizer first
-        print(f"Checkpoint has {saved_param_groups} param groups, current has {current_param_groups}", flush=True)
-        print("Adding ESM-2 parameters to optimizer before loading state...", flush=True)
-
-        # Unfreeze ESM-2 layers and add to optimizer
-        unfreeze_start = model.sequence_encoder.unfreeze_start
-        if unfreeze_start is not None:
-            for i, layer in enumerate(model.sequence_encoder.pretrained_model_aa.encoder.layer):
-                if i >= unfreeze_start:
-                    for param in layer.parameters():
-                        param.requires_grad = True
-
-            # Collect and add ESM-2 params to optimizer (with dummy LR, will be overwritten)
-            unfrozen_params = [
-                p for layer in model.sequence_encoder.pretrained_model_aa.encoder.layer[unfreeze_start:]
-                for p in layer.parameters()
-            ]
-            optimizer.add_param_group({"params": unfrozen_params, "lr": 1e-5})
-
-    model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-
-    if scaler is not None and checkpoint.get("scaler_state_dict") is not None:
-        scaler.load_state_dict(checkpoint["scaler_state_dict"])
-
-    # Use .get() with defaults for fields that might not exist in older checkpoints
-    restored_state = {
-        "epoch": checkpoint["epoch"],
-        "step": checkpoint["step"],
-        "val_times_counter": checkpoint["val_times_counter"],
-        "best_val_loss": checkpoint["best_val_loss"],
-        "counter_patience": checkpoint["counter_patience"],
-        "warmup_state": checkpoint.get("warmup_state"),
-        "esm2_initial_params": checkpoint.get("esm2_initial_params"),
-    }
-
-    print(f"Resumed from epoch {restored_state['epoch']}, step {restored_state['step']}", flush=True)
-    print(f"Best val loss so far: {restored_state['best_val_loss']:.4f}", flush=True)
-
-    return restored_state
 
 class SeqDataset(torch.utils.data.Dataset):
     """
@@ -906,6 +784,7 @@ class CDSPredictor(nn.Module):
         )
 
         # Linear layer to combine outputs from the 3 reading frames (3 * 6 logits -> num_encoded_labels)
+        self.pre_crf_norm = nn.LayerNorm(3 * label_classes)
         self.linear_transform = nn.Linear(3 * label_classes, num_encoded_labels)
         # CRF layer for structured prediction with transition constraints
         self.CRF = LinearChainCRF(
@@ -945,7 +824,7 @@ class CDSPredictor(nn.Module):
         combined_codon_and_aa_embeddings = torch.cat([logits_rf0, logits_rf1, logits_rf2], dim=-1)  # output: [codon_seq_len, 3*C]
 
         # Map combined frame representations to encoded, shared label space
-        logits_encoded_labels = self.linear_transform(combined_codon_and_aa_embeddings)  # output: [codon_seq_len, num_encoded_labels]
+        logits_encoded_labels = self.linear_transform(self.pre_crf_norm(combined_codon_and_aa_embeddings))  # output: [codon_seq_len, num_encoded_labels]
 
         # Apply CRF for structured decoding or training (same attention mask applies to all RFs)
         output = self.CRF(
@@ -1395,6 +1274,10 @@ def training_iteration(i, batch, scaler, model, optimizer, device, train_losses,
     # Store loss value
     train_losses.append(loss.item())
 
+    if i % 10 == 0:
+        crf_legal_transition_sum = model.CRF.crf.transitions[model.CRF.biologically_valid_mask].sum().item()
+        wandb.log({"train_loss_step": loss.item(), "crf_legal_transition_sum": crf_legal_transition_sum, "step": step})
+
     # Print transition matrix for checkpoint
     if i % 10000 == 0:
         print("CRF transition matrix sample (first 5x5):", flush=True)
@@ -1505,17 +1388,6 @@ transition_weight = cfg.hyperparameters.transition_weight
 
 batch_size = 32
 
-# Check for wandb run ID if resuming
-wandb_run_id = None
-checkpoint_path = f"{models_output_dir_path}/checkpoint_{dataset_size}_seed_{args.seed}{model_checkpoint_extension}.pt"
-if args.resume and os.path.exists(checkpoint_path):
-    # Load only the wandb run ID from checkpoint
-    checkpoint_meta = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-    wandb_run_id = checkpoint_meta.get("wandb_run_id")
-    del checkpoint_meta
-    if wandb_run_id:
-        print(f"Resuming WandB run: {wandb_run_id}", flush=True)
-
 wandb.init(
     project=wandb_project_name,
     config={
@@ -1530,8 +1402,6 @@ wandb.init(
         "lr_scratch": lr_scratch,
     },
     name=f"train_{dataset_size}_seed_{args.seed}",
-    id=wandb_run_id,
-    resume="must" if wandb_run_id else None,
 )
 
 dataloader_num_workers = 2
@@ -1596,6 +1466,7 @@ tracker = CategoricalLossTracker(sequence_types)
 optimizer = torch.optim.AdamW(
     [
         {"params": model.TransformerEncoderBlock.parameters(), "lr": lr_scratch},
+        {"params": model.pre_crf_norm.parameters(), "lr": lr_scratch},
         {"params": model.linear_transform.parameters(), "lr": lr_scratch},
         {"params": model.CRF.parameters(), "lr": lr_scratch},
     ]
@@ -1634,28 +1505,10 @@ if scaler is not None:
 # Initialize esm2_initial_params (will be set when unfreezing)
 esm2_initial_params = None
 
-# Load checkpoint if resuming (checkpoint_path defined earlier before wandb.init)
-start_epoch = 0
-if args.resume:
-    if os.path.exists(checkpoint_path):
-        restored_state = load_checkpoint(
-            checkpoint_path, model, optimizer, scheduler, scaler, device
-        )
-        start_epoch = restored_state["epoch"]
-        step = restored_state["step"]
-        val_times_counter = restored_state["val_times_counter"]
-        best_val_loss = restored_state["best_val_loss"]
-        counter_patience = restored_state["counter_patience"]
-        warmup_state = restored_state["warmup_state"]
-        esm2_initial_params = restored_state["esm2_initial_params"]
-    else:
-        print(f"Warning: --resume specified but no checkpoint found at {checkpoint_path}", flush=True)
-        print("Starting training from scratch.", flush=True)
-
 train_losses = []
 
 # Training loop
-for epoch in range(start_epoch, epochs):
+for epoch in range(epochs):
     model.train()
 
     for i, batch in enumerate(train_loader):
@@ -1796,14 +1649,6 @@ for epoch in range(start_epoch, epochs):
             else:
                 val_avg_loss = float("inf")
 
-            # After validation loop, verify losses match MODIFY; ADD
-            weighted_sum = sum(
-                seq_type_desc_fracs[cat] * tracker.get_metrics()[cat] 
-                for cat in tracker.categories
-            )
-            print(f"val_avg_loss: {val_avg_loss:.4f}", flush = True)
-            print(f"weighted sum from categories: {weighted_sum:.4f}", flush = True)
-
             # Calculate performance metrics
             if all_val_true_sequences and all_val_pred_sequences:
                 sequence_metrics = calculate_sequence_accuracy_metrics(all_val_true_sequences, all_val_pred_sequences, all_val_sequence_types)
@@ -1823,23 +1668,6 @@ for epoch in range(start_epoch, epochs):
                 counter_patience = 0
             else:
                 counter_patience += 1
-
-            # Save checkpoint after every validation for crash recovery
-            save_checkpoint(
-                checkpoint_path,
-                model,
-                optimizer,
-                scheduler,
-                scaler,
-                epoch,
-                step,
-                val_times_counter,
-                best_val_loss,
-                counter_patience,
-                warmup_state,
-                esm2_initial_params,
-                wandb.run.id,
-            )
 
             if counter_patience >= threshold_patience:
                 print("Early stopping triggered!", flush=True)

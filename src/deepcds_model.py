@@ -279,6 +279,7 @@ class CDSPredictor(nn.Module):
         )
 
         # Linear layer to combine outputs from the 3 reading frames (3 * label_classes logits -> num_encoded_labels)
+        self.pre_crf_norm = nn.LayerNorm(3 * label_classes)
         self.linear_transform = nn.Linear(3 * label_classes, num_encoded_labels)
         # CRF layer for structured prediction with transition constraints
         self.CRF = LinearChainCRF(
@@ -345,7 +346,7 @@ class CDSPredictor(nn.Module):
         combined_codon_and_aa_embeddings = torch.cat([logits_rf0, logits_rf1, logits_rf2], dim=-1)  # (B, L, 3*C)
 
         # Map combined frame representations to encoded, shared label space
-        logits_encoded_labels = self.linear_transform(combined_codon_and_aa_embeddings)  # (B, L, K)
+        logits_encoded_labels = self.linear_transform(self.pre_crf_norm(combined_codon_and_aa_embeddings))  # (B, L, K)
 
         # Compute combined attention mask (intersection of all three RF masks)
         combined_attention_mask = trimmed_attention_mask_rf0 & trimmed_attention_mask_rf1 & trimmed_attention_mask_rf2  # (B, L)

@@ -32,24 +32,18 @@ The input file (in FASTA format) and model type arguments are required. Addition
 
 ### TO DO
 - [ ] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
-- [x] Figur 1A: Storytelling; Hele workflow -> data preprocessing box -> ML box -> decoding/postprocessing box -> metrics?
-- [ ] Læs alle resultat captions igennem
 - [ ] DOI på alle referencer
-- [ ] Lav tabel med read counts pr. organisme for samtlige organismer -> excel supplementary tables
+- [ ] Datasæt størrelser:
+    - [ ] Skriv: "The final dataset consists of X sequences (x in train, y in val, z in test), with X positions labelled as ...?"
+    - [ ] Read counts pr. genom i excel-fil som supplementary med train/val/test labeltag
 
 ### Manuskript; mangler
-- Abstract
-- Metode: 
-    - [ ] Skriv et sted hvor mange sekvenser det fulde træningssæt består af
+- [ ] Abstract
+- [ ] Beskrivelse af datasæt størrelse og fordeling på sekvenstyper (se TO DO)
 - Resultater: 
-    - [x] Afsnit om performance ned til 30bp
-        - [x] lav pæn figur med boxplots til at vise dette for samtlige error conditions
-    - [x] skriv family, genome og GC-indhold afsnit
-        - [x] GC indhold figurer placeres hvor?
-    - [ ] Indledende resultatafsnit DeepCDS workflow mm
     - [ ] "Findings from abalations..." ESM-2 ablations (træner stadig)
         - [ ] 100, 200, 400 genomer?
-- [ ] Opdater modelfigur boxplots; y-akse range (se kommentarer i overleaf). 
+        - [ ] Træningsdata størrelse: Skriv at vi har undersøgt performance som funktion af træningsdata størrelsen (antal genomer) og det ikke giver så meget fra XX til XX… (enkelt sætning)
 - [ ] Diskussion
 
 ### Implementering af script til prediction
@@ -63,14 +57,6 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [ ] Option for output fastafiler gzipped eller ej 
 - [ ] Til aller sidst: opdater "Supplementary Note X" kommentarer i prediction script. 
 - [ ] Optional og required argumenter i argparse! Se netstart 2!
-
-
-
-## TODO efter møde 18. Februar
-- [ ] Resultater
-    - [ ] Modeltræninger størrelser
-- [ ] Dokumenter i overleaf
-    - [ ] Skriv at vi har undersøgt performance som funktion af træningsdata størrelsen (antal genomer) og det ikke giver så meget fra XX til XX… (enkelt sætning)
 
 
 
@@ -108,22 +94,11 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [ ] 2. /postprocess_preds/postprocess_prodigal_predictions.ipynb (Postprocess testset)
 
 
-# Process train and predict on larger models
-- 8M
-    - [ ] Train S+I with ESM2 frozen
-- 35M
-    - [x] Train S+I
-    - [ ] predict S+I -> running (predict_35M)
-- 150M
-    - [x] Train S+I (Find ud af konvergens...?)
-    - [ ] predict S+I -> running (predict_150M)
-- 650M
-    - [x] Train S+I
-    - [ ] predict S+I -> running (predict_650M)
-    - [ ] Train S -> running (train_650M_substitution_errors)
-    - [ ] predict S
-    - [ ] Train None -> running (train_650M_no_errors)
-    - [ ] predict None
+# Observationer træning: 
+- [ ] 8M ESM-2 Frozen når næsten samem loss som ikke-frozen, men på væsentligt længere tid (115h/73h)
+- [ ] Problemer med 150M ESM-2 S+I; validation loss non-coding spiker 
+- [ ] 650M ESM-2 spiker ekstremt i coding sekvener for substitutionsmodel. Best val loss for 8M og 650M udgaverne er det samme, 35M udgaven har højere loss; Konklusion at 8M udgaven er "god nok", eller problem med hyperparametre for 35M og 650M udgaven?
+- [ ] No errors 650M versionen har et lignende problem som substitutionsmodellen. 
 
 
 ### Project structure
