@@ -34,8 +34,8 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [ ] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
 - [ ] DOI på alle referencer
 - [ ] Datasæt størrelser:
-    - [ ] Skriv: "The final dataset consists of X sequences (x in train, y in val, z in test), with X positions labelled as ...?"
-    - [ ] Read counts pr. genom i excel-fil som supplementary med train/val/test labeltag
+    - [ ] Skriv: "The final dataset consists of X sequences (x in train, y in val, z in test), with X positions labelled as ..."
+    - [x] Read counts pr. genom i excel-fil som supplementary med train/val/test labeltag
 
 ### Manuskript; mangler
 - [ ] Abstract
@@ -59,7 +59,6 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [ ] Optional og required argumenter i argparse! Se netstart 2!
 
 
-
 ### Scripts in development - A status
 #### Data preprocessing
 - [x] 1. /data_preprocessing/sort_taxonomy.py (Get taxonomic information for all organisms in dataset)
@@ -69,6 +68,7 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [x] 4. /data_preprocessing/simulate_reads.py (simulate reads of user-defined coverage and length on both template and complement strands)
 - [x] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
 - [x] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
+- [x] 6. /data_preprocessing/count_reads.py (Count reads per dataset for supplementary information, both train, val and test)
 - [x] 6. /data_preprocessing/postprocess_testset.py (Postprocess testset)
 - [x] 6. /data_preprocessing/get_label_encodings.py (map class labels to 3d vectors; use for model that processes all 3 reading frames)
 - [x] 7. /data_preprocessing/prepare_model_datasets.py (creates datasets specific for model input for each of the train and val splits)
