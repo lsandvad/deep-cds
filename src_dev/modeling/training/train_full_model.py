@@ -1482,9 +1482,6 @@ def training_iteration(i, batch, scaler, model, optimizer, device, train_losses,
     last_loss = loss.item()
     train_losses.append(last_loss)
 
-    if i % 10 == 0:
-        crf_legal_transition_sum = model.CRF.crf.transitions[model.CRF.biologically_valid_mask].sum().item()
-        wandb.log({"train_loss_step": loss.item(), "crf_legal_transition_sum": crf_legal_transition_sum, "step": step})
 
     # Compute per-sequence-type training losses for monitoring
     if train_tracker is not None:

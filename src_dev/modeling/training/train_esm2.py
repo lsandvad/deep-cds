@@ -1274,9 +1274,6 @@ def training_iteration(i, batch, scaler, model, optimizer, device, train_losses,
     # Store loss value
     train_losses.append(loss.item())
 
-    if i % 10 == 0:
-        crf_legal_transition_sum = model.CRF.crf.transitions[model.CRF.biologically_valid_mask].sum().item()
-        wandb.log({"train_loss_step": loss.item(), "crf_legal_transition_sum": crf_legal_transition_sum, "step": step})
 
     # Print transition matrix for checkpoint
     if i % 10000 == 0:
