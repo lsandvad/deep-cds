@@ -73,7 +73,7 @@ The input file (in FASTA format) and model type arguments are required. Addition
 
 #### Data analysis
 - [x] 1. /data_analysis/generate_taxonomical_trees.ipynb (Generate taxonomical trees in newick format along with partition annotations)
-- [ ] 1. /data_analysis/plot_genome_statistics.ipynb (plot different genome statistics based on RefSeq annotations and genomes, for each data partition)
+- [x] 1. /data_analysis/plot_genome_statistics.ipynb (plot different genome statistics based on RefSeq annotations and genomes, for each data partition)
 - [ ] 1. /data_analysis/get_testset_statistics.ipynb (get statistics for test set)
 - [ ] 1. /data_analysis/check_testset_error_distributions.py (check error rates for each test set and check they are correct)
 
