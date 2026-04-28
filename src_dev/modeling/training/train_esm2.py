@@ -62,7 +62,7 @@ else:
     steps_between_vals = 5000
 
 
-debug_mode = True  # Set to True for debugging with smaller dataset
+debug_mode = False  # Set to True for debugging with smaller dataset
 
 if debug_mode == True:
     steps_between_vals = 50 * 5
@@ -1376,8 +1376,8 @@ cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/esm2_8m_hype
 # Access them
 act_function = cfg.hyperparameters.act_function
 depth_transformer_encoder_blocks = cfg.hyperparameters.depth_transformer_encoder_blocks
-dropout_rate_1 = cfg.hyperparameters.dropout_rate_1
-dropout_rate_2 = cfg.hyperparameters.dropout_rate_2
+dropout_rate_1 = 0 #cfg.hyperparameters.dropout_rate_1
+dropout_rate_2 = 0 #cfg.hyperparameters.dropout_rate_2
 lr_esm2 = cfg.hyperparameters.lr_esm2
 lr_scratch = cfg.hyperparameters.lr_scratch
 n_attention_heads = cfg.hyperparameters.n_attention_heads
@@ -1661,7 +1661,7 @@ for epoch in range(epochs):
             # Early stopping check
             if val_avg_loss < best_val_loss:
                 best_val_loss = val_avg_loss
-                torch.save(model.state_dict(), f"{models_output_dir_path}/esm2_8m_{dataset_size}_seed_{args.seed}_trained{model_checkpoint_extension}.pth")  # modify
+                torch.save(model.state_dict(), f"{models_output_dir_path}/esm2_8m_{dataset_size}_seed_{args.seed}_trained{model_checkpoint_extension}_no_dropout.pth")  # modify
                 counter_patience = 0
             else:
                 counter_patience += 1

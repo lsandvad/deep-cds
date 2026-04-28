@@ -390,8 +390,15 @@ def encode_data(processed_samples_df, max_len, tokenizer=None, max_aa_len=max_aa
             processed_samples_df[f"{rf}_labels"] = processed_samples_df[f"{rf}_labels"].apply(eval)
 
         # Convert to numpy arrays more efficiently
-        label_arrays = [np.array(x, dtype=np.int8) for x in processed_samples_df[f"{rf}_labels"]]
-        labels[rf] = label_arrays
+        #label_arrays = [np.array(x, dtype=np.int8) for x in processed_samples_df[f"{rf}_labels"]] #BACKUP
+        #labels[rf] = label_arrays #BACKUP
+        raw_labels = [np.array(x, dtype=np.int8) for x in processed_samples_df[f"{rf}_labels"]] #FIX_RAM
+        padded_rf = np.full((len(raw_labels), max_aa_len), -1, dtype=np.int8) #FIX_RAM
+        for i, arr in enumerate(raw_labels): #FIX_RAM
+            length = min(len(arr), max_aa_len) #FIX_RAM
+            padded_rf[i, :length] = arr[:length] #FIX_RAM
+        labels[rf] = padded_rf #FIX_RAM
+        del raw_labels #FIX_RAM
 
         # ====Nucleotide sequence processing====#
         # Pad the sequences
@@ -401,7 +408,10 @@ def encode_data(processed_samples_df, max_len, tokenizer=None, max_aa_len=max_aa
 
         # Process nt_sequences to codon-based format
         nt_encodings_rf = process_nt_sequences_to_codons(nt_sequences, max_aa_len)
-        encodings_nt[rf] = nt_encodings_rf
+        #encodings_nt[rf] = nt_encodings_rf #BACKUP
+        encodings_nt[rf] = np.array([t.numpy() for t in nt_encodings_rf]) #FIX_RAM
+        del nt_sequences, nt_encodings_rf #FIX_RAM
+        gc.collect() #FIX_RAM
 
         # ====Amino acid sequence processing====#
         aa_sequences = processed_samples_df[f"{rf}_seq_aa"].tolist()
