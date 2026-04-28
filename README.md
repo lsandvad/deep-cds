@@ -32,14 +32,12 @@ The input file (in FASTA format) and model type arguments are required. Addition
 
 ### TO DO
 - [ ] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
-- [ ] DOI på alle referencer
-- [ ] Datasæt størrelser:
-    - [ ] Skriv: "The final dataset consists of X sequences (x in train, y in val, z in test), with X positions labelled as ..."
-    - [x] Read counts pr. genom i excel-fil som supplementary med train/val/test labeltag
+- [ ] DOI på alle referencer -> nået til 35
+- [ ] Prøv at simulere data med en anden read simulator (kig på benchmark artikel). 
 
 ### Manuskript; mangler
 - [ ] Abstract
-- [ ] Beskrivelse af datasæt størrelse og fordeling på sekvenstyper (se TO DO)
+- [x] Beskrivelse af datasæt størrelse og fordeling på sekvenstyper (se TO DO)
 - Resultater: 
     - [ ] "Findings from abalations..." ESM-2 ablations (træner stadig)
         - [ ] 100, 200, 400 genomer?
@@ -74,7 +72,7 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [x] 7. /data_preprocessing/prepare_model_datasets.py (creates datasets specific for model input for each of the train and val splits)
 
 #### Data analysis
-- [ ] 1. /data_analysis/generate_taxonomical_trees.ipynb (Generate taxonomical trees in newick format along with partition annotations)
+- [x] 1. /data_analysis/generate_taxonomical_trees.ipynb (Generate taxonomical trees in newick format along with partition annotations)
 - [ ] 1. /data_analysis/plot_genome_statistics.ipynb (plot different genome statistics based on RefSeq annotations and genomes, for each data partition)
 - [ ] 1. /data_analysis/get_testset_statistics.ipynb (get statistics for test set)
 - [ ] 1. /data_analysis/check_testset_error_distributions.py (check error rates for each test set and check they are correct)
