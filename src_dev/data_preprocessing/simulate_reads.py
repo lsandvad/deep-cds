@@ -168,68 +168,6 @@ def simulate_reads(accession, read_length, coverage, substitution_error_rate, in
     if os.path.exists(f"{accession}_reverse_complement.fasta"):
         os.remove(f"{accession}_reverse_complement.fasta")
 
-def simulate_reads_sanger(accession, read_length, coverage, with_errors, fragment_mean_size=None) -> None:
-
-
-    if with_errors: 
-        error_rates_str = f"sanger_with_errors_{read_length}bp"
-    else:
-        error_rates_str = f"without_errors_{read_length}bp"
-
-    # If we dont pre-define fragment mean size, set it to read_length + 500
-    if fragment_mean_size is None:
-        fragment_mean_size = read_length + 500
-    
-    # Create needed directories if they do not exist
-    base = f"{data_base_path}/data/processed_data/simulated_reads/test/{error_rates_str}"
-
-    subdirs = [
-        "template_strand/reads",
-        "template_strand/alignments",
-        "complement_strand/reads",
-        "complement_strand/alignments",
-    ]
-
-    for sub in subdirs:
-        os.makedirs(os.path.join(base, sub), exist_ok=True)
-
-    num_reads, genome_fasta_file = get_number_of_reads_to_simulate(accession=accession, read_length=read_length, coverage=coverage)
-    assert os.path.exists(f"{accession}_reverse_complement.fasta")
-
-    print(num_reads)
-
-    if with_errors: 
-        # Simulate reads for template strand
-        os.system(
-            f"mason_simulator -ir {data_base_path}/data/raw_data/genome_data/{accession}/{genome_fasta_file} -n {num_reads} \
-                --seq-technology sanger --sanger-read-length-model uniform --sanger-read-length-min {read_length} --sanger-read-length-max {read_length} \
-                -o {base}/template_strand/reads/{accession}_simulated_reads.fasta.gz -oa {base}/template_strand/alignments/{accession}_alignments.bam  \
-                --fragment-mean-size {fragment_mean_size} --seed 42 --seq-strands forward --read-name-prefix {accession}_simulated_reads_template" 
-        )
-
-        # Remove unnecessary files
-        if os.path.exists(f"{data_base_path}/data/raw_data/genome_data/{accession}/{genome_fasta_file}.fai"):
-            os.remove(f"{data_base_path}/data/raw_data/genome_data/{accession}/{genome_fasta_file}.fai")
-
-        # Simulate reads for template strand
-        os.system(
-            f"mason_simulator -ir {accession}_reverse_complement.fasta  -n {num_reads} \
-                --seq-technology sanger --sanger-read-length-model uniform --sanger-read-length-min {read_length} --sanger-read-length-max {read_length} \
-                -o {base}/complement_strand/reads/{accession}_simulated_reads.fasta.gz -oa {base}/complement_strand/alignments/{accession}_alignments.bam \
-                --fragment-mean-size {fragment_mean_size} --seed 42 --seq-strands forward --read-name-prefix {accession}_simulated_reads_complement "
-        )
-
-    # Remove unnecessary files
-    if os.path.exists(f"{data_base_path}/data/raw_data/genome_data/{accession}/{genome_fasta_file}.fai"):
-        os.remove(f"{data_base_path}/data/raw_data/genome_data/{accession}/{genome_fasta_file}.fai")
-
-    # Remove unnecessary files
-    if os.path.exists(f"{accession}_reverse_complement.fasta.fai"):
-        os.remove(f"{accession}_reverse_complement.fasta.fai")
-
-    if os.path.exists(f"{accession}_reverse_complement.fasta"):
-        os.remove(f"{accession}_reverse_complement.fasta")
-
 
 
 # Run simulation pipeline with Mason for all genomes used for model development
@@ -338,55 +276,11 @@ def simulate_test_reads(accessions_test, read_length, fragment_mean_size=None) -
 
     print("Read simulation complete.")
 
-
-def simulate_test_reads_sanger(accessions_test, read_length, fragment_mean_size=None) -> None:
-    """
-    Simulate Sanger reads for all genomes in the test partition.
-    Simulate two datasets per read length:
-        1) with default Sanger error profile
-        2) without sequencing errors
-
-    Args:
-        accessions_test (list): List of accession numbers for genomes in the test partition.
-        read_length (int): The length of the reads to simulate (e.g. 700 or 1000).
-        fragment_mean_size (int, optional): The mean fragment size. Defaults to read_length + 500.
-    """
-    for accession in accessions_test:
-        # Simulate reads with default Sanger error profile
-        simulate_reads_sanger(
-            accession,
-            read_length=read_length,
-            coverage=1,
-            with_errors=True,
-            fragment_mean_size=500,
-        )
-
-        """
-        # Simulate reads without sequencing errors
-        simulate_reads_sanger(
-            accession,
-            read_length=read_length,
-            coverage=1,
-            with_errors=False,
-            fragment_mean_size=fragment_mean_size,
-        )
-        """
-
-    print(f"Sanger read simulation complete for {read_length}bp reads.")
-
-
 if __name__ == "__main__":
     # Simulate reads for training and validation genomes
-    """
     simulate_training_validation_reads(accessions_train, accessions_val)
 
     # Simulate Illumina reads for test genomes
     for read_length in [60, 75, 100, 150, 300]:
         print(f"Simulating Illumina test reads with length {read_length}")
         simulate_test_reads(accessions_test, read_length)
-    """
-
-    # Simulate Sanger reads for test genomes
-    for read_length in [700, 1000]:
-        print(f"Simulating Sanger test reads with length {read_length}")
-        simulate_test_reads_sanger(accessions_test, read_length)

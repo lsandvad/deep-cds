@@ -4,6 +4,7 @@ import re
 import warnings
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from tqdm import tqdm
 
 import pandas as pd
 import pysam
@@ -19,10 +20,6 @@ if compute_machine == "cluster":
 else:
     data_base_path = "../.."
 
-with open(f"{data_base_path}/data/processed_data/genome_partitions/train_partition_accessions.txt") as f:
-    accessions_train = f.read().splitlines()
-with open(f"{data_base_path}/data/processed_data/genome_partitions/val_partition_accessions.txt") as f:
-    accessions_val = f.read().splitlines()
 with open(f"{data_base_path}/data/processed_data/genome_partitions/test_partition_accessions.txt") as f:
     accessions_test = f.read().splitlines()
 
@@ -42,7 +39,7 @@ def get_assembly_details(accession, assembly_details):
 
     # Read the genome file
     genome_files = os.listdir(f"{data_base_path}/data/raw_data/genome_data/{accession}/")
-    genome_fasta_file = [file for file in genome_files if file.startswith(accession)][0]
+    genome_fasta_file = [file for file in genome_files if file.startswith(accession) and file.endswith((".fna", ".fa", ".fasta"))][0]
     genome_filename = f"{data_base_path}/data/raw_data/genome_data/{accession}/{genome_fasta_file}"
 
     try:
@@ -156,7 +153,7 @@ def convert_complement_coordinates(refseq_accession, cds_coords_complement, cds_
 
     # Extract filename and -path of file with genomic sequence(s) (assemblies: chromosome(s), plasmid(s))
     genome_files = os.listdir(f"{data_base_path}/data/raw_data/genome_data/{refseq_accession}/")
-    genome_fasta_file = [file for file in genome_files if file.startswith(refseq_accession)][0]
+    genome_fasta_file = [file for file in genome_files if file.startswith(refseq_accession) and file.endswith((".fna"))][0]
     genome_filename = f"{data_base_path}/data/raw_data/genome_data/{refseq_accession}/{genome_fasta_file}"
 
     # Loop over each assembly sequence in genomic file
@@ -190,7 +187,7 @@ def convert_complement_coordinates(refseq_accession, cds_coords_complement, cds_
     return cds_coords_complement, cds_coords_uncertain_complement
 
 
-def extract_cds(refseq_accession):
+def extract_CDS(refseq_accession):
     """
     Extracts the CDS coordinates from RefSeq and GenBank GFF files (annotation data).
     The GenBank accession number is found implicitly from the RefSeq accession number.
@@ -391,23 +388,23 @@ def proces_reads_to_dict(accession, seqs_len, cds_coords_uncertain, strand, part
                 reads_information_dict[assembly] = {}
 
             # Get read-specific information
-            read_id = read.query_name
-            cigar = read.cigarstring
+            read_id = read.query_name + f"_{strand}"
+            CIGAR = read.cigarstring
             read_seq = read.query_sequence
             md_z = read.get_tag("MD") if read.has_tag("MD") else None  # Handle missing MD tag
 
             # Write read-specific information to dict
-            reads_information_dict[assembly][read_id] = {"CIGAR": cigar, "start_coordinate": start_coordinate, "read": read_seq, "MD:Z": md_z}
+            reads_information_dict[assembly][read_id] = {"CIGAR": CIGAR, "start_coordinate": start_coordinate, "read": read_seq, "MD:Z": md_z}
 
     return reads_information_dict
 
 
-def get_position_gene_overlaps(cds_ranges, start_coord, length):
+def get_position_gene_overlaps(CDS_ranges, start_coord, length):
     """
     Find the specific CDS coordinates (if any) that overlaps with positions in a read (read positions defined as start_coord to start_coord+length).
 
     Args:
-        cds_ranges (list): List of [[start, end],...] coordinates for genes
+        CDS_ranges (list): List of [[start, end],...] coordinates for genes
         start_coord (int): Starting coordinate to check (on genomic scale)
         length (int): Length of the region to check
 
@@ -419,7 +416,7 @@ def get_position_gene_overlaps(cds_ranges, start_coord, length):
     overlaps = {}
 
     # Loop over each CDS range
-    for i, (gene_start, gene_end) in enumerate(cds_ranges):
+    for i, (gene_start, gene_end) in enumerate(CDS_ranges):
         # Check if there is any overlap
         if not (end_coord < gene_start or start_coord > gene_end):
             # Store overlapping genes for subsequence region (read)
@@ -595,10 +592,10 @@ def encode_nucleotide_to_amino_acid(sequence):
     for i in range(0, len(sequence), 3):
         codon = sequence[i : i + 3]
         # Get amino acid (stop codons represented as X)
-        amino_acid = genetic_code.get(codon, "<unk>")
+        amino_acid = genetic_code.get(codon, "Å")
         amino_acid_sequence += amino_acid
 
-    assert "<unk>" not in amino_acid_sequence, "Unknown nucleotides present in sequence."
+    assert "Å" not in amino_acid_sequence, "Unknown nucleotides present in sequence."
 
     return amino_acid_sequence
 
@@ -1174,7 +1171,7 @@ def mark_intervals(labels_rf0_nt, labels_rf1_nt, labels_rf2_nt, labels_rf0, labe
     return intervals, map_fragmented_cds(intervals, labels_rf0_nt, labels_rf1_nt, labels_rf2_nt)  # sorted(list(set(indel_cds_connect)))
 
 
-def quality_check_cds_fragments(coding_seqs_all_read, accession):
+def quality_check_CDS_fragments(coding_seqs_all_read, accession):
     """
     Check that all amino acid fragments labelled as coding (label = 1) are present in the proteome (checks both the GenBank- and RefSeq annotated proteomes)
 
@@ -1211,7 +1208,7 @@ def quality_check_cds_fragments(coding_seqs_all_read, accession):
                 except FileNotFoundError:
                     seq_found = False
 
-            if not seq_found:
+            if seq_found == False:
                 write_read = False
                 break
 
@@ -1294,6 +1291,7 @@ def check_cds_quality(write_read, cds_overlaps_read, indel_cds_connect, indel_er
                         if frame_diff not in expected_shifts:
                             write_read = False
                             actual_shift = "forward" if frame_diff == 1 else "backward" if frame_diff == 2 else "none"
+                            # print(f"ERROR: {indel_type}{'eletion' if indel_type == 'D' else 'nsertion'} at {indel_pos} should shift {shift_type}, but frame shifted {actual_shift} ({first_frame} → {second_frame})")
 
     return write_read
 
@@ -1344,7 +1342,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
             seqs_len_rf2 = seqs_len - 2
 
         # Iterate through each read
-        for read_id in read_ids:
+        for read_id in tqdm(read_ids, desc=f"Processing reads for {assembly_id}"):
             # Initialize for each read
             write_read = None
             cds_overlaps_read = []
@@ -1353,7 +1351,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
             # Extract read information
             read = reads_information_dict[assembly_id][read_id]["read"]
             start_coord = reads_information_dict[assembly_id][read_id]["start_coordinate"]
-            cigar = reads_information_dict[assembly_id][read_id]["CIGAR"]
+            CIGAR = reads_information_dict[assembly_id][read_id]["CIGAR"]
             md_z = reads_information_dict[assembly_id][read_id]["MD:Z"]
             errors_str = mark_errors(md_z, seqs_len)
 
@@ -1365,7 +1363,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
             seq_substitution_errors_fixed = apply_mutations(read, errors_str)
 
             # Proces sequences without indels
-            if cigar == str(seqs_len) + "M":
+            if CIGAR == str(seqs_len) + "M":
                 if seq_substitution_errors_fixed != assembly_seq[start_coord - 1 : start_coord + seqs_len - 1]:
                     print("Sequence was not back-substituted correctly. Skipping read.")
                     write_read = False
@@ -1415,7 +1413,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
                             coding_seqs_aa_rf = extract_coding_sequences(correct_seq, rf2_labels)
                             coding_seqs_all_read += coding_seqs_aa_rf
 
-                write_read = quality_check_cds_fragments(coding_seqs_all_read, accession)
+                write_read = quality_check_CDS_fragments(coding_seqs_all_read, accession)
 
             # Proces sequences with indels; same procedure.
             else:
@@ -1426,7 +1424,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
                     # Translate readign frame 0
                     if rf == "RF0":
                         # Extract amino acid sequence and labels for nucleotide-level and amino-acid level labels
-                        rf0_labels, rf0_labels_nt, insertions_positions = generate_rf_labels_with_indels(start_coord, seqs_len_rf0, cds_overlaps, cigar, rf)
+                        rf0_labels, rf0_labels_nt, insertions_positions = generate_rf_labels_with_indels(start_coord, seqs_len_rf0, cds_overlaps, CIGAR, rf)
                         rf0_seq = encode_nucleotide_to_amino_acid(read)
                         rf0_labels = rf0_labels
 
@@ -1449,7 +1447,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
 
                     elif rf == "RF1":
                         try:
-                            rf1_labels, rf1_labels_nt, _ = generate_rf_labels_with_indels(start_coord + 1, seqs_len_rf1, cds_overlaps, cigar, rf)
+                            rf1_labels, rf1_labels_nt, _ = generate_rf_labels_with_indels(start_coord + 1, seqs_len_rf1, cds_overlaps, CIGAR, rf)
                             rf1_seq = encode_nucleotide_to_amino_acid(read[1:])
 
                             assert len(rf1_labels_nt) == seqs_len_rf1
@@ -1465,7 +1463,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
 
                     elif rf == "RF2":
                         try:
-                            rf2_labels, rf2_labels_nt, _ = generate_rf_labels_with_indels(start_coord + 2, seqs_len_rf2, cds_overlaps, cigar, rf)
+                            rf2_labels, rf2_labels_nt, _ = generate_rf_labels_with_indels(start_coord + 2, seqs_len_rf2, cds_overlaps, CIGAR, rf)
                             rf2_seq = encode_nucleotide_to_amino_acid(read[2:])
 
                             assert len(rf2_labels_nt) == seqs_len_rf2
@@ -1482,7 +1480,10 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
                 # If read has passed all quality checks so-far, check that coding fragments are present in proteome
                 if write_read is not False:
                     # print(coding_seqs_all_read_extended)
-                    write_read = quality_check_cds_fragments(coding_seqs_all_read, accession)
+                    write_read = quality_check_CDS_fragments(coding_seqs_all_read, accession)
+
+                if write_read is False: #DELETE ME
+                    print("Read did not pass quality check for sequences with indels. Skipping read.")
 
             # Write read information if all quality checks are passed
             if write_read:
@@ -1508,7 +1509,7 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
                         "cds_fragments_connection": indel_cds_connect,
                         "start_coord": start_coord,
                         "assembly_id": assembly_id,
-                        "CIGAR": cigar,
+                        "CIGAR": CIGAR,
                         "MD:Z": md_z,
                         "indel_positions": indel_errors,
                         "accession": accession,
@@ -1547,7 +1548,7 @@ def run_pipeline(seqs_len, accession, partition, error_rates):
     """
 
     # Get dicts with annotated CDS intervals for both strands (_uncertain_ marks annotations we are not sure of)
-    cds_coords_template, cds_coords_uncertain_template, cds_coords_complement, cds_coords_uncertain_complement = extract_cds(accession)
+    cds_coords_template, cds_coords_uncertain_template, cds_coords_complement, cds_coords_uncertain_complement = extract_CDS(accession)
 
     # Extract all simulated reads and their information attributes; remove reads overlapping with aeras where we are not sure of the CDS annotations
     reads_information_dict_template = proces_reads_to_dict(accession, seqs_len, cds_coords_uncertain_template, "template_strand", partition, error_rates)
@@ -1577,7 +1578,7 @@ def run_pipeline(seqs_len, accession, partition, error_rates):
 
     # Extract genome filename and path
     genome_files = os.listdir(f"{data_base_path}/data/raw_data/genome_data/{accession}/")
-    genome_fasta_file = [file for file in genome_files if file.startswith(accession)][0]
+    genome_fasta_file = [file for file in genome_files if file.startswith(accession) and file.endswith((".fna", ".fa", ".fasta"))][0]
     genome_filename = f"{data_base_path}/data/raw_data/genome_data/{accession}/{genome_fasta_file}"
 
     # Initialize counters
@@ -1590,13 +1591,15 @@ def run_pipeline(seqs_len, accession, partition, error_rates):
         assembly_seq = record.seq
         assembly_seq_rev = record.seq.reverse_complement()
 
+
         processed_reads_df, reads_correct, reads_wrong = process_strand_reads(
             assembly_id, assembly_seq, accession, seqs_len, cds_coords_template, reads_information_dict_template, processed_reads_df, reads_correct, reads_wrong, "+"
         )
+        
         processed_reads_df, reads_correct, reads_wrong = process_strand_reads(
             assembly_id, assembly_seq_rev, accession, seqs_len, cds_coords_complement, reads_information_dict_complement, processed_reads_df, reads_correct, reads_wrong, "-"
         )
-
+    
     # check if directories exist, if not create them
     if not os.path.exists(f"{data_base_path}/data/processed_data/reads_processed/{partition}/{error_rates}/csv/"):
         os.makedirs(f"{data_base_path}/data/processed_data/reads_processed/{partition}/{error_rates}/csv/")
@@ -1637,57 +1640,33 @@ def main():
             future.result()
 
 if __name__ == "__main__":
-    process_train_val_reads = False
-    process_test_reads = True
+    partition = "test"
+    accessions = accessions_test
+    accessions = accessions_test = ["GCF_004792415.1"] #DELETE ME
 
-    if process_train_val_reads:
-        partition = "train_val"
-        accessions = accessions_train + accessions_val
-
+    #Process ART test sets
+    for seqs_len, error_rates in [(150, "HiSeq2500_150bp"), (150, "NextSeq500_150bp"), (300, "MiSeq_v3_300bp")]:
+        print("Now processing read length: ", seqs_len, "and error rate: ", error_rates)
+                
         # Continue processing from where left off
-        # accessions = set(accessions_train + accessions_val)
-        # accessions_processed = os.listdir(f"{data_base_path}/data/processed_data/reads_processed/train_val/with_substitution_errors/csv/")
-        # accessions_processed = set([accession[:-7] for accession in accessions_processed])
-        # accessions = accessions - accessions_processed
+        accessions = set(accessions_test)
+                
+        #try:
+        #    accessions_processed = os.listdir(f"{data_base_path}/data/processed_data/reads_processed/test/{error_rates}/fasta/")
+        #    accessions_processed = set([accession[:-9] for accession in accessions_processed])
+        #    accessions = accessions - accessions_processed
 
-        seqs_len = 300
-        for error_rates in ["with_errors"]:
-            print("======================================")
-            print("Data partition: ", partition)
-            print("Error rates: ", error_rates)
-            print("Processing samples...")
-            main()
-            print("======================================")
+        #except FileNotFoundError:
+        #    accessions = accessions
 
-    if process_test_reads:
-        partition = "test"
-        accessions = accessions_test
-
-        for seqs_len in [60, 75, 100, 150, 300]:
-            print("Now processing read length: ", seqs_len)
-
-            for error_rates in [
-                f"with_errors_1.25e-05i_0.01s_{str(seqs_len)}bp",
-                f"with_errors_3.75e-05i_0.03s_{str(seqs_len)}bp",
-                f"with_errors_5e-06i_0.004s_{str(seqs_len)}bp"]:
+        print("======================================")
+        print("Data partition: ", partition)
+        print("Dataset: ", error_rates)
+        print("Read length: ", seqs_len)
+        print(f"Missing {len(accessions)} accessions to process for error rate and sequnece length.")
+        print("Processing samples...")
+        main()
+        print("======================================")
 
 
-                # Continue processing from where left off
-                accessions = set(accessions_test)
-                try:
-                    accessions_processed = os.listdir(f"{data_base_path}/data/processed_data/reads_processed/test/{error_rates}/fasta/")
-                    accessions_processed = set([accession[:-9] for accession in accessions_processed])
-                    accessions = accessions - accessions_processed
-
-                except FileNotFoundError:
-                    accessions = accessions
-
-                print("======================================")
-                print("Data partition: ", partition)
-                print("Dataset: ", error_rates)
-                print("Read length: ", seqs_len)
-                print(f"Missing {len(accessions)} accessions to process for error rate and sequnece length.")
-                print("Processing samples...")
-                main()
-                print("======================================")
 

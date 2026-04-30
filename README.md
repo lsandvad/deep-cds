@@ -34,10 +34,12 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [ ] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
 - [ ] DOI på alle referencer -> nået til 35
 - [ ] Prøv at simulere data med en anden read simulator (kig på benchmark artikel). 
+    - [x] Implementer simuleringspipeline
+    - [ ] Processér reads
+    - [ ] Tilføj supplementary figures og tabeller med ny simulator!!!
 
 ### Manuskript; mangler
 - [ ] Abstract
-- [x] Beskrivelse af datasæt størrelse og fordeling på sekvenstyper (se TO DO)
 - Resultater: 
     - [ ] "Findings from abalations..." ESM-2 ablations (træner stadig)
         - [ ] 100, 200, 400 genomer?
@@ -64,8 +66,10 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [x] 3. /data_preprocessing/partition_genomes.py (partition genomes into test, val and train set based on pre-defined procedure)
 - [x] 4. /data_preprocessing/extract_smaller_training_sets.py
 - [x] 4. /data_preprocessing/simulate_reads.py (simulate reads of user-defined coverage and length on both template and complement strands)
+- [x] 4. /data_preprocessing/simulate_reads_art_modern.py (simulate reads of user-defined coverage and length on both template and complement strands with art_modern for testing on another read simulator)
 - [x] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
 - [x] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
+- [ ] 5. /data_preprocessing/process_reads_from_art_modern.py (processes datasets of reads simulated with art_modern)
 - [x] 6. /data_preprocessing/count_reads.py (Count reads per dataset for supplementary information, both train, val and test)
 - [x] 6. /data_preprocessing/postprocess_testset.py (Postprocess testset)
 - [x] 6. /data_preprocessing/get_label_encodings.py (map class labels to 3d vectors; use for model that processes all 3 reading frames)
