@@ -7,7 +7,7 @@ Project workspace for DeepCDS project
 DeepCDS can be run via the command line by cloning this repository and installing the required packages. 
 To test the installation, run the following command from project root:
 ```
-python3 ./predict_with_deepcds.py -model MODEL_FIX-in ./data_example/FILE_FIX.fasta
+python3 ./predict_with_deepcds.py -model MODEL_FIX -in ./data_example/FILE_FIX.fasta
 ```
 
 DeepCDS can be run to predict on your own data using the general command:
@@ -30,13 +30,20 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - Beskriv input argumenter
 - Skriv hvad output er! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser
 
-### TO DO
+### TO DO opdateret 1. Maj
+- [ ] Postprocess preds; opdater script fra ipynb til py!!!
 - [ ] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
-- [ ] DOI på alle referencer -> nået til 35
-- [ ] Prøv at simulere data med en anden read simulator (kig på benchmark artikel). 
-    - [x] Implementer simuleringspipeline
-    - [ ] Processér reads
-    - [ ] Tilføj supplementary figures og tabeller med ny simulator!!!
+- [ ] Gentræn alle 8M modeller "all_genomes"
+- [ ] Få alle re-predictions ud "all_genomes"
+- [ ] opdater alle resultater
+- [ ] Genlæs resultatsektion med nye predictions
+- [ ] Tilføj ART simuleret read resultater
+- [ ] Gentræn modeller på mindre datasæt 
+- [ ] Få alle re-predictions ud "{100,200,400}_genomes"
+- [ ] Find ud af ESM-2 størrelse ablations 
+- [ ] Implementering til inference (GitHub)
+- [ ] Skriv diskussion
+- [ ] Skriv abstract 
 
 ### Manuskript; mangler
 - [ ] Abstract
@@ -69,7 +76,7 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [x] 4. /data_preprocessing/simulate_reads_art_modern.py (simulate reads of user-defined coverage and length on both template and complement strands with art_modern for testing on another read simulator)
 - [x] 5. /data_preprocessing/process_reads_with_indels.py (processes datasets of reads with indel errors to extract necessary data)
 - [x] 5. /data_preprocessing/process_reads_without_indels.py (processes datasets of reads without indel errors to extract necessary data)
-- [ ] 5. /data_preprocessing/process_reads_from_art_modern.py (processes datasets of reads simulated with art_modern)
+- [x] 5. /data_preprocessing/process_reads_from_art_modern.py (processes datasets of reads simulated with art_modern)
 - [x] 6. /data_preprocessing/count_reads.py (Count reads per dataset for supplementary information, both train, val and test)
 - [x] 6. /data_preprocessing/postprocess_testset.py (Postprocess testset)
 - [x] 6. /data_preprocessing/get_label_encodings.py (map class labels to 3d vectors; use for model that processes all 3 reading frames)
@@ -91,12 +98,12 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [x] 1. /benchmark/predict/predict_with_DeepCDS.py (Predict with DeepCDS)
 - [x] 1. /benchmark/predict/predict_with_ESM2.py
 
-- [ ] 2. /postprocess_preds/postprocess_model_predictions.ipynb (Postprocess testset)
+- [ ] 2. /postprocess_preds/postprocess_model_predictions.py (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_prodigal_predictions.ipynb (Postprocess testset)
 
 
-# Observationer træning: 
+# Observationer træning (gammel; inden dropout fjernet): 
 - [ ] 8M ESM-2 Frozen når næsten samem loss som ikke-frozen, men på væsentligt længere tid (115h/73h)
 - [ ] Problemer med 150M ESM-2 S+I; validation loss non-coding spiker 
 - [ ] 650M ESM-2 spiker ekstremt i coding sekvener for substitutionsmodel. Best val loss for 8M og 650M udgaverne er det samme, 35M udgaven har højere loss; Konklusion at 8M udgaven er "god nok", eller problem med hyperparametre for 35M og 650M udgaven?

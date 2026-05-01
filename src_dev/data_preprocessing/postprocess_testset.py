@@ -219,7 +219,10 @@ data_dir = ['with_errors_5e-06i_0.004s_60bp',
  'with_errors_3.75e-05i_0.03s_150bp',
  'with_errors_5e-06i_0.004s_300bp',
  'with_errors_1.25e-05i_0.01s_300bp',
- 'with_errors_3.75e-05i_0.03s_300bp']
+ 'with_errors_3.75e-05i_0.03s_300bp',
+ 'HiSeq2500_150bp', 
+ 'MiSeq_v3_300bp', 
+ 'NextSeq500_150bp']
 
 indels_present = True
 

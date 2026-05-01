@@ -928,6 +928,10 @@ if __name__ == "__main__":
         if args.model == "all_genomes":
             read_lengths = ["60bp", "75bp", "100bp", "150bp", "300bp"]
             data_dirs = [f"{profile}_{length}" for profile in error_profiles for length in read_lengths[::-1]]
+
+            #art data dirs; turn on/off for deciding what to predict on
+            data_dirs = ["HiSeq2500_150bp", "MiSeq_v3_300bp", "NextSeq500_150bp"]
+
         else:
             # For smaller models, only predict on 300bp datasets
             data_dirs = [f"{profile}_300bp" for profile in error_profiles]

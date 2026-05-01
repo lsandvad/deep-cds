@@ -1365,7 +1365,6 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
             # Proces sequences without indels
             if CIGAR == str(seqs_len) + "M":
                 if seq_substitution_errors_fixed != assembly_seq[start_coord - 1 : start_coord + seqs_len - 1]:
-                    print("Sequence was not back-substituted correctly. Skipping read.")
                     write_read = False
                     continue
 
@@ -1481,9 +1480,6 @@ def process_strand_reads(assembly_id, assembly_seq, accession, seqs_len, cds_coo
                 if write_read is not False:
                     # print(coding_seqs_all_read_extended)
                     write_read = quality_check_CDS_fragments(coding_seqs_all_read, accession)
-
-                if write_read is False: #DELETE ME
-                    print("Read did not pass quality check for sequences with indels. Skipping read.")
 
             # Write read information if all quality checks are passed
             if write_read:
