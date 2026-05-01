@@ -41,8 +41,11 @@ if args.predict_with_errors:
     data_dirs_errors = [d for d in data_dirs_errors
                     if d.startswith("with_errors")]
 
+
+data_dirs_ART = ["HiSeq2500_150bp", "MiSeq_v3_300bp", "NextSeq500_150bp"]
+
 #Merge dirs to predict on
-data_dirs = data_dirs_no_errors + data_dirs_errors
+data_dirs = data_dirs_no_errors + data_dirs_errors + data_dirs_ART
 
 
 #Run MetaProdigal on all specificed test sets 

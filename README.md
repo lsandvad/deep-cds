@@ -31,7 +31,9 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - Skriv hvad output er! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser
 
 ### TO DO opdateret 1. Maj
-- [ ] Postprocess preds; opdater script fra ipynb til py!!!
+- [ ] MOVE FGS AND METAPRODIGAL RAW AND PROCESSED PREDICTIONS!!! 
+- [ ] Predict ART simulated reads with FGS og MetaProdigal 
+- [ ] Postprocess ART simulated reads with FGS og MetaProdigal 
 - [ ] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
 - [ ] Gentræn alle 8M modeller "all_genomes"
 - [ ] Få alle re-predictions ud "all_genomes"

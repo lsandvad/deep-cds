@@ -44,35 +44,6 @@ if args.predict_without_errors:
                 os.system(f"FragGeneScanRs -s {project_path}/data/processed_data/reads_processed/test/{data_dir}/fasta/{test_accession}.fasta -t {error_model} \
                           -w 0 -o {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}")
 
-                """
-                ###BUG FOUND; REMOVE BELOW!
-                #Filter .gff to keep only forward strand (+) predictions
-                os.system(f"grep '	+	' {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}.gff > \
-                          {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}+.gff")
-                os.system(f"mv {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}+.gff \
-                          {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}.gff")
-
-                #Filter .out to keep only forward strand (+) predictions
-                os.system(f"grep -B 1 '	+	' {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}.out | \
-                          grep -v '^--$' > {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}+.out")
-                os.system(f"mv {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}+.out \
-                          {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}.out")
-
-                #Filter .faa to keep only forward strand (+) predictions
-                os.system(f"grep -A 1 '_+' {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}.faa | \
-                          grep -v '^--$' > {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}+.faa")
-                os.system(f"mv {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}+.faa \
-                          {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}.faa")
-
-
-                #Filter .ffn to keep only forward strand (+) predictions
-                os.system(f"grep -A 1 '_+' {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}.ffn | \
-                          grep -v '^--$' > {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}+.ffn")
-                os.system(f"mv {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}+.ffn \
-                          {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}/{test_accession}/{test_accession}.ffn")
-
-                """
-
                 #Remove decompressed fasta file
                 os.system(f"rm {project_path}/data/processed_data/reads_processed/test/{data_dir}/fasta/{test_accession}.fasta")
 
@@ -87,6 +58,7 @@ if args.predict_with_errors:
     data_dirs = os.listdir(base_path)
     data_dirs = [d for d in data_dirs
                     if d.startswith("with_errors")]
+    data_dirs += ["MiSeq_v3_300bp", "HiSeq2500_150bp", "NextSeq500_150bp"] #add test sets with simulated modern sequencing errors based on art_modern instead of Mason
 
     for error_model in error_models:
         for data_dir in data_dirs:
@@ -106,33 +78,6 @@ if args.predict_with_errors:
                 os.system(f"FragGeneScanRs -s {project_path}/data/processed_data/reads_processed/test/{data_dir}/fasta/{test_accession}.fasta -t {error_model} \
                           -w 0 -o {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}")
 
-                """
-                ###BUG FOUND; REMOVE BELOW!
-                #Filter .gff to keep only forward strand (+) predictions
-                os.system(f"grep '	+	' {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}.gff > \
-                          {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}+.gff")
-                os.system(f"mv {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}+.gff \
-                          {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}.gff")
-
-                #Filter .out to keep only forward strand (+) predictions
-                os.system(f"grep -B 1 '	+	' {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}.out | \
-                          grep -v '^--$' > {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}+.out")
-                os.system(f"mv {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}+.out \
-                          {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}.out")
-
-                #Filter .faa to keep only forward strand (+) predictions
-                os.system(f"grep -A 1 '_+' {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}.faa | \
-                          grep -v '^--$' > {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}+.faa")
-                os.system(f"mv {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}+.faa \
-                          {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}.faa")
-
-                #Filter .ffn to keep only forward strand (+) predictions
-                os.system(f"grep -A 1 '_+' {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}.ffn | \
-                          grep -v '^--$' > {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}+.ffn")
-                os.system(f"mv {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}+.ffn \
-                          {project_path}/data/processed_data/predictions/raw_predictions/fgs_preds/{data_dir}_{error_model}/{test_accession}/{test_accession}.ffn")
-                
-                """
 
                 #Remove decompressed fasta file
                 os.system(f"rm {project_path}/data/processed_data/reads_processed/test/{data_dir}/fasta/{test_accession}.fasta")

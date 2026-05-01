@@ -10,7 +10,9 @@ import pandas as pd
 from sklearn.metrics import matthews_corrcoef
 from tqdm import tqdm
 
-test_accessions = open("../../../data/processed_data/genome_partitions/test_partition_accessions.txt").read().splitlines()
+project_root = "/tmp/nrt204/FragmentPredictor" #local "../.."
+
+test_accessions = open(f"{project_root}data/processed_data/genome_partitions/test_partition_accessions.txt").read().splitlines()
 
 def process_model_preds(test_accession, testset_type, seq_len):
     """ 
@@ -29,7 +31,7 @@ def process_model_preds(test_accession, testset_type, seq_len):
     model_dict = dict()
 
     #Read model predictions GFF file
-    with open(f"../../../data/processed_data/predictions/raw_predictions/prodigal_preds/{testset_type}/{test_accession}/{test_accession}.gff", "r") as file:
+    with open(f"{project_root}data/processed_data/predictions/raw_predictions/prodigal_preds/{testset_type}/{test_accession}/{test_accession}.gff", "r") as file:
         file.readline() #Skip first line
 
         #Get CDS predictions for read
@@ -107,16 +109,20 @@ data_dirs = ['without_errors_60bp',
              'with_errors_3.75e-05i_0.03s_150bp',
              'with_errors_5e-06i_0.004s_300bp',
              'with_errors_1.25e-05i_0.01s_300bp',
-             'with_errors_3.75e-05i_0.03s_300bp']
+             'with_errors_3.75e-05i_0.03s_300bp',
+             "HiSeq2500_150bp", 
+             "MiSeq_v3_300bp", 
+             "NextSeq500_150bp"]
 
 for testset_type in tqdm(data_dirs, desc=f"Processing predictions for testsets.."):
     print(testset_type)
     seq_len = int(testset_type.split("_")[-1].strip("bp"))
 
     for test_accession in test_accessions:
-        os.makedirs(f"../../../data/processed_data/predictions/processed_predictions/prodigal_preds/{testset_type}/{test_accession}", exist_ok=True)
+        os.makedirs(f"{project_root}data/processed_data/predictions/processed_predictions/prodigal_preds/{testset_type}/{test_accession}", exist_ok=True)
                 
         model_preds_dict = process_model_preds(test_accession, testset_type, seq_len)
 
-        with open(f"../../../data/processed_data/predictions/processed_predictions/prodigal_preds/{testset_type}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
+        with open(f"{project_root}data/processed_data/predictions/processed_predictions/prodigal_preds/{testset_type}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
             pickle.dump(model_preds_dict, processed_preds_file)
+
