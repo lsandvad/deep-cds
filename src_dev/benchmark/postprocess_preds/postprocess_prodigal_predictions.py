@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 project_root = "/tmp/nrt204/FragmentPredictor" #local "../.."
 
-test_accessions = open(f"{project_root}data/processed_data/genome_partitions/test_partition_accessions.txt").read().splitlines()
+test_accessions = open(f"{project_root}/data/processed_data/genome_partitions/test_partition_accessions.txt").read().splitlines()
 
 def process_model_preds(test_accession, testset_type, seq_len):
     """ 
@@ -31,7 +31,7 @@ def process_model_preds(test_accession, testset_type, seq_len):
     model_dict = dict()
 
     #Read model predictions GFF file
-    with open(f"{project_root}data/processed_data/predictions/raw_predictions/prodigal_preds/{testset_type}/{test_accession}/{test_accession}.gff", "r") as file:
+    with open(f"{project_root}/data/processed_data/predictions/raw_predictions/prodigal_preds/{testset_type}/{test_accession}/{test_accession}.gff", "r") as file:
         file.readline() #Skip first line
 
         #Get CDS predictions for read
@@ -119,10 +119,10 @@ for testset_type in tqdm(data_dirs, desc=f"Processing predictions for testsets..
     seq_len = int(testset_type.split("_")[-1].strip("bp"))
 
     for test_accession in test_accessions:
-        os.makedirs(f"{project_root}data/processed_data/predictions/processed_predictions/prodigal_preds/{testset_type}/{test_accession}", exist_ok=True)
+        os.makedirs(f"{project_root}/data/processed_data/predictions/processed_predictions/prodigal_preds/{testset_type}/{test_accession}", exist_ok=True)
                 
         model_preds_dict = process_model_preds(test_accession, testset_type, seq_len)
 
-        with open(f"{project_root}data/processed_data/predictions/processed_predictions/prodigal_preds/{testset_type}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
+        with open(f"{project_root}/data/processed_data/predictions/processed_predictions/prodigal_preds/{testset_type}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
             pickle.dump(model_preds_dict, processed_preds_file)
 

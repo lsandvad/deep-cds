@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 project_root = "/tmp/nrt204/FragmentPredictor" #local "../.."
 
-test_accessions = open(f"{project_root}data/processed_data/genome_partitions/test_partition_accessions.txt").read().splitlines()
+test_accessions = open(f"{project_root}/data/processed_data/genome_partitions/test_partition_accessions.txt").read().splitlines()
 
 def process_fragmented_cds(model_preds_dict, model_dict_30):
     """
@@ -209,7 +209,7 @@ def process_model_preds(test_accession, model_type, testset_type, model_preds_pa
     model_dict_30 = dict()
 
     #Read model predictions GFF file
-    with open(f"{project_root}data/processed_data/predictions/raw_predictions/{model_type}/{testset_type}/{model_preds_path}/predictions_{test_accession}.gff", "r") as file:
+    with open(f"{project_root}/data/processed_data/predictions/raw_predictions/{model_type}/{testset_type}/{model_preds_path}/predictions_{test_accession}.gff", "r") as file:
         file.readline() #Skip first line
 
         #Get CDS predictions for read
@@ -304,14 +304,14 @@ for testset_type in testset_types:
 
     for model_preds_path in tqdm(model_preds_paths, desc="Processing predictions for model type..."):
         for test_accession in test_accessions:
-            os.makedirs(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
+            os.makedirs(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
             
             model_preds_dict, model_preds_dict_30 = process_model_preds(test_accession, model_type, testset_type, model_preds_path, seq_len)
 
-            with open(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
+            with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
                 pickle.dump(model_preds_dict, processed_preds_file)
 
-            with open(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
+            with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
                 pickle.dump(model_preds_dict_30, processed_preds_file)
 
 
@@ -343,14 +343,14 @@ for testset_type in testset_types:
 
     for model_preds_path in tqdm(model_preds_paths, desc="Processing predictions for model type..."):
         for test_accession in test_accessions:
-            os.makedirs(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
+            os.makedirs(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
             
             model_preds_dict, model_preds_dict_30 = process_model_preds(test_accession, model_type, testset_type, model_preds_path, seq_len)
 
-            with open(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
+            with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
                 pickle.dump(model_preds_dict, processed_preds_file)
 
-            with open(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
+            with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
                 pickle.dump(model_preds_dict_30, processed_preds_file)
 
 
@@ -380,14 +380,14 @@ for testset_type in testset_types:
 
     for model_preds_path in tqdm(model_preds_paths, desc="Processing predictions for model type..."):
         for test_accession in test_accessions:
-            os.makedirs(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
+            os.makedirs(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
             
             model_preds_dict, model_preds_dict_30 = process_model_preds(test_accession, model_type, testset_type, model_preds_path, seq_len)
 
-            with open(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
+            with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
                 pickle.dump(model_preds_dict, processed_preds_file)
 
-            with open(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
+            with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
                 pickle.dump(model_preds_dict_30, processed_preds_file)
 
 
@@ -416,14 +416,14 @@ for model_type in model_types:
         for model_preds_path in tqdm(model_preds_paths, desc="Processing predictions for model type..."):
             try:
                 for test_accession in test_accessions:
-                    os.makedirs(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
+                    os.makedirs(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
                     
                     model_preds_dict, model_preds_dict_30 = process_model_preds(test_accession, model_type, testset_type, model_preds_path, seq_len)
 
-                    with open(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
+                    with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
                         pickle.dump(model_preds_dict, processed_preds_file)
 
-                    with open(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
+                    with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
                         pickle.dump(model_preds_dict_30, processed_preds_file)
             except FileNotFoundError as err:
                 print(err)
@@ -469,14 +469,14 @@ for testset_type in testset_types:
         for model_preds_path in model_preds_paths:
             try:
                 for test_accession in test_accessions:
-                    os.makedirs(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
+                    os.makedirs(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
                     
                     model_preds_dict, model_preds_dict_30 = process_model_preds(test_accession, model_type, testset_type, model_preds_path, seq_len)
 
-                    with open(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
+                    with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
                         pickle.dump(model_preds_dict, processed_preds_file)
 
-                    with open(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
+                    with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
                         pickle.dump(model_preds_dict_30, processed_preds_file)
             
             except FileNotFoundError:
@@ -521,14 +521,14 @@ for testset_type in testset_types:
         for model_preds_path in model_preds_paths:
             try:
                 for test_accession in test_accessions:
-                    os.makedirs(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
+                    os.makedirs(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
                     
                     model_preds_dict, model_preds_dict_30 = process_model_preds(test_accession, model_type, testset_type, model_preds_path, seq_len)
 
-                    with open(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
+                    with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
                         pickle.dump(model_preds_dict, processed_preds_file)
 
-                    with open(f"{project_root}data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
+                    with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
                         pickle.dump(model_preds_dict_30, processed_preds_file)
             
             except FileNotFoundError:
