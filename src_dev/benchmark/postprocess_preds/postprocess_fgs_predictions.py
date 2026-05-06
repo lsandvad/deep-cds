@@ -209,8 +209,6 @@ pred_dirs = os.listdir(f"{project_root}/data/processed_data/predictions/raw_pred
 pred_dirs = [dir for dir in pred_dirs if dir != ".DS_Store"]
 pred_dirs = [dir for dir in pred_dirs if dir != "archive"]
 
-pred_dirs = ["HiSeq2500_150bp", "MiSeq_v3_300bp", "NextSeq500_150bp"] #predict on ART simulated reads with modern_art to get predictions on real error profiles
-
 for pred_data in tqdm(pred_dirs):
     os.makedirs(f"{project_root}/data/processed_data/predictions/processed_predictions/fgs_preds/{pred_data}", exist_ok=True)
     print(pred_data)

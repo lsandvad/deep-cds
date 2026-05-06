@@ -4,7 +4,6 @@ import os
 import pickle
 import re
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.metrics import matthews_corrcoef
@@ -482,6 +481,8 @@ for testset_type in testset_types:
             except FileNotFoundError:
                 print("Not found!")
                 continue
+
+
 
 ##########################################################################################################################################
 ####################Process preds for data with sequencing errors (DeepCDS (pLM), DeepCDS S (pLM), DeepCDS S+I (pLM#)#####################

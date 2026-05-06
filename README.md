@@ -31,18 +31,23 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - Skriv hvad output er! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser
 
 ### TO DO opdateret 1. Maj
-- [ ] MOVE FGS AND METAPRODIGAL RAW AND PROCESSED PREDICTIONS!!! 
-- [ ] Predict ART simulated reads with FGS og MetaProdigal 
-- [ ] Postprocess ART simulated reads with FGS og MetaProdigal 
+- [x] MOVE FGS AND METAPRODIGAL RAW PREDICTIONS!!! 
+- [x] MOVE FGS AND METAPRODIGAL PROCESSED PREDICTIONS!!! 
+- [x] Predict ART simulated reads with FGS og MetaProdigal
+- [x] Postprocess ART simulated reads with FGS og MetaProdigal 
+- [ ] Producer plot med fejlrater for art_modern simulerede reads; først transfer reads_processed til lokal
 - [ ] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
 - [ ] Gentræn alle 8M modeller "all_genomes"
+    - Mangler DeepCDS S+I (pLM); kører
 - [ ] Få alle re-predictions ud "all_genomes"
+    - DeepCDS S (Full) og DeepCDS S+I (Full) færdig
 - [ ] opdater alle resultater
 - [ ] Genlæs resultatsektion med nye predictions
 - [ ] Tilføj ART simuleret read resultater
 - [ ] Gentræn modeller på mindre datasæt 
 - [ ] Få alle re-predictions ud "{100,200,400}_genomes"
 - [ ] Find ud af ESM-2 størrelse ablations 
+    - [ ] Vent med dette
 - [ ] Implementering til inference (GitHub)
 - [ ] Skriv diskussion
 - [ ] Skriv abstract 
@@ -87,7 +92,7 @@ The input file (in FASTA format) and model type arguments are required. Addition
 #### Data analysis
 - [x] 1. /data_analysis/generate_taxonomical_trees.ipynb (Generate taxonomical trees in newick format along with partition annotations)
 - [x] 1. /data_analysis/plot_genome_statistics.ipynb (plot different genome statistics based on RefSeq annotations and genomes, for each data partition)
-- [ ] 1. /data_analysis/get_testset_statistics.ipynb (get statistics for test set)
+- [x] 1. /data_analysis/get_testset_statistics.ipynb (get statistics for test set)
 - [ ] 1. /data_analysis/check_testset_error_distributions.py (check error rates for each test set and check they are correct)
 
 #### Modeling: Shared CRF models
