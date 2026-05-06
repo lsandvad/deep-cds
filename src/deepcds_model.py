@@ -30,23 +30,18 @@ class SequenceEncoder(nn.Module):
 
     Args:
         esm2_model (str): Name or path of the pretrained ESM-2 model to load
-        dropout_rate_1 (float): Dropout rate for regularization layer applied after ESM-2
 
     Attributes:
         pretrained_model_aa (AutoModel): Pretrained ESM-2 model with all layers initially frozen
-        dropout_1 (nn.Dropout): Dropout layer for regularization before transformer head
     """
 
-    def __init__(self, esm2_model, dropout_rate_1):
+    def __init__(self, esm2_model):
         super(SequenceEncoder, self).__init__()
 
         # Load pretrained ESM-2 model for amino acid sequences
         self.pretrained_model_aa = AutoModel.from_pretrained(esm2_model)
 
         self.num_layers = len(self.pretrained_model_aa.encoder.layer)
-
-        # Additional dropout layer for regularization after encoding sequences
-        self.dropout_1 = nn.Dropout(dropout_rate_1)
 
     def forward(self, x_aa, attention_mask_aa):
         """
@@ -69,10 +64,7 @@ class SequenceEncoder(nn.Module):
         sequence_output_aa = features_aa["last_hidden_state"]  # (B, L+2, m)
 
         # Remove CLS and EOS token embeddings
-        sequence_output_aa = sequence_output_aa[:, 1:-1, :]  # (B, L, m)
-
-        # Apply dropout before transformer head
-        embeddings_aa = self.dropout_1(sequence_output_aa)  # (B, L, m)
+        embeddings_aa = sequence_output_aa[:, 1:-1, :]  # (B, L, m)
 
         # Remove CLS/EOS from attention mask
         attention_mask_trimmed = attention_mask_aa[:, 1:-1]  # (B, L)
@@ -88,7 +80,6 @@ class TransformerEncoderBlock(nn.Module):
         hidden_size (int): The dimensionality of the input and output features for the Transformer encoder.
         num_layers (int): Number of Transformer encoder layers to stack.
         n_attention_heads (int): Number of attention heads in each Transformer encoder layer.
-        dropout_rate_encoder (float): Dropout rate applied after normalization and within the encoder layers.
         act_function (str or Callable): Activation function to use in the feedforward network of the encoder layers.
         num_labels (int): Number of output classes
 
@@ -99,7 +90,7 @@ class TransformerEncoderBlock(nn.Module):
         layers (int): Number of encoder layers.
     """
 
-    def __init__(self, hidden_size, num_layers, n_attention_heads, dropout_rate_encoder, act_function, num_labels):
+    def __init__(self, hidden_size, num_layers, n_attention_heads, act_function, num_labels):
         super().__init__()
 
         hidden_size_merged = hidden_size + 12  # 12 for codon one-hot encoded; hidden_size for amino acid representation from ESM2
@@ -108,7 +99,6 @@ class TransformerEncoderBlock(nn.Module):
             d_model=hidden_size_merged,
             nhead=n_attention_heads,
             dim_feedforward=4 * hidden_size_merged,
-            dropout=dropout_rate_encoder,
             activation=act_function,
         )
 
@@ -237,8 +227,6 @@ class CDSPredictor(nn.Module):
         esm2_model (str): Pretrained ESM-2 model name used to extract amino acid embeddings.
         num_layers (int): Number of Transformer encoder layers per reading frame.
         n_attention_heads (int): Number of attention heads in each Transformer layer.
-        dropout_rate_1 (float): Dropout rate applied in the sequence encoder.
-        dropout_rate_2 (float): Dropout rate applied within the Transformer encoder layers.
         act_function (str or Callable): Activation function used in Transformer feedforward layers.
         num_encoded_labels (int): Number of combined label states used by the CRF.
         encoded_labels_mapping (dict): Mapping from integer label indices to RF combination tuples.
@@ -256,8 +244,6 @@ class CDSPredictor(nn.Module):
         esm2_model,
         num_layers,
         n_attention_heads,
-        dropout_rate_1,
-        dropout_rate_2,
         act_function,
         num_encoded_labels,
         encoded_labels_mapping,
@@ -266,14 +252,13 @@ class CDSPredictor(nn.Module):
         super(CDSPredictor, self).__init__()
 
         # Extract amino acid representations from pretrained ESM-2 model
-        self.sequence_encoder = SequenceEncoder(esm2_model, dropout_rate_1)
+        self.sequence_encoder = SequenceEncoder(esm2_model)
 
         # Transformer encoder block applied separately to each reading frame
         self.TransformerEncoderBlock = TransformerEncoderBlock(
             hidden_size=self.sequence_encoder.pretrained_model_aa.config.hidden_size,
             num_layers=num_layers,
             n_attention_heads=n_attention_heads,
-            dropout_rate_encoder=dropout_rate_2,
             act_function=act_function,
             num_labels=label_classes,
         )
@@ -390,8 +375,6 @@ def load_model(ckpt_path, label_mapping_path, hyperparams_path, device, esm2_mod
 
     act_function = cfg.hyperparameters.act_function
     num_layers = cfg.hyperparameters.depth_transformer_encoder_blocks
-    dropout_rate_1 = cfg.hyperparameters.dropout_rate_1
-    dropout_rate_2 = cfg.hyperparameters.dropout_rate_2
     n_attention_heads = cfg.hyperparameters.n_attention_heads
 
     # Initialize model architecture with loaded hyperparameters and label mapping
@@ -399,8 +382,6 @@ def load_model(ckpt_path, label_mapping_path, hyperparams_path, device, esm2_mod
         esm2_model=esm2_model,
         num_layers=num_layers,
         n_attention_heads=n_attention_heads,
-        dropout_rate_1=dropout_rate_1,
-        dropout_rate_2=dropout_rate_2,
         act_function=act_function,
         num_encoded_labels=num_encoded_labels,
         encoded_labels_mapping=mapping_dict_to_class,

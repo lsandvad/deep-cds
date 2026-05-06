@@ -26,8 +26,12 @@ import warnings
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import List, Optional
-from Bio import SeqIO
 import csv
+
+# Suppress noisy third-party library warnings (must run before transformers import)
+warnings.filterwarnings("ignore", category=FutureWarning, module="transformers")
+warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub")
+warnings.filterwarnings("ignore", message="enable_nested_tensor", category=UserWarning)
 
 import numpy as np
 import pandas as pd
@@ -39,7 +43,7 @@ from transformers import AutoTokenizer
 # Add project root to path for imports
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-from src import TRAINED_WINDOW_SIZE_AA, encode_data, load_model
+from src import TRAINED_WINDOW_SIZE_AA, encode_data, load_model, extract_cds_from_gff, reverse_complement
 from src.sliding_window import (
     _create_windowed_dataframe,
     _decode_predictions,
@@ -47,11 +51,6 @@ from src.sliding_window import (
     _run_model_on_windows,
     get_window_positions,
 )
-
-# Suppress noisy third-party library warnings
-warnings.filterwarnings("ignore", category=FutureWarning, module="transformers")
-warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub")
-warnings.filterwarnings("ignore", message="enable_nested_tensor", category=UserWarning)
 
 logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
@@ -505,9 +504,17 @@ def _create_uncertain_regions_from_groups(segments, transitions):
 # GFF Output
 # ══════════════════════════════════════════════════════════════════════════════
 
-def write_gff(segments, uncertain_regions, transitions_info, read_name, outfile_gff, min_cds_length):
-    """Write CDS predictions to GFF file."""
+def write_gff(segments, uncertain_regions, transitions_info, read_name, outfile_gff,
+              min_cds_length, strand="+", seq_len=None):
+    """Write CDS predictions to GFF file.
+
+    For complement-strand predictions, segment coordinates are RC-space coordinates.
+    seq_len is required to convert them to forward-strand GFF coordinates:
+        gff_start = seq_len - segment.end   + 1
+        gff_end   = seq_len - segment.start + 1
+    """
     counter_cds_frags_interrupted = {}
+    cds_n = 0
 
     for segment in segments:
         attributes = []
@@ -528,38 +535,74 @@ def write_gff(segments, uncertain_regions, transitions_info, read_name, outfile_
         if segment.end - segment.start < min_cds_length and segment.indel_type == None:
             continue
 
+        if segment.group_id:
+            group_num = segment.group_id.split("_")[1]
+            cds_id = f"{read_name}_group{strand}_{group_num}"
+        else:
+            cds_n += 1
+            cds_id = f"{read_name}_CDS{strand}_{cds_n}"
+        attributes.insert(0, f"ID={cds_id}")
+
+        # Convert RC coordinates to forward-strand GFF coordinates for complement strand
+        if strand == "-":
+            gff_start = seq_len - segment.end   + 1
+            gff_end   = seq_len - segment.start + 1
+        else:
+            gff_start = segment.start
+            gff_end   = segment.end
+
         attr_string = ";".join(attributes)
         outfile_gff.write(
-            f"{read_name}\tDeepCDS\tCDS\t{segment.start}\t{segment.end}\t"
-            f".\t+\t{segment.frame}\t{attr_string}\n"
+            f"{read_name}\tDeepCDS\tCDS\t{gff_start}\t{gff_end}\t"
+            f".\t{strand}\t{segment.frame}\t{attr_string}\n"
         )
 
+        # start_codon sits at the 5' end of the CDS (gff_end side on complement strand)
         if segment.start_type == 'start_codon':
-            transitions_info.append(Transition(type="start_codon", start_position=segment.start, end_position=segment.start + 2, frame=segment.frame))
+            if strand == "+":
+                transitions_info.append(Transition(type="start_codon",
+                    start_position=gff_start, end_position=gff_start + 2, frame=segment.frame))
+            else:
+                transitions_info.append(Transition(type="start_codon",
+                    start_position=gff_end - 2, end_position=gff_end, frame=segment.frame))
+
+        # stop_codon sits at the 3' end of the CDS (gff_start side on complement strand)
         if segment.end_type == 'stop_codon':
-            transitions_info.append(Transition(type="stop_codon", start_position=segment.end - 2, end_position=segment.end, frame=segment.frame))
+            if strand == "+":
+                transitions_info.append(Transition(type="stop_codon",
+                    start_position=gff_end - 2, end_position=gff_end, frame=segment.frame))
+            else:
+                transitions_info.append(Transition(type="stop_codon",
+                    start_position=gff_start, end_position=gff_start + 2, frame=segment.frame))
 
     for i, transition in enumerate(transitions_info):
         attributes = [f"ID={transition.type}_{read_name}_{i}"]
         attr_string = ";".join(attributes)
         outfile_gff.write(
             f"{read_name}\tDeepCDS\t{transition.type}\t{transition.start_position}\t{transition.end_position}\t"
-            f".\t+\t.\t{attr_string}\n"
+            f".\t{strand}\t.\t{attr_string}\n"
         )
 
     for region in uncertain_regions:
+        if strand == "-":
+            r_start = seq_len - region.end   + 1
+            r_end   = seq_len - region.start + 1
+        else:
+            r_start = region.start
+            r_end   = region.end
         attributes = []
         attributes.append(f"Note=Uncertain region: {region.reason}")
         attributes.append(f"overlapping_frames={','.join(map(str, region.overlapping_frames))}")
         attr_string = ";".join(attributes)
         outfile_gff.write(
-            f"{read_name}\tDeepCDS\tuncertain_region\t{region.start}\t{region.end}\t"
-            f".\t+\t.\t{attr_string}\n"
+            f"{read_name}\tDeepCDS\tuncertain_region\t{r_start}\t{r_end}\t"
+            f".\t{strand}\t.\t{attr_string}\n"
         )
 
 
 def process_predictions(predictions_rf0, predictions_rf1, predictions_rf2,
-                        read_names, gff_buffers, count, min_cds_length):
+                        read_names, gff_buffers, count, min_cds_length,
+                        strand="+", seq_lengths=None):
     """
     Postprocess decoded predictions and write GFF output to per-sequence buffers.
 
@@ -569,12 +612,17 @@ def process_predictions(predictions_rf0, predictions_rf1, predictions_rf2,
         - gff_buffers: Dictionary mapping read names to their corresponding GFF output buffers
         - count: Number of sequences in the current batch (used for progress tracking)
         - min_cds_length: Minimum length for predicted CDS sequences
+        - strand: "+" or "-". For complement strand, seq_lengths must be provided for coordinate conversion.
+        - seq_lengths: Dict mapping read_name to original sequence length (required for strand="-").
     """
     for i in range(count):
+        seq_len = seq_lengths[read_names[i]] if seq_lengths is not None else None
         segments, uncertain_regions, transitions_info, _ = get_cds_coords(
             predictions_rf0[i], predictions_rf1[i], predictions_rf2[i])
-        
-        write_gff(segments, uncertain_regions, transitions_info, read_names[i], gff_buffers[read_names[i]], min_cds_length)
+
+        write_gff(segments, uncertain_regions, transitions_info, read_names[i],
+                  gff_buffers[read_names[i]], min_cds_length,
+                  strand=strand, seq_len=seq_len)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -582,8 +630,8 @@ def process_predictions(predictions_rf0, predictions_rf1, predictions_rf2,
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_direct_inference(model, df, mapping_dict_to_class, max_aa_len,
-                         device, dtype, batch_size, num_workers_cpu, pin_memory, gff_buffers, 
-                         min_cds_length):
+                         device, dtype, batch_size, num_workers_cpu, pin_memory, gff_buffers,
+                         min_cds_length, strand="+", seq_lengths=None):
     """
     Run direct (non-sliding-window) inference on sequences that fit within the trained window.
     
@@ -644,7 +692,8 @@ def run_direct_inference(model, df, mapping_dict_to_class, max_aa_len,
 
             # Write CDS predictions to GFF buffers for each sequence in the batch
             process_predictions(preds_rf0, preds_rf1, preds_rf2,
-                                read_names, gff_buffers, len(read_names), min_cds_length)
+                                read_names, gff_buffers, len(read_names), min_cds_length,
+                                strand=strand, seq_lengths=seq_lengths)
 
             # Cleanup to free memory after each batch
             del aa_rf0, aa_rf1, aa_rf2, mask_rf0, mask_rf1, mask_rf2
@@ -660,7 +709,7 @@ def run_direct_inference(model, df, mapping_dict_to_class, max_aa_len,
 def run_sliding_window_single(model, name, seq, mapping_dict_to_class,
                                device, dtype, batch_size, stride_aa,
                                num_workers_cpu, pin_memory, gff_buffers,
-                               min_cds_length):
+                               min_cds_length, strand="+"):
     """Run sliding window inference on a single long sequence."""
     tokenizer = get_tokenizer()
     seq_len = len(seq)
@@ -706,78 +755,10 @@ def run_sliding_window_single(model, name, seq, mapping_dict_to_class,
         predictions_encoded, mapping_dict_to_class, seq_len
     )
 
-    process_predictions(preds_rf0, preds_rf1, preds_rf2, [name], gff_buffers, 1, min_cds_length)
+    process_predictions(preds_rf0, preds_rf1, preds_rf2, [name], gff_buffers, 1, min_cds_length,
+                        strand=strand, seq_lengths={name: seq_len})
 
     del all_logits, merged_logits, merged_mask, windowed_df, window_dataset
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Write sequences to fasta file
-# ══════════════════════════════════════════════════════════════════════════════
-
-def extract_cds_from_gff(fasta_path, gff_path, output_path):
-    sequences = SeqIO.index(fasta_path, "fasta")
-
-    # Collect grouped (indel-interrupted) and ungrouped CDS entries
-    ungrouped = []
-    groups = defaultdict(list)  # group_id -> list of GFF field rows, in order
-
-    try:
-        with open(gff_path) as gff_f:
-            for line in gff_f:
-                if line.startswith("#"):
-                    continue
-                fields = line.strip().split("\t")
-                if len(fields) < 9 or fields[2] != "CDS":
-                    continue
-
-                attrs = dict(item.split("=") for item in fields[8].split(";"))
-
-                #CDS fragments interrupted by indels will have group_id attribute in the format "group_X.Y" where X is the group number and Y is the fragment number within the group. 
-                if "group_id" in attrs:
-                    group_base = attrs["group_id"].rsplit(".", 1)[0] 
-                    key = (fields[0], group_base)
-                    groups[key].append((fields, attrs))
-                
-                # Complete CDS fragments without indels will not have group_id and will be processed separately
-                else:
-                    ungrouped.append((fields, attrs))
-
-        with open(output_path, "w") as out_f:
-
-            for fields, attrs in ungrouped:
-                seq_name = fields[0]
-                start, end, strand = int(fields[3]), int(fields[4]), fields[6]
-                cds_seq = sequences[seq_name].seq[start - 1 : end]
-                out_f.write(f">{seq_name}_{start}_{end}_{strand}\n{cds_seq}\n")
-
-            for (seq_name, group_id), members in groups.items(): 
-                members.sort(key=lambda x: int(x[0][3]))
-
-                strand     = members[0][0][6]
-                indel_type = members[0][1]["indel_type"]
-
-                group_start = int(members[0][0][3])
-                group_end   = int(members[-1][0][4])
-
-                fragments = [
-                    sequences[seq_name].seq[int(f[3]) - 1 : int(f[4])]
-                    for f, _ in members
-                ]
-
-                #Insertion is removed
-                if indel_type == "insertion":
-                    merged_seq = "".join(str(f) for f in fragments)
-                
-                #An NNN gap is inserted to represent the deleted region, as the model cannot predict the exact sequence of the deleted region
-                elif indel_type == "deletion":
-                    merged_seq = "NNN".join(str(f) for f in fragments)
-
-                header = f">{seq_name}_{group_start}_{group_end}_{strand}"
-                out_f.write(f"{header}\n{merged_seq}\n")
-
-    except ValueError as e:
-        print(f"Error processing GFF file: {e}")
-        sys.exit(1)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Main
@@ -849,7 +830,6 @@ def main():
         print(f"Error: Hyperparameters not found: {hyperparams_path}")
         sys.exit(1)
 
-    """
     esm2_model_name = "facebook/esm2_t6_8M_UR50D"
 
     print(f"Loading DeepCDS (error_type: {args.error_type})")
@@ -931,6 +911,52 @@ def main():
                 )
                 clear_memory()
 
+    # ── Run inference on reverse complement sequences (complement strand) ─────────
+    # seq_lengths maps each read name to its original length, needed to convert
+    # RC coordinates back to forward-strand GFF coordinates.
+    seq_lengths = {name: len(seq) for name, seq in sequences}
+
+    rc_short_names, rc_short_seqs = [], []
+    rc_long_names,  rc_long_seqs  = [], []
+    for name, seq in sequences:
+        rc_seq = reverse_complement(seq)
+        if len(rc_seq) <= trained_window_nt:
+            rc_short_names.append(name)
+            rc_short_seqs.append(rc_seq)
+        else:
+            rc_long_names.append(name)
+            rc_long_seqs.append(rc_seq)
+
+    with torch.inference_mode():
+        model.eval()
+
+        if rc_short_seqs:
+            print(f"\nProcessing {len(rc_short_seqs)} short sequences (complement strand)...")
+            max_seq_len_rc = max(len(s) for s in rc_short_seqs)
+            max_aa_len_rc  = int(np.ceil(max_seq_len_rc / 3)) + 3
+            df_rc_short = sequences_to_dataframe(rc_short_names, rc_short_seqs)
+
+            run_direct_inference(
+                model, df_rc_short, mapping_dict_to_class, max_aa_len_rc,
+                device, dtype, args.batch_size, num_workers_cpu, pin_memory,
+                gff_buffers, args.min_cds_length,
+                strand="-", seq_lengths=seq_lengths
+            )
+            del df_rc_short
+            clear_memory()
+
+        if rc_long_seqs:
+            print(f"\nProcessing {len(rc_long_seqs)} long sequences with sliding window (complement strand)...")
+            for name, rc_seq in tqdm(zip(rc_long_names, rc_long_seqs),
+                                     total=len(rc_long_seqs), desc="Long sequences (complement strand)"):
+                run_sliding_window_single(
+                    model, name, rc_seq, mapping_dict_to_class,
+                    device, dtype, args.batch_size, args.stride_aa,
+                    num_workers_cpu, pin_memory, gff_buffers, args.min_cds_length,
+                    strand="-"
+                )
+                clear_memory()
+
     # Write GFF output in original FASTA order
     with open(f"{args.output}.gff", "w") as outfile_gff:
         outfile_gff.write("##gff-version 3\n")
@@ -938,15 +964,14 @@ def main():
             if name in gff_buffers:
                 outfile_gff.write(gff_buffers[name].getvalue())
 
-    """
-
-    extract_cds_from_gff(args.fasta, f"{args.output}.gff", f"{args.output}.fna")
+    extract_cds_from_gff(args.fasta, f"{args.output}.gff", f"{args.output}.fna", f"{args.output}.faa")
 
     clear_memory(sync=True)
 
     print(f"\nDeepCDS finished succesfully!")
     print(f"\tPredicted CDS coordinates in GFF format are written to: {args.output}.gff")
     print(f"\tPredicted CDS sequences in FASTA format are written to: {args.output}.fna")
+    print(f"\tPredicted CDS sequences (translated) are written to: {args.output}.faa")
 
 
 if __name__ == "__main__":

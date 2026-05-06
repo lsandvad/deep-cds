@@ -1,4 +1,9 @@
 # DeepCDS production inference package
+from .postprocessing import (
+    reverse_complement,
+    translate_cds,
+    extract_cds_from_gff,
+)
 from .deepcds_model import (
     CDSPredictor,
     LinearChainCRF,
@@ -23,6 +28,10 @@ from .sliding_window import (
 )
 
 __all__ = [
+    # Postprocessing
+    "reverse_complement",
+    "translate_cds",
+    "extract_cds_from_gff",
     # Model classes
     "CDSPredictor",
     "LinearChainCRF",
