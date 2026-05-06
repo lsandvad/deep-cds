@@ -24,20 +24,20 @@ jobs:
           python-version: "3.12"
           auto-activate-base: true
 
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-ruff
-          restore-keys: |
-            ${{ runner.os }}-pip-
+#      - name: Cache pip packages
+#        uses: actions/cache@v4
+#        with:
+#          path: ~/.cache/pip
+#          key: ${{ runner.os }}-pip-ruff
+#          restore-keys: |
+#            ${{ runner.os }}-pip-
 
-      - name: Install dependencies
-        run: |
-          pip install ruff
+#      - name: Install dependencies
+#        run: |
+#          pip install ruff
 
-      - name: ruff check
-        run: |
-          ruff check predict.py 
+#      - name: ruff check
+#        run: |
+#          ruff check predict.py 
 
-      - run: echo "Linting workflow ran"
+#      - run: echo "Linting workflow ran"

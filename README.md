@@ -35,6 +35,7 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [x] MOVE FGS AND METAPRODIGAL PROCESSED PREDICTIONS!!! 
 - [x] Predict ART simulated reads with FGS og MetaProdigal
 - [x] Postprocess ART simulated reads with FGS og MetaProdigal 
+- [ ] Push nye modeller til github før forsæt med implementering
 - [ ] Producer plot med fejlrater for art_modern simulerede reads; først transfer reads_processed til lokal
 - [ ] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
 - [ ] Gentræn alle 8M modeller "all_genomes"
@@ -61,15 +62,13 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [ ] Diskussion
 
 ### Implementering af script til prediction
-- [ ] Output fasta filer
-    - [x] Nukleotidsekvens
-    - [ ] Aminosyresekvens (NNN encodes som X; stop codon encodes som *)
+- [x] Output fasta filer
 - [x] Sorter GFF filer så start og stop codons ikke placeres i bunden
-- [ ] Complement streng
+- [x] Complement streng
 - [x] Implementér bruger-option til at sætte threshold for minimum CDS længde de vil have rapport om (minimum: 30 - eller i hvert fald anbefaler vi ikke at gå længere ned!)
 - [ ] Tillad input af gzipped input fasta
 - [ ] Option for output fastafiler gzipped eller ej 
-- [ ] Til aller sidst: opdater "Supplementary Note X" kommentarer i prediction script. 
+- [x] Til aller sidst: opdater "Supplementary Note X" kommentarer i prediction script. 
 - [ ] Optional og required argumenter i argparse! Se netstart 2!
 
 
