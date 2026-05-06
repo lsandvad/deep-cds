@@ -1,8 +1,6 @@
 hyperparameters:
   act_function: 'gelu'
   depth_transformer_encoder_blocks: 6
-  dropout_rate_1: 0.3
-  dropout_rate_2: 0.3
   lr_esm2: 1.617e-7
   lr_scratch: 0.00001516
   n_attention_heads: 4

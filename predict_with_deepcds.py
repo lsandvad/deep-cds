@@ -7,13 +7,13 @@ variants trained on different error profiles.
 
 Usage examples:
     # No sequencing errors (clean sequences)
-    python predict.py --fasta input.fasta --error_type none --output predictions.gff
+    python predict_with_deepcds.py --fasta input.fasta --error_type none --output predictions.gff
 
     # Sequences with substitution errors (e.g. Illumina)
-    python predict.py --fasta input.fasta --error_type substitution --output predictions.gff
+    python predict_with_deepcds.py --fasta input.fasta --error_type substitution --output predictions.gff
 
     # Sequences with indel + substitution errors
-    python predict.py --fasta input.fasta --error_type indel_substitution --output predictions.gff
+    python predict_with_deepcds.py --fasta input.fasta --error_type indel_substitution --output predictions.gff
 """
 
 import argparse
@@ -67,9 +67,9 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python predict.py --fasta reads.fasta --error_type none
-  python predict.py --fasta reads.fasta --error_type substitution --output my_predictions.gff
-  python predict.py --fasta reads.fasta --error_type indel_substitution --batch_size 128
+  python predict_with_deepcds.py --fasta reads.fasta --error_type none
+  python predict_with_deepcds.py --fasta reads.fasta --error_type substitution --output my_predictions.gff
+  python predict_with_deepcds.py --fasta reads.fasta --error_type indel_substitution --batch_size 128
         """,
     )
     parser.add_argument(
@@ -89,13 +89,6 @@ Examples:
             "'substitution' for sequences with substitution errors, "
             "'indel_substitution' for sequences with indel and substitution errors"
         ),
-    )
-    parser.add_argument(
-        "--model_type",
-        type=str,
-        default="full",
-        choices=["plm", "full"],
-        help="Model variant to use. (default: full)",
     )
     parser.add_argument(
         "--output",
@@ -804,14 +797,6 @@ def main():
         args.output = f"{fasta_stem}_deepcds_predictions"
 
     # ── Model configuration ─────────────────────────────────────────────────
-    # Choice of model trained on different error profiles. This determines which checkpoint and config to load.
-    error_type_to_dir_name = {
-        "none": "model_without_errors",
-        "substitution": "model_with_substitution_errors",
-        "indel_substitution": "model_with_errors"}
-
-    error_type_dir = error_type_to_dir_name[args.error_type]
-
     # For indel+substitution model, we have 6 classes (0-5) to capture indel transitions. For the others, we have 4 classes (0-3).
     label_classes = 6 if args.error_type == "indel_substitution" else 4
 
@@ -844,28 +829,18 @@ def main():
 
     # ── Load model ──────────────────────────────────────────────────────────
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    # Determine checkpoint name based on model type
 
-    # Use full model including one-hot codon encoding (DeepCDS-Full)
-    if args.model_type == "full":
-        model_name_ckpt = f"full_model_all_genomes_seed_42_trained_final.pth"
-        
-        # Load model configurations (hyperparameters) based on error and model type
-        ckpt_path = os.path.join(script_dir, "models", error_type_dir, model_name_ckpt)
-        hyperparams_path = os.path.join(script_dir, "configs", error_type_dir, "hyperparameters_full.yaml")
-
-    # Use PLM-only model without one-hot codon encoding (DeepCDS-PLM)
-    elif args.model_type == "plm":
-        model_name_ckpt = f"esm2_8m_all_genomes_seed_42_trained_final.pth"
-        # Load model configurations (label mapping and hyperparameters) based on error type
-        ckpt_path = os.path.join(script_dir, "models", error_type_dir, model_name_ckpt)
-        hyperparams_path = os.path.join(script_dir, "configs", error_type_dir, "hyperparameters_plm.yaml")
-    else:
-        print(f"Error: Invalid model type: {args.model_type}. Must be 'full' or 'plm'.")
-        sys.exit(1)
+    error_type_to_name = {
+        "none": "deepcds",
+        "substitution": "deepcds_S",
+        "indel_substitution": "deepcds_SI",
+    }
+    model_name = error_type_to_name[args.error_type]
+    ckpt_path = os.path.join(script_dir, "models", f"{model_name}.pth")
+    hyperparams_path = os.path.join(script_dir, "configs", model_name, "hyperparameters.yaml")
 
     # Load label mapping for the specific error type (used to decode model outputs into class labels)
-    label_mapping_path = os.path.join(script_dir, "configs", error_type_dir, "label_mapping.pkl")
+    label_mapping_path = os.path.join(script_dir, "configs", model_name, "label_mapping.pkl")
 
     if not os.path.isfile(label_mapping_path):
         print(f"Error: Label mapping not found: {label_mapping_path}")
@@ -877,7 +852,7 @@ def main():
     """
     esm2_model_name = "facebook/esm2_t6_8M_UR50D"
 
-    print(f"Loading DeepCDS (Model version: {args.model_type}) (error_type: {args.error_type})")
+    print(f"Loading DeepCDS (error_type: {args.error_type})")
 
     model, mapping_dict_to_class = load_model(
         ckpt_path=ckpt_path,
