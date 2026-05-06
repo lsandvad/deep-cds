@@ -7,19 +7,20 @@ variants trained on different error profiles.
 
 Usage examples:
     # No sequencing errors (clean sequences)
-    python predict_with_deepcds.py --fasta input.fasta --error_type none --output predictions.gff
+    python predict_with_deepcds.py --input_fasta input.fasta --error_model none --output predictions.gff
 
     # Sequences with substitution errors (e.g. Illumina)
-    python predict_with_deepcds.py --fasta input.fasta --error_type substitution --output predictions.gff
+    python predict_with_deepcds.py --input_fasta input.fasta --error_model S --output predictions.gff
 
     # Sequences with indel + substitution errors
-    python predict_with_deepcds.py --fasta input.fasta --error_type indel_substitution --output predictions.gff
+    python predict_with_deepcds.py --input_fasta input.fasta --error_model SI --output predictions.gff
 """
 
 import argparse
 import gc
 import logging
 import os
+import gzip
 import io
 import sys
 import warnings
@@ -66,27 +67,27 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python predict_with_deepcds.py --fasta reads.fasta --error_type none
-  python predict_with_deepcds.py --fasta reads.fasta --error_type substitution --output my_predictions.gff
-  python predict_with_deepcds.py --fasta reads.fasta --error_type indel_substitution --batch_size 128
+  python predict_with_deepcds.py --input_fasta reads.fasta --error_model none
+  python predict_with_deepcds.py --input_fasta reads.fasta --error_model S --output my_predictions
+  python predict_with_deepcds.py --input_fasta reads.fasta --error_model SI --batch_size 128
         """,
     )
     parser.add_argument(
-        "--fasta",
+        "-in", "--input_fasta",
         type=str,
         required=True,
-        help="Path to input FASTA file with nucleotide sequences",
+        help="Path to input FASTA file with nucleotide sequences (can also be in gzipped format with .gz extension)",
     )
     parser.add_argument(
-        "--error_type",
+        "--error_model",
         type=str,
         required=True,
-        choices=["none", "substitution", "indel_substitution"],
+        choices=["none", "S", "SI"],
         help=(
-            "Error profile the model was trained on: "
-            "'none' for error-free sequences, "
-            "'substitution' for sequences with substitution errors, "
-            "'indel_substitution' for sequences with indel and substitution errors"
+            "Error profile the DeepCDS model version was trained on: "
+            "- 'none' for error-free sequences (runs the DeepCDS (Full) model)"
+            "- 'S' for sequences with substitution errors (runs the DeepCDS S (Full) model)"
+            "- 'SI' for sequences with substitution, insertion, and deletion errors (runs theDeepCDS S+I (Full) model)"
         ),
     )
     parser.add_argument(
@@ -113,7 +114,7 @@ Examples:
         "--min_cds_length",
         type=int,
         default=60,
-        help="Minimum length for predicted CDS sequences. We recommend not going below 30 nt as this may affect prediction accuracy to a large extent (default: 60)",
+        help="The minimum length that predicted CDS sequences can have. We recommend not going below 30 nt as this may affect prediction accuracy to a large extent (default: 60)",
     )
 
     parser.add_argument(
@@ -121,6 +122,19 @@ Examples:
         type=int,
         default=50,
         help="Sliding window stride in codons for long sequences (how many codons the prediction window advances between each inference step). Smaller stride gives larger overlap between consecutive windows and may improve accuracy, but increases computation time (default: 50)",
+    )
+    
+    parser.add_argument(
+        "--gzip_output",
+        action="store_true",
+        help="Compress output files (.gff.gz, .fna.gz, .faa.gz) with gzip",
+    )
+
+    parser.add_argument(
+        "--suppress_output_files",
+        type=lambda s: [x.strip() for x in s.split(",")],
+        default=[],
+        help="Comma-separated list of output formats to suppress. Choices: gff, fna, faa (e.g. --suppress_output_files fna,faa)",
     )
     return parser.parse_args()
 
@@ -140,7 +154,8 @@ def parse_fasta(fasta_path):
     current_name = None
     current_seq_parts = []
 
-    with open(fasta_path, "r") as f:
+    _open = gzip.open if fasta_path.endswith(".gz") else open
+    with _open(fasta_path, "rt") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -767,19 +782,27 @@ def run_sliding_window_single(model, name, seq, mapping_dict_to_class,
 def main():
     args = parse_args()
 
-    # ── Validate input ──────────────────────────────────────────────────────
-    if not os.path.isfile(args.fasta):
-        print(f"Error: FASTA file not found: {args.fasta}")
+    # ── Validate arguments ──────────────────────────────────────────────────
+    _valid_formats = {"gff", "fna", "faa"}
+    _invalid = set(args.suppress_output_files) - _valid_formats
+    if _invalid:
+        print(f"Error: --suppress_output_files: invalid format(s): {', '.join(sorted(_invalid))}. Choose from: gff, fna, faa")
+        sys.exit(1)
+
+    suppressed = set(args.suppress_output_files)
+
+    if not os.path.isfile(args.input_fasta):
+        print(f"Error: FASTA file not found: {args.input_fasta}")
         sys.exit(1)
 
     # ── Output path ─────────────────────────────────────────────────────────
     if args.output is None:
-        fasta_stem = os.path.splitext(os.path.basename(args.fasta))[0]
+        fasta_stem = os.path.splitext(os.path.basename(args.input_fasta))[0]
         args.output = f"{fasta_stem}_deepcds_predictions"
 
     # ── Model configuration ─────────────────────────────────────────────────
     # For indel+substitution model, we have 6 classes (0-5) to capture indel transitions. For the others, we have 4 classes (0-3).
-    label_classes = 6 if args.error_type == "indel_substitution" else 4
+    label_classes = 6 if args.error_model == "SI" else 4
 
     # ── Device setup ────────────────────────────────────────────────────────
     if args.compute_device == "cuda":
@@ -799,8 +822,8 @@ def main():
     print(f"Running on device: {device}")
 
     # ── Parse FASTA ─────────────────────────────────────────────────────────
-    print(f"Reading FASTA: {args.fasta}")
-    sequences = parse_fasta(args.fasta)
+    print(f"Reading FASTA: {args.input_fasta}")
+    sequences = parse_fasta(args.input_fasta)
     print(f"  Parsed {len(sequences)} sequences")
     sequences = validate_sequences(sequences)
     if not sequences:
@@ -813,10 +836,10 @@ def main():
 
     error_type_to_name = {
         "none": "deepcds",
-        "substitution": "deepcds_S",
-        "indel_substitution": "deepcds_SI",
+        "S": "deepcds_S",
+        "SI": "deepcds_SI",
     }
-    model_name = error_type_to_name[args.error_type]
+    model_name = error_type_to_name[args.error_model]
     ckpt_path = os.path.join(script_dir, "models", f"{model_name}.pth")
     hyperparams_path = os.path.join(script_dir, "configs", model_name, "hyperparameters.yaml")
 
@@ -832,7 +855,7 @@ def main():
 
     esm2_model_name = "facebook/esm2_t6_8M_UR50D"
 
-    print(f"Loading DeepCDS (error_type: {args.error_type})")
+    print(f"Loading DeepCDS (error_type: {args.error_model})")
 
     model, mapping_dict_to_class = load_model(
         ckpt_path=ckpt_path,
@@ -958,20 +981,54 @@ def main():
                 clear_memory()
 
     # Write GFF output in original FASTA order
-    with open(f"{args.output}.gff", "w") as outfile_gff:
-        outfile_gff.write("##gff-version 3\n")
+    ext = ".gz" if args.gzip_output else ""
+    want_gff = "gff" not in suppressed
+    want_fna = "fna" not in suppressed
+    want_faa = "faa" not in suppressed
+
+    gff_path = f"{args.output}.gff{ext}" if want_gff else None
+    fna_path = f"{args.output}.fna{ext}" if want_fna else None
+    faa_path = f"{args.output}.faa{ext}" if want_faa else None
+
+    open_fn = gzip.open if args.gzip_output else open
+
+    # If GFF is suppressed but fna/faa are needed, write GFF to a temp file
+    _tmp_gff = None
+    if not want_gff and (want_fna or want_faa):
+        import tempfile
+        _tmp = tempfile.NamedTemporaryFile(mode="wt", suffix=".gff", delete=False)
+        _tmp.write("##gff-version 3\n")
         for name, _ in input_order:
             if name in gff_buffers:
-                outfile_gff.write(gff_buffers[name].getvalue())
+                _tmp.write(gff_buffers[name].getvalue())
+        _tmp.close()
+        _tmp_gff = _tmp.name
+    elif want_gff:
+        with open_fn(gff_path, "wt") as outfile_gff:
+            outfile_gff.write("##gff-version 3\n")
+            for name, _ in input_order:
+                if name in gff_buffers:
+                    outfile_gff.write(gff_buffers[name].getvalue())
 
-    extract_cds_from_gff(args.fasta, f"{args.output}.gff", f"{args.output}.fna", f"{args.output}.faa")
+    if want_fna or want_faa:
+        extract_cds_from_gff(
+            args.input_fasta,
+            _tmp_gff if _tmp_gff else gff_path,
+            fna_path,
+            faa_path,
+        )
+        if _tmp_gff:
+            os.remove(_tmp_gff)
 
     clear_memory(sync=True)
 
     print(f"\nDeepCDS finished succesfully!")
-    print(f"\tPredicted CDS coordinates in GFF format are written to: {args.output}.gff")
-    print(f"\tPredicted CDS sequences in FASTA format are written to: {args.output}.fna")
-    print(f"\tPredicted CDS sequences (translated) are written to: {args.output}.faa")
+    if want_gff:
+        print(f"\tPredicted CDS coordinates in GFF format are written to: {gff_path}")
+    if want_fna:
+        print(f"\tPredicted CDS sequences in FASTA format are written to: {fna_path}")
+    if want_faa:
+        print(f"\tPredicted CDS sequences (translated) are written to: {faa_path}")
 
 
 if __name__ == "__main__":

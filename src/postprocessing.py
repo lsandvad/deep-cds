@@ -9,6 +9,8 @@ output files (*=stop, X=ambiguous). This is intentionally different from the
 ESM-2 input encoding in deepcds_dataset.py (X=stop, <unk>=ambiguous).
 """
 
+import contextlib
+import gzip
 from collections import defaultdict
 
 from Bio import SeqIO
@@ -82,6 +84,7 @@ def extract_cds_from_gff(fasta_path, gff_path, fna_path, faa_path):
     """
     import sys
 
+    _open = gzip.open if str(gff_path).endswith(".gz") else open
     sequences = SeqIO.index(fasta_path, "fasta")
 
     ungrouped = []
@@ -90,7 +93,7 @@ def extract_cds_from_gff(fasta_path, gff_path, fna_path, faa_path):
     seen_groups = set()
 
     try:
-        with open(gff_path) as gff_f:
+        with _open(gff_path, "rt") as gff_f:
             for line in gff_f:
                 if line.startswith("#"):
                     continue
@@ -112,7 +115,9 @@ def extract_cds_from_gff(fasta_path, gff_path, fna_path, faa_path):
                     entry_order.append(("ungrouped", len(ungrouped)))
                     ungrouped.append((fields, attrs))
 
-        with open(fna_path, "w") as fna_f, open(faa_path, "w") as faa_f:
+        with contextlib.ExitStack() as stack:
+            fna_f = stack.enter_context(_open(fna_path, "wt")) if fna_path else None
+            faa_f = stack.enter_context(_open(faa_path, "wt")) if faa_path else None
 
             for entry_type, key in entry_order:
 
@@ -124,8 +129,10 @@ def extract_cds_from_gff(fasta_path, gff_path, fna_path, faa_path):
                     cds_seq = fwd_seq.reverse_complement() if strand == "-" else fwd_seq
                     cds_id = attrs.get("ID", f"{seq_name}_{start}_{end}_{strand}")
                     header = f">{cds_id}"
-                    fna_f.write(f"{header}\n{cds_seq}\n")
-                    faa_f.write(f"{header}\n{translate_cds(cds_seq)}\n")
+                    if fna_f is not None:
+                        fna_f.write(f"{header}\n{cds_seq}\n")
+                    if faa_f is not None:
+                        faa_f.write(f"{header}\n{translate_cds(cds_seq)}\n")
 
                 else:  # grouped
                     seq_name, group_id = key
@@ -153,8 +160,10 @@ def extract_cds_from_gff(fasta_path, gff_path, fna_path, faa_path):
 
                     cds_id = members[0][1].get("ID", f"{seq_name}_{group_id}")
                     header = f">{cds_id}"
-                    fna_f.write(f"{header}\n{merged_seq}\n")
-                    faa_f.write(f"{header}\n{translate_cds(merged_seq)}\n")
+                    if fna_f is not None:
+                        fna_f.write(f"{header}\n{merged_seq}\n")
+                    if faa_f is not None:
+                        faa_f.write(f"{header}\n{translate_cds(merged_seq)}\n")
 
     except ValueError as e:
         print(f"Error processing GFF file: {e}")

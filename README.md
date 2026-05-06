@@ -1,20 +1,23 @@
 # DeepCDS
-Project workspace for DeepCDS project
+Project workspace for DeepCDS project; write description, including:
+- Developed for prokaryotic sequences
+- Prediction on short reads / short sequences (but also tester on longer sequences)
+- Versions trained on data both with and without sequencing error - which is selected influences outcome
 
 # Installation
 
 # Usage Instructions
 DeepCDS can be run via the command line by cloning this repository and installing the required packages. 
-To test the installation, run the following command from project root:
+To test the installation, you can run the following command from the project root:
 ```
-python3 ./predict_with_deepcds.py -model MODEL_FIX -in ./data_example/FILE_FIX.fasta
+python ./predict_with_deepcds.py -in ./data_example/test.fasta --error_model none
 ```
 
 DeepCDS can be run to predict on your own data using the general command:
 ```
-python3 ./predict_with_deepcds.py [optional arguments] -model MODEL -in INPUT_FILENAME 
+python ./predict_with_deepcds.py -in INPUT_FASTA -error_model ERROR_MODEL [optional arguments]
 ```
-Please note that the program uses the information in the /src, /models, and /configs directories. 
+Please note that the DeepCDS prediction program uses the information stored in the /src, /models, and /configs directories. 
 
 The input file (in FASTA format) and model type arguments are required. Additionally, DeepCDS accepts a range of optional arguments:
 
@@ -35,9 +38,9 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [x] MOVE FGS AND METAPRODIGAL PROCESSED PREDICTIONS!!! 
 - [x] Predict ART simulated reads with FGS og MetaProdigal
 - [x] Postprocess ART simulated reads with FGS og MetaProdigal 
-- [ ] Push nye modeller til github før forsæt med implementering
+- [x] Push nye modeller til github før forsæt med implementering
 - [ ] Producer plot med fejlrater for art_modern simulerede reads; først transfer reads_processed til lokal
-- [ ] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
+- [x] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
 - [ ] Gentræn alle 8M modeller "all_genomes"
     - Mangler DeepCDS S+I (pLM); kører
 - [ ] Få alle re-predictions ud "all_genomes"
@@ -45,10 +48,8 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [ ] opdater alle resultater
 - [ ] Genlæs resultatsektion med nye predictions
 - [ ] Tilføj ART simuleret read resultater
-- [ ] Gentræn modeller på mindre datasæt 
+- [ ] Gentræn DeepCDS S+I (Full) på mindre datasæt 
 - [ ] Få alle re-predictions ud "{100,200,400}_genomes"
-- [ ] Find ud af ESM-2 størrelse ablations 
-    - [ ] Vent med dette
 - [ ] Implementering til inference (GitHub)
 - [ ] Skriv diskussion
 - [ ] Skriv abstract 
