@@ -8,10 +8,13 @@ Project workspace for DeepCDS project; write description, including:
 
 # Usage Instructions
 DeepCDS can be run via the command line by cloning this repository and installing the required packages. 
+
 To test the installation, you can run the following command from the project root:
 ```
 python ./predict_with_deepcds.py -in ./data_example/test.fasta --error_model none
 ```
+
+*Skriv noget med hjælp:* ```python ./predict_with_deepcds.py --help```
 
 DeepCDS can be run to predict on your own data using the general command:
 ```
@@ -21,6 +24,7 @@ Please note that the DeepCDS prediction program uses the information stored in t
 
 The input file (in FASTA format) and model type arguments are required. Additionally, DeepCDS accepts a range of optional arguments:
 
+### Opdater fuld liste med input argumenter 
 | Input Argument                      | Description                                     |
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `-in`, `--input_filename`       | IMPLEMENT ME! Input file in FASTA format. The allowed input alphabet is A, C, G, T, U and N (unknown). All the other letters will be converted to N before processing. T and U are treated as equivalent. The input file can also be provided in gzipped version with a .gz extension.                                                                        |
@@ -33,6 +37,8 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - Beskriv input argumenter
 - Skriv hvad output er! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser
 
+
+# Noter og TODO til mig selv 
 ### TO DO opdateret 1. Maj
 - [x] MOVE FGS AND METAPRODIGAL RAW PREDICTIONS!!! 
 - [x] MOVE FGS AND METAPRODIGAL PROCESSED PREDICTIONS!!! 
@@ -73,7 +79,7 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [ ] Optional og required argumenter i argparse! Se netstart 2!
 
 
-### Scripts in development - A status
+### Scripts (clean-written check boxes)
 #### Data preprocessing
 - [x] 1. /data_preprocessing/sort_taxonomy.py (Get taxonomic information for all organisms in dataset)
 - [x] 2. /data_preprocessing/collect_genomic_information.py (merge taxonomic information for each organism with genomic statistical information and remove organisms with no family-level classification)
@@ -109,46 +115,6 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_prodigal_predictions.ipynb (Postprocess testset)
 
-
-# Observationer træning (gammel; inden dropout fjernet): 
-- [ ] 8M ESM-2 Frozen når næsten samem loss som ikke-frozen, men på væsentligt længere tid (115h/73h)
-- [ ] Problemer med 150M ESM-2 S+I; validation loss non-coding spiker 
-- [ ] 650M ESM-2 spiker ekstremt i coding sekvener for substitutionsmodel. Best val loss for 8M og 650M udgaverne er det samme, 35M udgaven har højere loss; Konklusion at 8M udgaven er "god nok", eller problem med hyperparametre for 35M og 650M udgaven?
-- [ ] No errors 650M versionen har et lignende problem som substitutionsmodellen. 
-
-
-### Project structure
-Raw data transferred to ERDA
-
-```
-├── data/                           # Data directory
-│   ├── processed_data/
-│   |   ├── taxonomy                # Taxonomical distribution overview, processed
-│   |   ├── dataset_information     # Taxonomical information & summary statistics for genomes
-│   |   ├── genome_partitions       # Genome files distributed in train, val & test partitions
-│   |   ├── simulated_reads         # Reads simulated with Mason
-│   |   ├── processed_reads         # Processed reads with labelled positions and additional info
-│   |   ├── model_data              # All data related to modeling
-│   |   ├── predictions             # Predictions from DeepCDS, ablations and benchmark models
-│   |   ├── testset_processed       # Testset processed to match format of prediction files #MOVE?
-│   └── raw_data/
-│   |   ├── genome_data             # Genome datasets (genome fasta files, gff3 annotation data)
-│   |   ├── genome_data_info        # Genome datasets summary information
-│   |   ├── taxonomy_data           # Taxonomical data from NCBI Taxonomy Database
-├── models/                         # Trained models: NOT DEVELOPED: WANT THIS SEPERATELY PLACED HERE?
-|
-├── src_dev/                        # Source code
-│   ├── data_preprocessing          #WRITE HERE!
-│   ├── data_analysis
-│   ├── modeling
-│   ├── benchmark
-|
-├── .gitignore
-├── pyproject.toml                  # Python project file
-├── README.md                       # Project README
-├── requirements.txt                # Project requirements: FILL OUT
-├── requirements_dev.txt            # Development requirements: FILL OUT
-```
 
 ### Info
 ````
