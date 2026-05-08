@@ -28,12 +28,20 @@ The input file (in FASTA format) and model type arguments are required. Addition
 | Input Argument                      | Description                                     |
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 |`-in`, `--input_fasta`       | Input file in FASTA format. The allowed input alphabet is A, C, G, T, U and N (unknown). All the other letters will be treated as N. T and U are treated as equivalent. The input file can also be provided in gzipped format with a .gz extension.                                                                        |
-|`--error_model` | The error profile that the DeepCDS version was trained on. Options are: `none` (DeepCDS (Full); trained on error-free data), `S` (DeepCDS S (Full); trained on sequences with substitution errors), `SI` (DeepCDS S+I (Full); trained on sequences with both substitution, insertion and deletion errors). We recommend using `none` for complete genomic sequences without sequencing errors. |
+|`--error_model` | The type of sequence data DeepCDS was trained on based on presence of sequencing errors. Options are: `none` (DeepCDS (Full); trained on error-free data), `S` (DeepCDS S (Full); trained on sequences with substitution errors), `SI` (DeepCDS S+I (Full); trained on sequences with both substitution, insertion and deletion errors). We recommend using `none` for complete genomic sequences without sequencing errors. |
+|`--output` | The output file path and name witohut file format extension. Default: `<input_fasta_stem>_deepcds_predictions`. |
+|`--compute_device` | Which hardware accelerator to use. Options are:  `cuda` (NVIDIA GPU), `mps` (Apple Silicon), or `cpu`. The program will automatically fall back to CPU if the requested device is unavailable. Default: `cuda`|
+| `--batch_size`    | Specifies the number of samples to process together in a single pass during prediction. If you have limited memory, try a smaller batch size. Default value: `128`.                                     |
+|`--min_cds_length` | Minimum length in base pairs for a predicted CDS sequences. We recommend not going below 30 base pairs as predictive performance below this threshold has not been evaluated. Default value: `60`|
 |CONTINUE HERE | |
-|`--compute_device` | Which hardware accelerator to use. Options are:  `cuda` (NVIDIA GPU), `mps` (Apple Silicon), or `cpu`. The program will automatically fall back to CPU if the requested device is unavailable.|
-| `--batch_size`    | Specifies the number of samples to process together in a single pass during prediction. Default value: `256`.                                     |
-|`--min_cds_length` | Minimum length (nt) for predicted CDS sequences. We recommend not going below 30 nt as predictive performance below this threshold has not been evaluated. Default value: `60`|
 
+
+    parser.add_argument(
+        "--stride_aa",
+        type=int,
+        default=50,
+        help="Sliding window stride in codons for long sequences (how many codons the prediction window advances between each inference step). Smaller stride gives larger overlap between consecutive windows and may improve accuracy, but increases computation time (default: 50)",
+    )
 
 - Giv eksempel
 - Skriv hvad input er
@@ -61,7 +69,7 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [ ] Gentræn DeepCDS S+I (Full) på mindre datasæt 
 - [ ] Få alle re-predictions ud "{100,200,400}_genomes"
 - [ ] Implementering til inference (GitHub) (se to do features under)
-    - [ ] Implementering af script
+    - [x] Implementering af script
     - [ ] Dokumentation i github; input og output beskrivelse 
     - [ ] Installation guideline og requirements
 - [ ] Skriv diskussion
@@ -80,11 +88,9 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [x] Sorter GFF filer så start og stop codons ikke placeres i bunden
 - [x] Complement streng
 - [x] Implementér bruger-option til at sætte threshold for minimum CDS længde de vil have rapport om (minimum: 30 - eller i hvert fald anbefaler vi ikke at gå længere ned!)
-- [ ] Tillad input af gzipped input fasta
-- [ ] Option for output fastafiler gzipped eller ej 
+- [x] Tillad input af gzipped input fasta
+- [x] Option for output fastafiler gzipped eller ej 
 - [x] Til aller sidst: opdater "Supplementary Note X" kommentarer i prediction script. 
-- [ ] Optional og required argumenter i argparse! Se netstart 2!
-
 
 ### Scripts (clean-written: check boxes)
 #### Data preprocessing
