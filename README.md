@@ -33,19 +33,14 @@ The input file (in FASTA format) and model type arguments are required. Addition
 |`--compute_device` | Which hardware accelerator to use. Options are:  `cuda` (NVIDIA GPU), `mps` (Apple Silicon), or `cpu`. The program will automatically fall back to CPU if the requested device is unavailable. Default: `cuda`|
 | `--batch_size`    | Specifies the number of samples to process together in a single pass during prediction. If you have limited memory, try a smaller batch size. Default value: `128`.                                     |
 |`--min_cds_length` | Minimum length in base pairs for a predicted CDS sequences. We recommend not going below 30 base pairs as predictive performance below this threshold has not been evaluated. Default value: `60`|
-|CONTINUE HERE | |
+|`--stride_aa` | The sliding window stride in codons for long sequences (how many codons the prediction window advances between each inference step). Smaller stride gives larger overlap between consecutive windows and may improve accuracy, but increases computation time. Default value: `50`.|
+|`--gzip_output`| Specifies whether the output files should be gzipped (.gff.gz, .fna.gz, .faa.gz). Default value: `False`.|
+|`--suppress_output_files`| Comma-separated list of output formats to suppress. Options: `gff`, `fna`, `faa`. For example, `--suppress_output_files fna,faa` will omit writing the CDS sequences to both nucleotide-level and amino acid-level fasta files and only write the annotations to a .gff file. Default: `None` (writes all output files).|
 
-
-    parser.add_argument(
-        "--stride_aa",
-        type=int,
-        default=50,
-        help="Sliding window stride in codons for long sequences (how many codons the prediction window advances between each inference step). Smaller stride gives larger overlap between consecutive windows and may improve accuracy, but increases computation time (default: 50)",
-    )
 
 - Giv eksempel
 - Skriv hvad input er
-- Beskriv input argumenter
+- [x] Beskriv input argumenter 
 - Skriv hvad output er! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser
 
 
