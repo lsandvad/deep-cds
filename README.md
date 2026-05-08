@@ -105,11 +105,13 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [x] 1. /data_analysis/get_testset_statistics.ipynb (get statistics for test set)
 - [x] 1. /data_analysis/check_testset_error_distributions.py (check error rates for each test set and check they are correct)
 
-#### Modeling: Shared CRF models
-- [ ] 1. /modeling/hyperparameter_tuning_shared_crf/hyperparameter_tuning_*.ipynb
-- [ ] 2. /modeling/training_shared_crf/train_*.ipynb
+#### Modeling scripts
+- [ ] 1. /modeling/hyperparameter_tuning/hyperparameter_tuning_esm2.py
+- [ ] 1. /modeling/hyperparameter_tuning/hyperparameter_tuning_full_model.py
+- [ ] 2. /modeling/training/train_esm2.py
+- [ ] 2. /modeling/training/train_full_model.py
 
-#### Performance and benchmark
+#### Performance and benchmark UPDATE
 - [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
 - [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal) 
 - [x] 1. /benchmark/predict/predict_with_DeepCDS.py (Predict with DeepCDS)

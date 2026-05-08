@@ -326,7 +326,7 @@ def analyze_art_modern_testsets():
     max_indels = int(all_indels.max())
     bins_subs = np.arange(0, max_subs + 2) - 0.5
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 4), gridspec_kw={'width_ratios': [2, 1]})
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5), gridspec_kw={'width_ratios': [2, 1]})
     fig.suptitle('Test sets simulated with art_modern', fontsize=11, y=0.98)
 
     # Plot 1: Substitution distribution
@@ -351,7 +351,7 @@ def analyze_art_modern_testsets():
 
     ax1.yaxis.set_major_formatter(FuncFormatter(sci_formatter))
     ax1.tick_params(labelsize=11)
-    ax1.legend(title='art_modern quality profile (substitution error rate)', fontsize=10, title_fontsize=10)
+    ax1.legend(title='Quality profile (substitution error rate)', fontsize=10, title_fontsize=10)
 
     # Plot 2: Indel distribution
     ax2 = axes[1]
@@ -371,7 +371,7 @@ def analyze_art_modern_testsets():
     ax2.set_ylabel('Frequency (log scale)', fontsize=12)
     ax2.set_xticks(indel_values)
     ax2.tick_params(labelsize=11)
-    ax2.legend(title='art_modern quality profile (indel error rate)', fontsize=10, title_fontsize=10)
+    ax2.legend(title='Quality profile (indel error rate)', fontsize=10, title_fontsize=10)
 
     plt.tight_layout()
     os.makedirs("../../illustrations/testset_error_rates_plots", exist_ok=True)
