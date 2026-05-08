@@ -26,11 +26,14 @@ The input file (in FASTA format) and model type arguments are required. Addition
 
 ### Opdater fuld liste med input argumenter 
 | Input Argument                      | Description                                     |
-|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `-in`, `--input_filename`       | IMPLEMENT ME! Input file in FASTA format. The allowed input alphabet is A, C, G, T, U and N (unknown). All the other letters will be converted to N before processing. T and U are treated as equivalent. The input file can also be provided in gzipped version with a .gz extension.                                                                        |
+|---------------------------------------------------------------------------------------|
+|`-in`, `--input_fasta`       | Input file in FASTA format. The allowed input alphabet is A, C, G, T, U and N (unknown). All the other letters will be treated as N. T and U are treated as equivalent. The input file can also be provided in gzipped format with a .gz extension.                                                                        |
+|`--error_model` | The error profile that the DeepCDS version was trained on. Options are: `none` (DeepCDS (Full); trained on error-free data), `S` (DeepCDS S (Full); trained on sequences with substitution errors), `SI` (DeepCDS S+I (Full); trained on sequences with both substitution, insertion and deletion errors). We recommend using `none` for complete genomic sequences without sequencing errors. |
+|CONTINUE HERE | |
 |`--compute_device` | Which hardware accelerator to use. Options are:  `cuda` (NVIDIA GPU), `mps` (Apple Silicon), or `cpu`. The program will automatically fall back to CPU if the requested device is unavailable.|
 | `--batch_size`    | Specifies the number of samples to process together in a single pass during prediction. Default value: `256`.                                     |
 |`--min_cds_length` | Minimum length (nt) for predicted CDS sequences. We recommend not going below 30 nt as predictive performance below this threshold has not been evaluated. Default value: `60`|
+
 
 - Giv eksempel
 - Skriv hvad input er
