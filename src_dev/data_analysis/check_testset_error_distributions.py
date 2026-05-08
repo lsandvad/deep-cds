@@ -253,41 +253,139 @@ def analyze_all_csv_files():
     return all_results
 
 
+def analyze_art_modern_testsets():
+    """
+    Analyze CSV files from test sets simulated with art_modern using
+    platform-specific quality profiles (HiSeq2500, NextSeq500, MiSeq v3)
+    and produce a single overlaid plot comparing their error distributions.
+    """
+    base_path = "../../data/processed_data/reads_processed/test/"
+
+    art_modern_dirs = {
+        "HiSeq2500_150bp": "HiSeq2500 (150bp)",
+        "NextSeq500_150bp": "NextSeq500 (150bp)",
+        "MiSeq_v3_300bp":   "MiSeq v3 (300bp)",
+    }
+
+    colors = ['#44AA99', '#AA4499', '#63A31A']
+
+    data_by_profile = {}
+
+    for dirname, label in art_modern_dirs.items():
+        csv_dir = f"{base_path}{dirname}/csv/"
+        if not os.path.exists(csv_dir):
+            print(f"Directory not found, skipping: {csv_dir}")
+            continue
+
+        csv_files = [f for f in os.listdir(csv_dir) if f.endswith('.csv') or f.endswith('.csv.gz')]
+
+        substitutions_per_read = []
+        indels_per_read = []
+        read_lengths_list = []
+
+        for csv_file in csv_files:
+            filepath = f"{csv_dir}{csv_file}"
+            if csv_file.endswith('.gz'):
+                df = pd.read_csv(filepath, compression="gzip", low_memory=False)
+            else:
+                df = pd.read_csv(filepath, low_memory=False)
+
+            substitutions_per_read.extend(df["MD:Z"].apply(count_substitutions_in_mdz).tolist())
+            indels_per_read.extend(df["indel_positions"].apply(count_indels_in_position).tolist())
+            read_lengths_list.extend(df["CIGAR"].apply(get_read_length_from_cigar).tolist())
+
+        substitutions_per_read = np.array(substitutions_per_read)
+        indels_per_read = np.array(indels_per_read)
+        read_lengths_list = np.array(read_lengths_list)
+
+        total_bases = read_lengths_list.sum()
+        sub_rate = substitutions_per_read.sum() / total_bases if total_bases > 0 else 0
+        indel_rate = indels_per_read.sum() / total_bases if total_bases > 0 else 0
+
+        data_by_profile[label] = {
+            'substitutions': substitutions_per_read,
+            'indels': indels_per_read,
+            'read_lengths': read_lengths_list,
+            'empirical_sub_rate': sub_rate,
+            'empirical_indel_rate': indel_rate,
+            'total_reads': len(substitutions_per_read),
+        }
+
+        print(f"\nProcessed {dirname} ({label}):")
+        print(f"  Reads: {len(substitutions_per_read):,}")
+        print(f"  Empirical sub rate: {sub_rate * 100:.4f}%")
+        print(f"  Empirical indel rate: {indel_rate * 100:.6f}%")
+
+    if not data_by_profile:
+        print("No art_modern test set data found.")
+        return
+
+    all_subs = np.concatenate([d['substitutions'] for d in data_by_profile.values()])
+    all_indels = np.concatenate([d['indels'] for d in data_by_profile.values()])
+    max_subs = int(all_subs.max())
+    max_indels = int(all_indels.max())
+    bins_subs = np.arange(0, max_subs + 2) - 0.5
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 4), gridspec_kw={'width_ratios': [2, 1]})
+    fig.suptitle('Test sets simulated with art_modern', fontsize=11, y=0.98)
+
+    # Plot 1: Substitution distribution
+    ax1 = axes[0]
+    for i, (label, data) in enumerate(data_by_profile.items()):
+        empirical_pct = data['empirical_sub_rate'] * 100
+        ax1.hist(data['substitutions'], bins=bins_subs, alpha=0.5, color=colors[i],
+                 label=f"{label} (empirical = {empirical_pct:.2f}\\%)", edgecolor='none')
+
+    ax1.set_xlabel('Number of Substitution Errors per Read', fontsize=12)
+    ax1.set_ylabel('Frequency', fontsize=12)
+    ax1.set_xlim(left=-0.5)
+
+    def sci_formatter(x, pos):
+        if x == 0:
+            return '0'
+        exp = int(np.floor(np.log10(abs(x))))
+        coef = x / 10**exp
+        if coef == 1:
+            return f'$10^{{{exp}}}$'
+        return f'${coef:.0f}\\times10^{{{exp}}}$'
+
+    ax1.yaxis.set_major_formatter(FuncFormatter(sci_formatter))
+    ax1.tick_params(labelsize=11)
+    ax1.legend(title='art_modern quality profile (substitution error rate)', fontsize=10, title_fontsize=10)
+
+    # Plot 2: Indel distribution
+    ax2 = axes[1]
+    indel_values = np.arange(0, max_indels + 1)
+    n_profiles = len(data_by_profile)
+    bar_width = 0.8 / n_profiles
+
+    for i, (label, data) in enumerate(data_by_profile.items()):
+        empirical_pct = data['empirical_indel_rate'] * 100
+        counts = [np.sum(data['indels'] == v) for v in indel_values]
+        x_positions = indel_values + (i - n_profiles / 2 + 0.5) * bar_width
+        ax2.bar(x_positions, counts, width=bar_width, color=colors[i],
+                label=f"{label} (empirical = {empirical_pct:.4f}\\%)", alpha=0.8)
+
+    ax2.set_yscale('log')
+    ax2.set_xlabel('Number of Indel Errors per Read', fontsize=12)
+    ax2.set_ylabel('Frequency (log scale)', fontsize=12)
+    ax2.set_xticks(indel_values)
+    ax2.tick_params(labelsize=11)
+    ax2.legend(title='art_modern quality profile (indel error rate)', fontsize=10, title_fontsize=10)
+
+    plt.tight_layout()
+    os.makedirs("../../illustrations/testset_error_rates_plots", exist_ok=True)
+    output_filename = "../../illustrations/testset_error_rates_plots/error_distributions_art_modern.png"
+    plt.savefig(output_filename, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"\nPlot saved to: {output_filename}")
+
+
 if __name__ == "__main__":
+    ### Get plots of sequence error distributions ###
+
+    #Test sets generated with Mason
     results = analyze_all_csv_files()
 
-
-
-"""
-accessions_train = open("../../data/processed_data/genome_partitions/train_partition_accessions.txt").read().splitlines()
-accessions_val = open("../../data/processed_data/genome_partitions/val_partition_accessions.txt").read().splitlines()
-accessions_test = open("../../data/processed_data/genome_partitions/test_partition_accessions.txt").read().splitlines()
-
-
-####CHECKS TO MAKE: 
-#1. Number of reads corresponds to coverage of approx. 1
-#2. Sequence errors in the reads correspond to the specified error rates
-
-partition = "test"
-error_rates = "with_errors_5e-06i_0.004s_60bp"
-strand = "template_strand"
-accession = accessions_test[0]  #Example accession to check
-
-count_reads = 0
-
-#Open Mason output information (.bam-file)
-with pysam.AlignmentFile(f"../../data/processed_data/simulated_reads/{partition}/{error_rates}/{strand}/alignments/{accession}_alignments.bam", "rb") as bam_infile:
-    for read in bam_infile:
-        count_reads += 1
-        #Extract information from the read 
-        start_coordinate = read.reference_start + 1  #pysam is 0-based, convert to 1-base
-        assembly = read.reference_name
-            
-        #Get read-specific information
-        read_id = read.query_name
-        CIGAR = read.cigarstring
-        read_seq = read.query_sequence
-        MD_Z = read.get_tag("MD") if read.has_tag("MD") else None  # Handle missing MD tag
-
-print(f"Total length for {accession} in {strand}: {count_reads * 60}")
-"""
+    #Test sets generated with art_modern
+    analyze_art_modern_testsets()
