@@ -924,6 +924,7 @@ class CDSPredictor(nn.Module):
             num_labels=label_classes)
 
         #Linear layer to combine outputs from the 3 reading frames (3 * label_classes logits -> num_encoded_labels)
+        self.pre_crf_norm = nn.LayerNorm(3 * label_classes)
         self.linear_transform = nn.Linear(3*label_classes, num_encoded_labels)
 
         #CRF layer for structured prediction with transition constraints
@@ -968,7 +969,7 @@ class CDSPredictor(nn.Module):
         combined_codon_and_aa_embeddings = torch.cat([logits_rf0, logits_rf1, logits_rf2], dim=-1) #output: [codon_seq_len, 3*C]
 
         #Map combined frame representations to encoded, shared label space
-        logits_encoded_labels = self.linear_transform(combined_codon_and_aa_embeddings) #output: [codon_seq_len, num_encoded_labels]
+        logits_encoded_labels = self.linear_transform(self.pre_crf_norm(combined_codon_and_aa_embeddings)) #output: [codon_seq_len, num_encoded_labels]
 
         #Apply CRF for structured decoding or training (same attention mask applies to all RFs)
         output = self.CRF(
@@ -1490,8 +1491,8 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
     #Define hyperparameter ranges to sample from
     depths_transformer_encoder_blocks = [2, 4, 6, 8]  
     attention_heads = [2, 4]
-    dropout_rates_1 = [0.1, 0.2, 0.3, 0.4] #Dropout rate applied after ESM-2 encoding
-    dropout_rates_2 = [0.2, 0.3, 0.4, 0.5] #dropout rate applied in transformer encoder layers
+    dropout_rates_1 = [0.0, 0.1, 0.2, 0.3, 0.4] #Dropout rate applied after ESM-2 encoding
+    dropout_rates_2 = [0.0, 0.2, 0.3, 0.4, 0.5] #dropout rate applied in transformer encoder layers
     act_functions = ["relu", "gelu"]
 
     #Define trial suggestions; set hyperparameters
@@ -1568,6 +1569,7 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
     # Initialize optimizer - NO ESM-2 parameters at all initially
     optimizer = torch.optim.AdamW([
         {'params': model.TransformerEncoderBlock.parameters(), 'lr': lr_scratch},
+        {'params': model.pre_crf_norm.parameters(), 'lr': lr_scratch},
         {'params': model.linear_transform.parameters(), 'lr': lr_scratch},
         {'params': model.CRF.parameters(), 'lr': lr_scratch}
     ])

@@ -45,18 +45,22 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [x] Predict ART simulated reads with FGS og MetaProdigal
 - [x] Postprocess ART simulated reads with FGS og MetaProdigal 
 - [x] Push nye modeller til github før forsæt med implementering
-- [ ] Producer plot med fejlrater for art_modern simulerede reads; først transfer reads_processed til lokal
+- [x] Producer plot med fejlrater for art_modern simulerede reads
 - [x] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
 - [ ] Gentræn alle 8M modeller "all_genomes"
     - Mangler DeepCDS S+I (pLM); kører
 - [ ] Få alle re-predictions ud "all_genomes"
     - DeepCDS S (Full) og DeepCDS S+I (Full) færdig
 - [ ] opdater alle resultater
+    - [x] tests "error-free" opdateret alle steder
 - [ ] Genlæs resultatsektion med nye predictions
 - [ ] Tilføj ART simuleret read resultater
 - [ ] Gentræn DeepCDS S+I (Full) på mindre datasæt 
 - [ ] Få alle re-predictions ud "{100,200,400}_genomes"
-- [ ] Implementering til inference (GitHub)
+- [ ] Implementering til inference (GitHub) (se to do features under)
+    - [ ] Implementering af script
+    - [ ] Dokumentation i github; input og output beskrivelse 
+    - [ ] Installation guideline og requirements
 - [ ] Skriv diskussion
 - [ ] Skriv abstract 
 
@@ -79,7 +83,7 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [ ] Optional og required argumenter i argparse! Se netstart 2!
 
 
-### Scripts (clean-written check boxes)
+### Scripts (clean-written: check boxes)
 #### Data preprocessing
 - [x] 1. /data_preprocessing/sort_taxonomy.py (Get taxonomic information for all organisms in dataset)
 - [x] 2. /data_preprocessing/collect_genomic_information.py (merge taxonomic information for each organism with genomic statistical information and remove organisms with no family-level classification)
@@ -99,7 +103,7 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [x] 1. /data_analysis/generate_taxonomical_trees.ipynb (Generate taxonomical trees in newick format along with partition annotations)
 - [x] 1. /data_analysis/plot_genome_statistics.ipynb (plot different genome statistics based on RefSeq annotations and genomes, for each data partition)
 - [x] 1. /data_analysis/get_testset_statistics.ipynb (get statistics for test set)
-- [ ] 1. /data_analysis/check_testset_error_distributions.py (check error rates for each test set and check they are correct)
+- [x] 1. /data_analysis/check_testset_error_distributions.py (check error rates for each test set and check they are correct)
 
 #### Modeling: Shared CRF models
 - [ ] 1. /modeling/hyperparameter_tuning_shared_crf/hyperparameter_tuning_*.ipynb

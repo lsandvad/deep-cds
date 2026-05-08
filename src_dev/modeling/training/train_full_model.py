@@ -1620,8 +1620,8 @@ cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/full_model_h
 # Access them
 act_function = cfg.hyperparameters.act_function
 depth_transformer_encoder_blocks = cfg.hyperparameters.depth_transformer_encoder_blocks
-dropout_rate_1 = 0 #cfg.hyperparameters.dropout_rate_1
-dropout_rate_2 = 0 #cfg.hyperparameters.dropout_rate_2
+dropout_rate_1 = cfg.hyperparameters.dropout_rate_1
+dropout_rate_2 = cfg.hyperparameters.dropout_rate_2
 lr_esm2 = cfg.hyperparameters.lr_esm2
 lr_scratch = cfg.hyperparameters.lr_scratch
 n_attention_heads = cfg.hyperparameters.n_attention_heads

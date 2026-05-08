@@ -68,7 +68,6 @@ def simulate_reads(accession, read_length, coverage, error_profile) -> None:
     ]
 
     for strand_dir, ref in strands:
-        strand = "template" if strand_dir == "template_strand" else "complement"
         tmp = f"./tmp/{accession}_{strand_dir}"
 
         # ART simulates from both strands of the reference, so double the coverage
