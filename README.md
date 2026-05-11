@@ -31,16 +31,19 @@ conda activate deep-cds
 DeepCDS can be run via the command line by cloning this repository and installing the required packages as described in [Setup](#setup). 
 
 To test the installation, you can run the following command from the project root:
-```python ./predict_with_deepcds.py -in ./data_example/test.fasta --error_model S```
+```
+python ./predict_with_deepcds.py -in ./data_example/test.fasta --error_model S
+```
 
 DeepCDS can be run to predict on your own data using the general command:
-```python ./predict_with_deepcds.py -in INPUT_FASTA -error_model ERROR_MODEL [optional arguments]```
+```
+python ./predict_with_deepcds.py -in INPUT_FASTA -error_model ERROR_MODEL [optional arguments]
+```
 
-For a quick overview of all arguments, see [-Input](#input) below or run:
+For a quick overview of all arguments, see [-Input](#input) below or run
 ```python ./predict_with_deepcds.py --help```
 
 Please note that the DeepCDS prediction program uses the information stored in the /src, /models, and /configs directories. 
-
 
 ## Input
 DeepCDS requires an input fasta file with the sequences to be predicted on, as well as which error model the user wants to use. Additionally, DeepCDS accepts a range of optional arguments:
