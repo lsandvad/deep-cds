@@ -191,11 +191,11 @@ def validate_sequences(sequences):
         seq = seq.replace("U", "T")
         # Skip sequences shorter than 30 nt, a we only validate CDS fragments of >= 30 nt
         if len(seq) < 30:
-            print(f"  Warning: Skipping '{name}' — sequence too short ({len(seq)} nt, minimum 30 nt)")
+            print(f"  Warning: Skipping '{name}' - sequence too short ({len(seq)} nt, minimum 30 nt)")
             continue
         invalid_chars = set(seq) - valid_nucs
         if invalid_chars:
-            print(f"  Warning: '{name}' contains non-standard characters: {invalid_chars} — treating as N")
+            print(f"  Warning: '{name}' contains non-standard characters: {invalid_chars} - treating as N")
 
             #Convert all unknown/ambiguous chars to N
             seq = "".join(c if c in certain_nucs else "N" for c in seq)
@@ -896,7 +896,7 @@ def main():
             long_names.append(name)
             long_seqs.append(seq)
 
-    print(f"\nSequences: {len(short_names)} short (≤{trained_window_nt} nt), "
+    print(f"\nSequences: {len(short_names)} short (<={trained_window_nt} nt), "
           f"{len(long_names)} long (>{trained_window_nt} nt)")
 
     # ── Run inference ───────────────────────────────────────────────────────
