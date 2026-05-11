@@ -32,7 +32,7 @@ DeepCDS can be run via the command line by cloning this repository and installin
 
 To test the installation, you can run the following command from the project root:
 ```
-python ./predict_with_deepcds.py -in ./data_example/test.fasta --error_model none
+python ./predict_with_deepcds.py -in ./data_example/test.fasta --error_model S
 ```
 
 *Skriv noget med hjælp:* ```python ./predict_with_deepcds.py --help```

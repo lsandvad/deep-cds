@@ -1,0 +1,19 @@
+##gff-version 3
+Buchnera_aphidicola_1000bp_test_seq1	DeepCDS	CDS	2	298	.	+	1	ID=Buchnera_aphidicola_1000bp_test_seq1_CDS+_1;start=internal_region;end=stop_codon
+Buchnera_aphidicola_1000bp_test_seq1	DeepCDS	CDS	303	605	.	+	2	ID=Buchnera_aphidicola_1000bp_test_seq1_CDS+_2;start=start_codon;end=stop_codon
+Buchnera_aphidicola_1000bp_test_seq1	DeepCDS	CDS	681	998	.	+	2	ID=Buchnera_aphidicola_1000bp_test_seq1_CDS+_3;start=start_codon;end=internal_region
+Buchnera_aphidicola_1000bp_test_seq1	DeepCDS	stop_codon	296	298	.	+	.	ID=stop_codon_Buchnera_aphidicola_1000bp_test_seq1_0
+Buchnera_aphidicola_1000bp_test_seq1	DeepCDS	start_codon	303	305	.	+	.	ID=start_codon_Buchnera_aphidicola_1000bp_test_seq1_1
+Buchnera_aphidicola_1000bp_test_seq1	DeepCDS	stop_codon	603	605	.	+	.	ID=stop_codon_Buchnera_aphidicola_1000bp_test_seq1_2
+Buchnera_aphidicola_1000bp_test_seq1	DeepCDS	start_codon	681	683	.	+	.	ID=start_codon_Buchnera_aphidicola_1000bp_test_seq1_3
+Buchnera_aphidicola_700bp_test_seq2	DeepCDS	CDS	1	396	.	+	0	ID=Buchnera_aphidicola_700bp_test_seq2_CDS+_1;start=internal_region;end=stop_codon
+Buchnera_aphidicola_700bp_test_seq2	DeepCDS	CDS	399	698	.	+	2	ID=Buchnera_aphidicola_700bp_test_seq2_CDS+_2;start=start_codon;end=internal_region
+Buchnera_aphidicola_700bp_test_seq2	DeepCDS	stop_codon	394	396	.	+	.	ID=stop_codon_Buchnera_aphidicola_700bp_test_seq2_0
+Buchnera_aphidicola_700bp_test_seq2	DeepCDS	start_codon	399	401	.	+	.	ID=start_codon_Buchnera_aphidicola_700bp_test_seq2_1
+Buchnera_aphidicola_300bp_test_seq3	DeepCDS	CDS	1	300	.	+	0	ID=Buchnera_aphidicola_300bp_test_seq3_CDS+_1;start=internal_region;end=internal_region
+Buchnera_aphidicola_300bp_test_seq4	DeepCDS	CDS	106	300	.	+	0	ID=Buchnera_aphidicola_300bp_test_seq4_CDS+_1;start=start_codon;end=internal_region
+Buchnera_aphidicola_300bp_test_seq4	DeepCDS	start_codon	106	108	.	+	.	ID=start_codon_Buchnera_aphidicola_300bp_test_seq4_0
+Buchnera_aphidicola_300bp_test_seq5	DeepCDS	CDS	3	299	.	-	1	ID=Buchnera_aphidicola_300bp_test_seq5_CDS-_1;start=internal_region;end=internal_region
+Buchnera_aphidicola_300bp_test_seq6	DeepCDS	CDS	192	299	.	+	2	ID=Buchnera_aphidicola_300bp_test_seq6_CDS+_1;start=start_codon;end=internal_region
+Buchnera_aphidicola_300bp_test_seq6	DeepCDS	start_codon	192	194	.	+	.	ID=start_codon_Buchnera_aphidicola_300bp_test_seq6_0
+Buchnera_aphidicola_100bp_test_seq7	DeepCDS	CDS	3	98	.	+	2	ID=Buchnera_aphidicola_100bp_test_seq7_CDS+_1;start=internal_region;end=internal_region
