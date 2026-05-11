@@ -17,8 +17,7 @@ sys.path.insert(0, ROOT_DIR)
 
 SCRIPT = os.path.join(ROOT_DIR, "predict_with_deepcds.py")
 FASTA_PLAIN = os.path.join(ROOT_DIR, "data_example", "test.fasta")
-FASTA_LARGE = os.path.join(ROOT_DIR, "data_example", "GCF_000007365.1_test.fasta")
-GFF_EXAMPLE = os.path.join(ROOT_DIR, "data_example", "GCF_000007365.1_test_deepcds_predictions.gff")
+GFF_EXAMPLE = os.path.join(ROOT_DIR, "output_example", "test_deepcds_predictions.gff")
 MODEL_NONE = os.path.join(ROOT_DIR, "models", "deepcds.pth")
 MODEL_S = os.path.join(ROOT_DIR, "models", "deepcds_S.pth")
 MODEL_SI = os.path.join(ROOT_DIR, "models", "deepcds_SI.pth")
@@ -67,7 +66,7 @@ def test_extract_cds_from_gff_plain_fasta(tmp_path):
     from src.postprocessing import extract_cds_from_gff
     fna = str(tmp_path / "out.fna")
     faa = str(tmp_path / "out.faa")
-    extract_cds_from_gff(FASTA_LARGE, GFF_EXAMPLE, fna, faa)
+    extract_cds_from_gff(FASTA_PLAIN, GFF_EXAMPLE, fna, faa)
     assert os.path.getsize(fna) > 0
     assert os.path.getsize(faa) > 0
 
@@ -77,7 +76,7 @@ def test_extract_cds_from_gff_gzipped_fasta(tmp_path):
     gz_fasta = str(tmp_path / "input.fasta.gz")
     fna = str(tmp_path / "out.fna")
     faa = str(tmp_path / "out.faa")
-    with open(FASTA_LARGE, "rb") as src, gzip.open(gz_fasta, "wb") as dst:
+    with open(FASTA_PLAIN, "rb") as src, gzip.open(gz_fasta, "wb") as dst:
         dst.write(src.read())
     extract_cds_from_gff(gz_fasta, GFF_EXAMPLE, fna, faa)
     assert os.path.getsize(fna) > 0
@@ -87,11 +86,11 @@ def test_extract_cds_from_gff_gzipped_fasta(tmp_path):
 def test_extract_cds_from_gff_plain_and_gz_same_output(tmp_path):
     from src.postprocessing import extract_cds_from_gff
     gz_fasta = str(tmp_path / "input.fasta.gz")
-    with open(FASTA_LARGE, "rb") as src, gzip.open(gz_fasta, "wb") as dst:
+    with open(FASTA_PLAIN, "rb") as src, gzip.open(gz_fasta, "wb") as dst:
         dst.write(src.read())
     fna_plain = str(tmp_path / "plain.fna")
     fna_gz = str(tmp_path / "gz.fna")
-    extract_cds_from_gff(FASTA_LARGE, GFF_EXAMPLE, fna_plain, None)
+    extract_cds_from_gff(FASTA_PLAIN, GFF_EXAMPLE, fna_plain, None)
     extract_cds_from_gff(gz_fasta, GFF_EXAMPLE, fna_gz, None)
     with open(fna_plain) as f:
         content_plain = f.read()

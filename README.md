@@ -1,5 +1,5 @@
 # DeepCDS: *FINAL TITLE*
-DeepCDS is a deep learning-based model that predicts coding sequences (CDSs) in short prokaryotic DNA sequences. It also predicts start codon and stop codon positions. It can be used for prediction in both clean sequences, and sequences with sequencing errors (see `--error_model`). 
+DeepCDS is a deep learning-based model that predicts coding sequences (CDSs) in short prokaryotic DNA sequences. It also predicts start codon and stop codon positions. It can be used for prediction in both clean sequences, and sequences with sequencing errors. 
 
 The model was developed based on 300bp long sequences, but tested on sequences in the length range from 60-1000bp. 
 
