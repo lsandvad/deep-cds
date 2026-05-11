@@ -76,7 +76,7 @@ Examples:
         "-in", "--input_fasta",
         type=str,
         required=True,
-        help="Path to input FASTA file with nucleotide sequences (can also be in gzipped format with .gz extension)",
+        help="Path to input FASTA file with nucleotide sequences (can also be passed in gzipped format with .gz extension)",
     )
     parser.add_argument(
         "--error_model",
@@ -101,13 +101,12 @@ Examples:
                         default = "cuda",
                         choices=["cuda", "mps", "cpu"], 
                         help='Hardware accelerator to use. Options: "cuda" (NVIDIA GPU), "mps" (Apple Silicon), or "cpu". The program will automatically fall back to CPU if the requested device is unavailable.')
-        
 
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=256,
-        help="Batch size for inference (how many sequences are processed together in one iteration). If you have limited memory, try a smaller batch size (default: 256)",
+        default=128,
+        help="Batch size for inference (how many sequences are processed together in one iteration). If you have limited memory, try a smaller batch size (default: 128)",
     )
 
     parser.add_argument(
@@ -797,7 +796,13 @@ def main():
 
     # ── Output path ─────────────────────────────────────────────────────────
     if args.output is None:
-        fasta_stem = os.path.splitext(os.path.basename(args.input_fasta))[0]
+        fasta_stem = os.path.basename(args.input_fasta)
+        while True:
+            base, ext = os.path.splitext(fasta_stem)
+            if ext in (".gz", ".fasta", ".fa", ".fna", ".fq", ".fastq"):
+                fasta_stem = base
+            else:
+                break
         args.output = f"{fasta_stem}_deepcds_predictions"
 
     # ── Model configuration ─────────────────────────────────────────────────

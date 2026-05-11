@@ -85,7 +85,11 @@ def extract_cds_from_gff(fasta_path, gff_path, fna_path, faa_path):
     import sys
 
     _open = gzip.open if str(gff_path).endswith(".gz") else open
-    sequences = SeqIO.index(fasta_path, "fasta")
+    if str(fasta_path).endswith(".gz"):
+        with gzip.open(fasta_path, "rt") as _fasta_f:
+            sequences = SeqIO.to_dict(SeqIO.parse(_fasta_f, "fasta"))
+    else:
+        sequences = SeqIO.index(fasta_path, "fasta")
 
     ungrouped = []
     groups = defaultdict(list)
