@@ -10,41 +10,35 @@ on:
 
 jobs:
   test:
-    name: Run unit tests
-    runs-on: ubuntu-latest
+    name: Run unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup conda
-        uses: conda-incubator/setup-miniconda@v3
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          auto-activate-base: true
+          cache: "pip"
+          cache-dependency-path: "requirements_dev.txt"
 
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-tests-${{ hashFiles('requirements_dev.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-tests-
-            ${{ runner.os }}-pip-
-
-      - name: Install test dependencies
+      - name: Install PyTorch (CPU)
+        shell: bash
         run: |
-          pip install pytest
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install transformers==4.36.0 omegaconf==2.3.0 pytorch-crf==0.7.2 tqdm numpy pandas
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            pip install torch
+          else
+            pip install torch --index-url https://download.pytorch.org/whl/cpu
+          fi
 
-      # Model checkpoints live in data/ which is not tracked by git.
-      # Tests that require them (test_model_loads_correctly, test_prediction_runs_on_test_fasta)
-      # are skipped automatically in CI. To run them here, add a step that downloads
-      # the checkpoints into data/processed_data/model_data/ before pytest.
+      - name: Install dependencies
+        run: pip install pytest biopython pandas transformers==4.36.0 omegaconf==2.3.0 pytorch-crf==0.7.2 tqdm numpy
 
       - name: Run tests
-        run: |
-          pytest tests/ -v
-
-      - run: echo "Tests workflow ran"
+        run: pytest tests/ -v
