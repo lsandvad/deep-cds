@@ -27,19 +27,7 @@ conda env create -f environment.yml
 conda activate deep-cds
 ```
 
-
-
-
-requirements.txt — pip, pinned to your currently working versions. Users run:
-
-pip install -r requirements.txt
-
-
-environment.yml — conda, for a clean isolated environment. Users run:
-conda env create -f environment.yml
-conda activate deep-cds
-
-# Usage
+## Usage
 DeepCDS can be run via the command line by cloning this repository and installing the required packages. 
 
 To test the installation, you can run the following command from the project root:
@@ -57,7 +45,9 @@ Please note that the DeepCDS prediction program uses the information stored in t
 
 The input file (in FASTA format) and model type arguments are required. Additionally, DeepCDS accepts a range of optional arguments:
 
-### Opdater fuld liste med input argumenter 
+## Input
+DeepCDS requires a fasta file with the sequences to be predicted on, as well as which error model the user wants to use. Below is a description of all required and optional inputs.
+
 | Input Argument                      | Description                                     |
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 |`-in`, `--input_fasta`       | Input file in FASTA format. The allowed input alphabet is A, C, G, T, U and N (unknown). All the other letters will be treated as N. T and U are treated as equivalent. The input file can also be provided in gzipped format with a .gz extension.                                                                        |
@@ -70,15 +60,12 @@ The input file (in FASTA format) and model type arguments are required. Addition
 |`--gzip_output`| Specifies whether the output files should be gzipped (.gff.gz, .fna.gz, .faa.gz). Default value: `False`.|
 |`--suppress_output_files`| Comma-separated list of output formats to suppress. Options: `gff`, `fna`, `faa`. For example, `--suppress_output_files fna,faa` will omit writing the CDS sequences to both nucleotide-level and amino acid-level fasta files and only write the annotations to a .gff file. Default: `None` (writes all output files).|
 
-
-- Giv eksempel
-- Skriv hvad input er
-- [x] Beskriv input argumenter 
-- Skriv hvad output er! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser
+## Output formats
+*skriv her; Skriv hvad output er! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser*
 
 
 # Noter og TODO til mig selv 
-### TO DO opdateret 1. Maj
+### TO DO opdateret 11. Maj
 - [x] MOVE FGS AND METAPRODIGAL RAW PREDICTIONS!!! 
 - [x] MOVE FGS AND METAPRODIGAL PROCESSED PREDICTIONS!!! 
 - [x] Predict ART simulated reads with FGS og MetaProdigal
