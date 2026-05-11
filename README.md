@@ -28,7 +28,7 @@ conda activate deep-cds
 ```
 
 ## Usage
-DeepCDS can be run via the command line by cloning this repository and installing the required packages. 
+DeepCDS can be run via the command line by cloning this repository and installing the required packages as described in [Setup](#setup). 
 
 To test the installation, you can run the following command from the project root:
 ```
