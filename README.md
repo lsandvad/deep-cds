@@ -4,9 +4,43 @@ Project workspace for DeepCDS project; write description, including:
 - Prediction on short reads / short sequences (but also tester on longer sequences)
 - Versions trained on data both with and without sequencing error - which is selected influences outcome
 
-# Installation
+# DeepCDS Webserver 
+*Link to and describe health tech server (if it will be hosted there)*
 
-# Usage Instructions
+# Instructions for local use
+## Setup
+All DeepCDS source code required for inference has been written in Python. DeepCDS can be installed for local usage by first cloning this repository:
+```
+git clone https://github.com/lsandvad/deep-cds.git
+cd deep-cds
+```
+
+The required packages can then be installed. Via pip:
+```
+pip install -e .
+OR
+pip install -r requirements.txt
+```
+
+If you want to setup a clean, isolated conda environment for DeepCDS, you can run:
+```
+conda env create -f environment.yml
+conda activate deep-cds
+```
+
+
+
+
+requirements.txt — pip, pinned to your currently working versions. Users run:
+
+pip install -r requirements.txt
+
+
+environment.yml — conda, for a clean isolated environment. Users run:
+conda env create -f environment.yml
+conda activate deep-cds
+
+# Usage
 DeepCDS can be run via the command line by cloning this repository and installing the required packages. 
 
 To test the installation, you can run the following command from the project root:
@@ -53,10 +87,8 @@ The input file (in FASTA format) and model type arguments are required. Addition
 - [x] Push nye modeller til github før forsæt med implementering
 - [x] Producer plot med fejlrater for art_modern simulerede reads
 - [x] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
-- [ ] Gentræn alle 8M modeller "all_genomes"
-    - Mangler DeepCDS S+I (pLM); kører
+- [x] Gentræn alle 8M modeller "all_genomes"
 - [ ] Få alle re-predictions ud "all_genomes"
-    - DeepCDS S (Full) og DeepCDS S+I (Full) færdig
 - [ ] opdater alle resultater
     - [x] tests "error-free" opdateret alle steder
 - [ ] Genlæs resultatsektion med nye predictions
