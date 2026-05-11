@@ -1,8 +1,7 @@
-# DeepCDS
-Project workspace for DeepCDS project; write description, including:
-- Developed for prokaryotic sequences
-- Prediction on short reads / short sequences (but also tester on longer sequences)
-- Versions trained on data both with and without sequencing error - which is selected influences outcome
+# DeepCDS: *FINAL TITLE*
+DeepCDS is a deep learning-based model that predicts coding sequences (CDSs) in short prokaryotic DNA sequences. It also predicts start codon and stop codon positions. It can be used for prediction in both clean sequences, and sequences with sequencing errors (see `--error_model`). 
+
+The model was developed based on 300bp long sequences, but tested on sequences in the length range from 60-1000bp. 
 
 # DeepCDS Webserver 
 *Link to and describe health tech server (if it will be hosted there)*
@@ -62,7 +61,7 @@ The input file (in FASTA format) and model type arguments are required. Addition
 | Input Argument                      | Description                                     |
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 |`-in`, `--input_fasta`       | Input file in FASTA format. The allowed input alphabet is A, C, G, T, U and N (unknown). All the other letters will be treated as N. T and U are treated as equivalent. The input file can also be provided in gzipped format with a .gz extension.                                                                        |
-|`--error_model` | The type of sequence data DeepCDS was trained on based on presence of sequencing errors. Options are: `none` (DeepCDS (Full); trained on error-free data), `S` (DeepCDS S (Full); trained on sequences with substitution errors), `SI` (DeepCDS S+I (Full); trained on sequences with both substitution, insertion and deletion errors). We recommend using `none` for complete genomic sequences without sequencing errors. |
+|`--error_model` | The type of sequence data DeepCDS was trained on based on presence of sequencing errors. Options are: `none` (DeepCDS (Full); trained on error-free data), `S` (DeepCDS S (Full); trained on sequences with substitution errors), `SI` (DeepCDS S+I (Full); trained on sequences with both substitution, insertion and deletion errors). Please note that this the choice of error model can notably influence your results. We recommend using `none` for complete genomic sequences without sequencing errors. |
 |`--output` | The output file path and name witohut file format extension. Default: `<input_fasta_stem>_deepcds_predictions`. |
 |`--compute_device` | Which hardware accelerator to use. Options are:  `cuda` (NVIDIA GPU), `mps` (Apple Silicon), or `cpu`. The program will automatically fall back to CPU if the requested device is unavailable. Default: `cuda`|
 | `--batch_size`    | Specifies the number of samples to process together in a single pass during prediction. If you have limited memory, try a smaller batch size. Default value: `128`.                                     |
