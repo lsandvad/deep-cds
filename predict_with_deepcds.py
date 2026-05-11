@@ -811,9 +811,14 @@ def main():
 
     # ── Device setup ────────────────────────────────────────────────────────
     if args.compute_device == "cuda":
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        num_workers_cpu = 2
-        pin_memory = True
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+            num_workers_cpu = 2
+            pin_memory = True
+        else:
+            device = torch.device("cpu")
+            num_workers_cpu = 0
+            pin_memory = False
     elif args.compute_device == "mps":
         device = torch.device("mps" if torch.mps.is_available() else "cpu")
         num_workers_cpu = 0
