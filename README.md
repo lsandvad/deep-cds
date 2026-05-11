@@ -3,7 +3,7 @@ DeepCDS is a deep learning-based model that predicts coding sequences (CDSs) in 
 
 The model was developed based on 300bp long sequences, but tested on sequences in the length range from 60-1000bp. 
 
-# DeepCDS Webserver 
+# Webserver 
 *Link to and describe health tech server (if it will be hosted there)*
 
 # Instructions for local use
@@ -31,34 +31,31 @@ conda activate deep-cds
 DeepCDS can be run via the command line by cloning this repository and installing the required packages as described in [Setup](#setup). 
 
 To test the installation, you can run the following command from the project root:
-```
-python ./predict_with_deepcds.py -in ./data_example/test.fasta --error_model S
-```
-
-*Skriv noget med hjælp:* ```python ./predict_with_deepcds.py --help```
+```python ./predict_with_deepcds.py -in ./data_example/test.fasta --error_model S```
 
 DeepCDS can be run to predict on your own data using the general command:
-```
-python ./predict_with_deepcds.py -in INPUT_FASTA -error_model ERROR_MODEL [optional arguments]
-```
+```python ./predict_with_deepcds.py -in INPUT_FASTA -error_model ERROR_MODEL [optional arguments]```
+
+For a quick overview of all arguments, see [-Input](#input) below or run:
+```python ./predict_with_deepcds.py --help```
+
 Please note that the DeepCDS prediction program uses the information stored in the /src, /models, and /configs directories. 
 
-The input file (in FASTA format) and model type arguments are required. Additionally, DeepCDS accepts a range of optional arguments:
 
 ## Input
-DeepCDS requires a fasta file with the sequences to be predicted on, as well as which error model the user wants to use. Below is a description of all required and optional inputs.
+DeepCDS requires an input fasta file with the sequences to be predicted on, as well as which error model the user wants to use. Additionally, DeepCDS accepts a range of optional arguments:
 
 | Input Argument                      | Description                                     |
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
-|`-in`, `--input_fasta`       | Input file in FASTA format. The allowed input alphabet is A, C, G, T, U and N (unknown). All the other letters will be treated as N. T and U are treated as equivalent. The input file can also be provided in gzipped format with a .gz extension.                                                                        |
-|`--error_model` | The type of sequence data DeepCDS was trained on based on presence of sequencing errors. Options are: `none` (DeepCDS (Full); trained on error-free data), `S` (DeepCDS S (Full); trained on sequences with substitution errors), `SI` (DeepCDS S+I (Full); trained on sequences with both substitution, insertion and deletion errors). Please note that this the choice of error model can notably influence your results. We recommend using `none` for complete genomic sequences without sequencing errors. |
-|`--output` | The output file path and name witohut file format extension. Default: `<input_fasta_stem>_deepcds_predictions`. |
+|`-in`, `--input_fasta`       | Required: Input file in FASTA format. The allowed input alphabet is A, C, G, T, U and N (unknown). All the other letters will be treated as N. T and U are treated as equivalent. The input file can also be provided in gzipped format with a .gz extension.                                                                        |
+|`--error_model` | Required: The type of sequence data DeepCDS was trained on based on presence of sequencing errors. Options are: `none` (DeepCDS (Full); trained on error-free data), `S` (DeepCDS S (Full); trained on sequences with substitution errors), `SI` (DeepCDS S+I (Full); trained on sequences with both substitution, insertion and deletion errors). Please note that this the choice of error model can notably influence your results. We recommend using `none` for complete genomic sequences without sequencing errors. |
+|`--output` | Optional: The output file path and name witohut file format extension. Default: `<input_fasta_stem>_deepcds_predictions`. |
 |`--compute_device` | Which hardware accelerator to use. Options are:  `cuda` (NVIDIA GPU), `mps` (Apple Silicon), or `cpu`. The program will automatically fall back to CPU if the requested device is unavailable. Default: `cuda`|
-| `--batch_size`    | Specifies the number of samples to process together in a single pass during prediction. If you have limited memory, try a smaller batch size. Default value: `128`.                                     |
-|`--min_cds_length` | Minimum length in base pairs for a predicted CDS sequences. We recommend not going below 30 base pairs as predictive performance below this threshold has not been evaluated. Default value: `60`|
-|`--stride_aa` | The sliding window stride in codons for long sequences (how many codons the prediction window advances between each inference step). Smaller stride gives larger overlap between consecutive windows and may improve accuracy, but increases computation time. Default value: `50`.|
-|`--gzip_output`| Specifies whether the output files should be gzipped (.gff.gz, .fna.gz, .faa.gz). Default value: `False`.|
-|`--suppress_output_files`| Comma-separated list of output formats to suppress. Options: `gff`, `fna`, `faa`. For example, `--suppress_output_files fna,faa` will omit writing the CDS sequences to both nucleotide-level and amino acid-level fasta files and only write the annotations to a .gff file. Default: `None` (writes all output files).|
+| `--batch_size`    | Optional: Specifies the number of samples to process together in a single pass during prediction. If you have limited memory, try a smaller batch size. Default value: `128`.                                     |
+|`--min_cds_length` | Optional: Minimum length in base pairs for a predicted CDS sequences. We recommend not going below 30 base pairs as predictive performance below this threshold has not been evaluated. Default value: `60`|
+|`--stride_aa` | Optional: The sliding window stride in codons for long sequences (how many codons the prediction window advances between each inference step). Smaller stride gives larger overlap between consecutive windows and may improve accuracy, but increases computation time. Default value: `50`.|
+|`--gzip_output`| Optional: Specifies whether the output files should be gzipped (.gff.gz, .fna.gz, .faa.gz). Default value: `False`.|
+|`--suppress_output_files`| Optional: Comma-separated list of output formats to suppress. Options: `gff`, `fna`, `faa`. For example, `--suppress_output_files fna,faa` will omit writing the CDS sequences to both nucleotide-level and amino acid-level fasta files and only write the annotations to a .gff file. Default: `None` (writes all output files).|
 
 ## Output formats
 *skriv her; Skriv hvad output er! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser*
