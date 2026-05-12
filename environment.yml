@@ -1,11 +1,9 @@
 name: deep-cds
 channels:
-  - pytorch
   - conda-forge
   - defaults
 dependencies:
   - python=3.10
-  - pytorch=2.9.1
   - pip
   - pip:
     - biopython==1.85
@@ -15,4 +13,5 @@ dependencies:
     - pytorch-crf==0.7.2
     - PyYAML==6.0.2
     - tqdm==4.67.1
+    - torch==2.9.1
     - transformers==4.36.0

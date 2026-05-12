@@ -14,13 +14,14 @@ git clone https://github.com/lsandvad/deep-cds.git
 cd deep-cds
 ```
 
-The required packages can then be installed. Via pip:
+The required packages can then be installed. 
+
+#### Via pip
 ```
-pip install -e .
-OR
 pip install -r requirements.txt
 ```
 
+#### Conda environment
 If you want to setup a clean, isolated conda environment for DeepCDS, you can run:
 ```
 conda env create -f environment.yml
@@ -40,8 +41,8 @@ DeepCDS can be run to predict on your own data using the general command:
 python ./predict_with_deepcds.py -in INPUT_FASTA -error_model ERROR_MODEL [optional arguments]
 ```
 
-For a quick overview of all arguments, see [-Input](#input) below or run
-```python ./predict_with_deepcds.py --help```
+For a quick overview of all arguments, see [Input](#input) below or run
+```python ./predict_with_deepcds.py --help```.
 
 Please note that the DeepCDS prediction program uses the information stored in the /src, /models, and /configs directories. 
 

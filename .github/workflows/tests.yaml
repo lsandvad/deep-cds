@@ -42,3 +42,29 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v
+
+  test-torch-versions:
+    name: PyTorch compatibility (torch ${{ matrix.torch-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        torch-version: ["2.1.0", "2.3.0", "2.5.0", "2.9.1"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyTorch ${{ matrix.torch-version }} (CPU)
+        run: pip install torch==${{ matrix.torch-version }} --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies
+        run: pip install pytest biopython pandas transformers==4.36.0 omegaconf==2.3.0 pytorch-crf==0.7.2 tqdm numpy
+
+      - name: Run tests
+        run: pytest tests/ -v
