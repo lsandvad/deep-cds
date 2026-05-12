@@ -22,7 +22,7 @@ pip install -r requirements.txt
 ```
 
 #### Via conda environment
-If you want to setup a clean and isolated conda environment for DeepCDS, you can run:
+If you want to set up a clean and isolated conda environment for DeepCDS, you can run:
 ```
 conda env create -f environment.yml
 conda activate deep-cds
@@ -52,7 +52,7 @@ DeepCDS requires an input fasta file with the sequences to be predicted on, as w
 | Input Argument                      | Description                                     |
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 |`-in`, `--input_fasta`       | Required: Input file in FASTA format. The allowed input alphabet is A, C, G, T, U and N (unknown). All the other letters will be treated as N. T and U are treated as equivalent. The input file can also be provided in gzipped format with a .gz extension.                                                                        |
-|`--error_model` | Required: The type of sequence data DeepCDS was trained on based on presence of sequencing errors. Options are: `none` (DeepCDS (Full); trained on error-free data), `S` (DeepCDS S (Full); trained on sequences with substitution errors), `SI` (DeepCDS S+I (Full); trained on sequences with both substitution, insertion and deletion errors). Please note that this the choice of error model can notably influence your results. We recommend using `none` for complete genomic sequences without sequencing errors. |
+|`--error_model` | Required: The type of sequence data DeepCDS was trained on based on presence of sequencing errors. Options are: `none` (DeepCDS (Full); trained on error-free data), `S` (DeepCDS S (Full); trained on sequences with substitution errors), `SI` (DeepCDS S+I (Full); trained on sequences with both substitution, insertion and deletion errors). Please note that the choice of error model can notably influence your results. We recommend using `none` for complete genomic sequences without sequencing errors. |
 |`--output` | Optional: The output file path and name witohut file format extension. Default: `<input_fasta_stem>_deepcds_predictions`. |
 |`--compute_device` | Which hardware accelerator to use. Options are:  `cuda` (NVIDIA GPU), `mps` (Apple Silicon), or `cpu`. The program will automatically fall back to CPU if the requested device is unavailable. Default: `cuda`|
 | `--batch_size`    | Optional: Specifies the number of samples to process together in a single pass during prediction. If you have limited memory, try a smaller batch size. Default value: `128`.                                     |
