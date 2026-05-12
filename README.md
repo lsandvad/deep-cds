@@ -75,7 +75,8 @@ DeepCDS requires an input fasta file with the sequences to be predicted on, as w
 - [x] Producer plot med fejlrater for art_modern simulerede reads
 - [x] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
 - [x] Gentræn alle 8M modeller "all_genomes"
-- [ ] Få alle re-predictions ud "all_genomes"
+- [x] Få alle re-predictions ud "all_genomes"
+- [x] Postprocessing af alle re-predictions "all_genomes"
 - [ ] opdater alle resultater
     - [x] tests "error-free" opdateret alle steder
 - [ ] Genlæs resultatsektion med nye predictions
