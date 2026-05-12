@@ -4,6 +4,6 @@ omegaconf==2.3.0
 pandas==2.3.3
 pytorch-crf==0.7.2
 PyYAML==6.0.2
-torch==2.9.1
+torch>=2.4.0
 tqdm==4.67.1
 transformers==4.36.0
