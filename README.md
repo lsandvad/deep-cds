@@ -21,8 +21,8 @@ The required packages can then be installed.
 pip install -r requirements.txt
 ```
 
-#### Conda environment
-If you want to setup a clean, isolated conda environment for DeepCDS, you can run:
+#### Via conda environment
+If you want to setup a clean and isolated conda environment for DeepCDS, you can run:
 ```
 conda env create -f environment.yml
 conda activate deep-cds
@@ -59,10 +59,11 @@ DeepCDS requires an input fasta file with the sequences to be predicted on, as w
 |`--min_cds_length` | Optional: Minimum length in base pairs for a predicted CDS sequences. We recommend not going below 30 base pairs as predictive performance below this threshold has not been evaluated. Default value: `60`|
 |`--stride_aa` | Optional: The sliding window stride in codons for long sequences (how many codons the prediction window advances between each inference step). Smaller stride gives larger overlap between consecutive windows and may improve accuracy, but increases computation time. Default value: `50`.|
 |`--gzip_output`| Optional: Specifies whether the output files should be gzipped (.gff.gz, .fna.gz, .faa.gz). Default value: `False`.|
-|`--suppress_output_files`| Optional: Comma-separated list of output formats to suppress. Options: `gff`, `fna`, `faa`. For example, `--suppress_output_files fna,faa` will omit writing the CDS sequences to both nucleotide-level and amino acid-level fasta files and only write the annotations to a .gff file. Default: `None` (writes all output files).|
+|`--suppress_output_files`| Optional: Comma-separated list of output formats to suppress. Options: `gff`, `fna`, `faa`. For example, `--suppress_output_files fna,faa` will omit writing the CDS sequences to both nucleotide-level and amino acid-level fasta files and only write the annotations to a .gff file. See [Output formats](#output-formats) for a description of the output files. Default: `None` (writes all output files).|
 
 ## Output formats
-*skriv her; Skriv hvad output er! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser*
+The output is provided as three files: a .gff file with the CDS annotations (including start codon and stop codon psoitons), a .fna file with the predicted CDS sequences, and a .faa file with the predicted CDS sequences translated into the corresponding amino acid sequence. 
+*forsæt her; Skriv hvad output er, særlige noter osv.! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser*
 
 
 # Noter og TODO til mig selv 
@@ -93,9 +94,9 @@ DeepCDS requires an input fasta file with the sequences to be predicted on, as w
 ### Manuskript; mangler
 - [ ] Abstract
 - Resultater: 
-    - [ ] "Findings from abalations..." ESM-2 ablations (træner stadig)
-        - [ ] 100, 200, 400 genomer?
-        - [ ] Træningsdata størrelse: Skriv at vi har undersøgt performance som funktion af træningsdata størrelsen (antal genomer) og det ikke giver så meget fra XX til XX… (enkelt sætning)
+    - [ ] "Other experiments"
+        - [ ] 100, 200, 400 genomer - Træningsdata størrelse: Skriv at vi har undersøgt performance som funktion af træningsdata størrelsen (antal genomer) og det ikke giver så meget fra XX til XX… (enkelt sætning)
+        - [ ] ART simulering performance 
 - [ ] Diskussion
 
 ### Implementering af script til prediction
@@ -147,10 +148,6 @@ DeepCDS requires an input fasta file with the sequences to be predicted on, as w
 
 
 ## Info
-### Make public - notes
-- [ ] Use ```pipreqs <dir>``` on both ```src_dev``` and ```src``` to get out required packages and versions (requirements and requirements_dev.txt). UPDATE THIS IN THE END!!! Does not take into account notebooks. 
-- [ ] Write tool versions used for development + benchmark (Mason, FGS, MetaProdigal?)
-
 
 Eksempler: 
 Deletion: 
