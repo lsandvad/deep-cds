@@ -67,7 +67,7 @@ The output is provided as three files: a .gff file with the CDS annotations (inc
 
 
 # Noter og TODO til mig selv 
-### TO DO opdateret 11. Maj
+### TO DO opdateret 18. Maj
 - [x] MOVE FGS AND METAPRODIGAL RAW PREDICTIONS!!! 
 - [x] MOVE FGS AND METAPRODIGAL PROCESSED PREDICTIONS!!! 
 - [x] Predict ART simulated reads with FGS og MetaProdigal
