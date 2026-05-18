@@ -78,17 +78,17 @@ The output is provided as three files: a .gff file with the CDS annotations (inc
 - [x] Gentræn alle 8M modeller "all_genomes"
 - [x] Få alle re-predictions ud "all_genomes"
 - [x] Postprocessing af alle re-predictions "all_genomes"
-- [ ] opdater alle resultater
-    - [x] tests "error-free" opdateret alle steder
-- [ ] Genlæs resultatsektion med nye predictions
-- [ ] Tilføj ART simuleret read resultater
+- [x] opdater alle resultater
+- [x] Genlæs resultatsektion med nye predictions
+- [x] Tilføj ART simuleret read resultater
 - [ ] Gentræn DeepCDS S+I (Full) på mindre datasæt 
 - [ ] Få alle re-predictions ud "{100,200,400}_genomes"
 - [ ] Implementering til inference (GitHub) (se to do features under)
     - [x] Implementering af script
     - [ ] Dokumentation i github; input og output beskrivelse 
     - [ ] Installation guideline og requirements
-- [ ] Skriv diskussion
+- [x] Skriv diskussion
+    - [ ] Formuler mere præcist/skarpt
 - [ ] Skriv abstract 
 
 ### Manuskript; mangler
@@ -96,8 +96,6 @@ The output is provided as three files: a .gff file with the CDS annotations (inc
 - Resultater: 
     - [ ] "Other experiments"
         - [ ] 100, 200, 400 genomer - Træningsdata størrelse: Skriv at vi har undersøgt performance som funktion af træningsdata størrelsen (antal genomer) og det ikke giver så meget fra XX til XX… (enkelt sætning)
-        - [ ] ART simulering performance 
-- [ ] Diskussion
 
 ### Implementering af script til prediction
 - [x] Output fasta filer
@@ -136,7 +134,7 @@ The output is provided as three files: a .gff file with the CDS annotations (inc
 - [ ] 2. /modeling/training/train_esm2.py
 - [ ] 2. /modeling/training/train_full_model.py
 
-#### Performance and benchmark UPDATE
+#### Performance and benchmark
 - [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
 - [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal) 
 - [x] 1. /benchmark/predict/predict_with_DeepCDS.py (Predict with DeepCDS)
@@ -145,6 +143,19 @@ The output is provided as three files: a .gff file with the CDS annotations (inc
 - [ ] 2. /postprocess_preds/postprocess_model_predictions.py (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_prodigal_predictions.ipynb (Postprocess testset)
+
+
+- [x] 3. /eval/without_errors/start_stop_coodn_evaluation.ipynb (start and stop cdon identification performance; test sets without erros)
+- [x] 3. /eval/without_errors/codon_level_read_length.ipynb (codon-level performance; measured as MCC; test sets without errors)
+- [ ] 3. /eval/without_errors/organisms_families_gc_content.ipynb (different analyses measured on different phylogenetic groups and across GC content intervals; test sets without errors)
+- [ ] 3. /eval/without_errors/cds_level_read_length.ipynb (CDS-level performance across all test set read lengths; test sets without errors)
+
+- [x] 3. /eval/with_errors/start_stop_codon_evaluation.ipynb (start and stop cdon identification performance; test sets with errors)
+- [x] 3. /eval/with_errors/codon_level_read_length.ipynb (codon-level performance; measured as MCC; test sets with errors)
+- [ ] 3. /eval/with_errors/organisms_families_gc_content.ipynb (different analyses measured on different phylogenetic groups and across GC content intervals; test sets with errors)
+- [ ] 3. /eval/with_errors/cds_level_read_length.ipynb (CDS-level performance across all test set read lengths; test sets with errors)
+- [ ] 3. INDEL SCRIPT
+- [ ] 3. PLOT_METRICS_VS_ERROR_RATE SCRIPT
 
 
 ## Info
