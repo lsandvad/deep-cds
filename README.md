@@ -81,15 +81,15 @@ The output is provided as three files: a .gff file with the CDS annotations (inc
 - [x] opdater alle resultater
 - [x] Genlæs resultatsektion med nye predictions
 - [x] Tilføj ART simuleret read resultater
-- [ ] Gentræn DeepCDS S+I (Full) på mindre datasæt 
+- [x] Gentræn DeepCDS S+I (Full) på mindre datasæt 
 - [ ] Få alle re-predictions ud "{100,200,400}_genomes"
 - [ ] Implementering til inference (GitHub) (se to do features under)
     - [x] Implementering af script
     - [ ] Dokumentation i github; input og output beskrivelse 
-    - [ ] Installation guideline og requirements
+    - [x] Installation guideline og requirements
+    - [ ] Implementer Ole's feedback
 - [x] Skriv diskussion
-    - [ ] Formuler mere præcist/skarpt
-- [ ] Skriv abstract 
+- [x] Skriv abstract 
 
 ### Manuskript; mangler
 - [ ] Abstract
