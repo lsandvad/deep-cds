@@ -67,7 +67,7 @@ The output is provided as three files: a .gff file with the CDS annotations (inc
 
 
 # Noter og TODO til mig selv 
-### TO DO opdateret 18. Maj
+### TO DO opdateret 20. Maj
 - [x] MOVE FGS AND METAPRODIGAL RAW PREDICTIONS!!! 
 - [x] MOVE FGS AND METAPRODIGAL PROCESSED PREDICTIONS!!! 
 - [x] Predict ART simulated reads with FGS og MetaProdigal
@@ -82,7 +82,21 @@ The output is provided as three files: a .gff file with the CDS annotations (inc
 - [x] Genlæs resultatsektion med nye predictions
 - [x] Tilføj ART simuleret read resultater
 - [x] Gentræn DeepCDS S+I (Full) på mindre datasæt 
-- [ ] Få alle re-predictions ud "{100,200,400}_genomes"
+- [x] Få alle re-predictions ud "{100,200,400}_genomes"
+- [x] Postprocesser 100,200,400...
+- [ ] Plot med træningsdata størrelse ablation
+- [ ] Træn codon encoding-only modeller
+    - [ ] None
+    - [ ] S -> KØRER
+    - [ ] SI -> KØRER
+- [ ] Predict på codon encoding only modeller (typical error datasæt)
+- [ ] Resultatplot for codon encoding
+- [ ] Ret manuscript til efter Ole's feedback
+- [ ] p-værdier script og rapportering
+    - [ ] Implementering af script
+    - [x] Supplementary note beskrivelse
+    - [ ] Indsæt i resultater
+- [ ] Fix bug i overlap-kriterie målinger!
 - [ ] Implementering til inference (GitHub) (se to do features under)
     - [x] Implementering af script
     - [ ] Dokumentation i github; input og output beskrivelse 
