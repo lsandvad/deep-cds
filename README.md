@@ -92,14 +92,12 @@ The output is provided as three files: a .gff file with the CDS annotations (inc
 - [ ] Predict på codon encoding only modeller (typical error datasæt)
 - [ ] Resultatplot for codon encoding
 - [x] Ret manuscript til efter Ole's feedback
-- [ ] p-værdier script og rapportering
-    - [x] Implementering af script
-    - [x] Supplementary note beskrivelse
-    - [ ] Indsæt i resultater
+- [x] p-værdier script og rapportering
 - [x] Fix bug i overlap-kriterie målinger!
 - [ ] Implementering til inference (GitHub) (se to do features under)
     - [x] Implementering af script
-    - [ ] Dokumentation i github; input og output beskrivelse 
+    - [x] Dokumentation i github; input beskrivelse 
+    - [ ] Dokumentation i github; output beskrivelse 
     - [x] Installation guideline og requirements
     - [x] Implementer Ole's feedback
 - [x] Skriv diskussion

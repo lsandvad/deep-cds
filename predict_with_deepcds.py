@@ -100,7 +100,7 @@ Examples:
                         type=str,
                         default="auto",
                         choices=["auto", "cuda", "mps", "cpu"],
-                        help='Hardware accelerator to use. "auto" (default) selects the best available device (cuda → mps → cpu). Other options: "cuda" (NVIDIA GPU), "mps" (Apple Silicon), "cpu".')
+                        help='Hardware accelerator to use. "auto" (default) selects the best available device (cuda -> mps -> cpu). Other options: "cuda" (NVIDIA GPU), "mps" (Apple Silicon), "cpu".')
 
     parser.add_argument(
         "--batch_size",
