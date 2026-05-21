@@ -54,7 +54,7 @@ DeepCDS requires an input fasta file with the sequences to be predicted on, as w
 |`-in`, `--input_fasta`       | Required: Input file in FASTA format. The allowed input alphabet is A, C, G, T, U and N (unknown). All the other letters will be treated as N. T and U are treated as equivalent. The input file can also be provided in gzipped format with a .gz extension.                                                                        |
 |`--error_model` | Required: The type of sequence data DeepCDS was trained on based on presence of sequencing errors. Options are: `none` (DeepCDS (Full); trained on error-free data), `S` (DeepCDS S (Full); trained on sequences with substitution errors), `SI` (DeepCDS S+I (Full); trained on sequences with both substitution, insertion and deletion errors). Please note that the choice of error model can notably influence your results. We recommend using `none` for complete genomic sequences without sequencing errors. |
 |`--output` | Optional: The output file path and name witohut file format extension. Default: `<input_fasta_stem>_deepcds_predictions`. |
-|`--compute_device` | Which hardware accelerator to use. Options are:  `cuda` (NVIDIA GPU), `mps` (Apple Silicon), or `cpu`. The program will automatically fall back to CPU if the requested device is unavailable. Default: `cuda`|
+|`--compute_device` | Which hardware accelerator to use. Options are: `cuda` (NVIDIA GPU), `mps` (Apple Silicon), `cpu` or `auto` (selects the best available device in order cuda &rarr; mps &rarr; cpu). The program will automatically fall back to CPU if the requested device is unavailable. Default: `auto`|
 | `--batch_size`    | Optional: Specifies the number of samples to process together in a single pass during prediction. If you have limited memory, try a smaller batch size. Default value: `128`.                                     |
 |`--min_cds_length` | Optional: Minimum length in base pairs for a predicted CDS sequences. We recommend not going below 30 base pairs as predictive performance below this threshold has not been evaluated. Default value: `60`|
 |`--stride_aa` | Optional: The sliding window stride in codons for long sequences (how many codons the prediction window advances between each inference step). Smaller stride gives larger overlap between consecutive windows and may improve accuracy, but increases computation time. Default value: `50`.|
@@ -84,16 +84,16 @@ The output is provided as three files: a .gff file with the CDS annotations (inc
 - [x] Gentræn DeepCDS S+I (Full) på mindre datasæt 
 - [x] Få alle re-predictions ud "{100,200,400}_genomes"
 - [x] Postprocesser 100,200,400...
-- [ ] Plot med træningsdata størrelse ablation
+- [x] Plot med træningsdata størrelse ablation
 - [ ] Træn codon encoding-only modeller
     - [ ] None
     - [ ] S -> KØRER
     - [ ] SI -> KØRER
 - [ ] Predict på codon encoding only modeller (typical error datasæt)
 - [ ] Resultatplot for codon encoding
-- [ ] Ret manuscript til efter Ole's feedback
+- [x] Ret manuscript til efter Ole's feedback
 - [ ] p-værdier script og rapportering
-    - [ ] Implementering af script
+    - [x] Implementering af script
     - [x] Supplementary note beskrivelse
     - [ ] Indsæt i resultater
 - [ ] Fix bug i overlap-kriterie målinger!
@@ -104,12 +104,6 @@ The output is provided as three files: a .gff file with the CDS annotations (inc
     - [ ] Implementer Ole's feedback
 - [x] Skriv diskussion
 - [x] Skriv abstract 
-
-### Manuskript; mangler
-- [ ] Abstract
-- Resultater: 
-    - [ ] "Other experiments"
-        - [ ] 100, 200, 400 genomer - Træningsdata størrelse: Skriv at vi har undersøgt performance som funktion af træningsdata størrelsen (antal genomer) og det ikke giver så meget fra XX til XX… (enkelt sætning)
 
 ### Implementering af script til prediction
 - [x] Output fasta filer

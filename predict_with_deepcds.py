@@ -97,10 +97,10 @@ Examples:
         help="Output file path and name without file format extension (default: <fasta_stem>_deepcds_predictions)",
     )
     parser.add_argument('--compute_device',
-                        type = str,
-                        default = "cuda",
-                        choices=["cuda", "mps", "cpu"], 
-                        help='Hardware accelerator to use. Options: "cuda" (NVIDIA GPU), "mps" (Apple Silicon), or "cpu". The program will automatically fall back to CPU if the requested device is unavailable.')
+                        type=str,
+                        default="auto",
+                        choices=["auto", "cuda", "mps", "cpu"],
+                        help='Hardware accelerator to use. "auto" (default) selects the best available device (cuda → mps → cpu). Other options: "cuda" (NVIDIA GPU), "mps" (Apple Silicon), "cpu".')
 
     parser.add_argument(
         "--batch_size",
@@ -810,23 +810,20 @@ def main():
     label_classes = 6 if args.error_model == "SI" else 4
 
     # ── Device setup ────────────────────────────────────────────────────────
-    if args.compute_device == "cuda":
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-            num_workers_cpu = 2
-            pin_memory = True
-        else:
-            device = torch.device("cpu")
-            num_workers_cpu = 0
-            pin_memory = False
-    elif args.compute_device == "mps":
-        device = torch.device("mps" if torch.mps.is_available() else "cpu")
-        num_workers_cpu = 0
-        pin_memory = False
-    else:
-        device = torch.device("cpu")
-        num_workers_cpu = 0
-        pin_memory = False
+    def _resolve_device(requested: str) -> torch.device:
+        if requested in ("auto", "cuda"):
+            if torch.cuda.is_available():
+                return torch.device("cuda")
+            if requested == "auto" and torch.mps.is_available():
+                return torch.device("mps")
+            return torch.device("cpu")
+        if requested == "mps":
+            return torch.device("mps" if torch.mps.is_available() else "cpu")
+        return torch.device("cpu")
+
+    device = _resolve_device(args.compute_device)
+    num_workers_cpu = 2 if device.type == "cuda" else 0
+    pin_memory      = device.type == "cuda"
 
     device_type = device.type
     print(f"Running on device: {device}")
