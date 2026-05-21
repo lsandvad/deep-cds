@@ -669,7 +669,7 @@ def run_direct_inference(model, df, mapping_dict_to_class, max_aa_len,
 
     with torch.inference_mode():
         model.eval()
-        for batch in tqdm(loader, desc="Predicting on the short sequences..."):
+        for batch in tqdm(loader, desc="Predicting on the short sequences...", file=sys.stdout):
             aa_rf0 = batch['aa_encodings_rf0']['input_ids'].to(device)
             mask_rf0 = batch['aa_encodings_rf0']['attention_mask'].to(device)
             aa_rf1 = batch['aa_encodings_rf1']['input_ids'].to(device)
@@ -935,7 +935,7 @@ def main():
         # Process long sequences individually with sliding window: See "Supplementary Note X. Inference on longer sequences"
         if long_seqs:
             print(f"\nProcessing {len(long_seqs)} long sequences with sliding window...")
-            for name, seq in tqdm(zip(long_names, long_seqs), total=len(long_seqs), desc="Long sequences"):
+            for name, seq in tqdm(zip(long_names, long_seqs), total=len(long_seqs), desc="Long sequences", file=sys.stdout):
                 gff_buffers[name] = io.StringIO()
                 run_sliding_window_single(
                     model, name, seq, mapping_dict_to_class,
@@ -981,7 +981,7 @@ def main():
         if rc_long_seqs:
             print(f"\nProcessing {len(rc_long_seqs)} long sequences with sliding window (complement strand)...")
             for name, rc_seq in tqdm(zip(rc_long_names, rc_long_seqs),
-                                     total=len(rc_long_seqs), desc="Long sequences (complement strand)"):
+                                     total=len(rc_long_seqs), desc="Long sequences (complement strand)", file=sys.stdout):
                 run_sliding_window_single(
                     model, name, rc_seq, mapping_dict_to_class,
                     device, dtype, args.batch_size, args.stride_aa,
