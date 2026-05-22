@@ -46,7 +46,7 @@ For a quick overview of all arguments, see [Input](#input) below or run
 
 Please note that the DeepCDS prediction program uses the information stored in the /src, /models, and /configs directories. 
 
-## Input
+## Input Arguments
 DeepCDS requires an input fasta file with the sequences to be predicted on, as well as which error model the user wants to use. Additionally, DeepCDS accepts a range of optional arguments:
 
 | Input Argument                      | Description                                     |
@@ -83,10 +83,10 @@ Attributes are provided as a list of tag-value pairs. Each are separated by a se
 - `Note`: Any additional notes related to the given annotation. 
 
 ### .fna notes
-Write about deletions encoded as NNN.
+Fasta file containing the predicted CDS sequences. In cases where a deletion error has been predicted, the missing region in the merged CDS sequence is represented as an "NNN" codon.  
 
 ### .faa notes
-Write about deletions encoded as X, stop codons denoted as *. 
+Fasta file containing the translated CDS sequences (using the standard prokaryotic translation table; NCBI genetic code 11). In cases where a deletion error has been predicted, the missing region in the merged CDS sequence is represented as ab "NNN" codon that is translated as "X". Furthermore, all codons with one or more unknown nucleotide positions are translated "X", and stop codons are denoted as "*".
 
 
 # Noter og TODO til mig selv 
