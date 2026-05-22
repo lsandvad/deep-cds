@@ -62,18 +62,18 @@ DeepCDS requires an input fasta file with the sequences to be predicted on, as w
 |`--suppress_output_files`| Optional: Comma-separated list of output formats to suppress. Options: `gff`, `fna`, `faa`. For example, `--suppress_output_files fna,faa` will omit writing the CDS sequences to both nucleotide-level and amino acid-level fasta files and only write the annotations to a .gff file. See [Output formats](#output-formats) for a description of the output files. Default: `None` (writes all output files).|
 
 ## Output formats
-The output is provided as three files: a .gff file with the CDS annotations (including start codon and stop codon psoitons), a .fna file with the predicted CDS sequences, and a .faa file with the predicted CDS sequences translated into the corresponding amino acid sequence. 
+The output is provided as three files: a .gff file with the CDS annotations (including start codon and stop codon positions), a .fna file with the predicted CDS sequences, and a .faa file with the predicted CDS sequences translated into the corresponding amino acid sequence. 
 
 ### .gff notes
-#### Featutre types
+#### Feature types
 - `CDS`: A coding sequence region annotation. 
-- `start_codon`: Start codon annotation. Please note that the beginning of a CDS annotation in short sequence fragments not necessarily equals a start codon position, as DeepCDS can predict CDS regions that are only internal regions of a protein, only the start of a protein, or the end of a protein. 
-- `stop_codon`: Stop codon annotation. Please note that the end of a CDS annotation in short sequence fragments not necessarily equals a stop codon position, as DeepCDS can predict CDS regions that are only internal regions of a protein, only the start of a protein, or the end of a protein. 
-- `insertion`: Insertion annotation arising from a predicted sequencing error. An insertion annotation will break the CDS into two CDS annotations that are connected by sharing a `group_id` attribute. This feature type is only predicted with `--error_model SI`.
-- `uncertain_region`: Marks ambiguous nucleotide positions between CDS fragments that have been interrupted due to an insertion or deletion error, if any. Such CDS annotations share a `group_id` attribute.  If an inserted position is directly predicted, the position is marked by an `insertion` feature instead. This feature type is only predicted with `--error_model SI`.
+- `start_codon`: Start codon annotation. Please note that the beginning of a CDS annotation in short sequence fragments does not necessarily equal a start codon position, as DeepCDS can predict CDS regions that are only internal regions of a protein, only the start of a protein, or the end of a protein. 
+- `stop_codon`: Stop codon annotation. Please note that the end of a CDS annotation in short sequence fragments does not necessarily a stop codon position, as DeepCDS can predict CDS regions that are only internal regions of a protein, only the start of a protein, or the end of a protein. 
+- `insertion`: A specific inserted nucleotide position that has been directly identified. This is a special case where the exact insertion site is known, in contrast to the `uncertain_region` feature which marks ambiguous positions when the exact site cannot be determined. CDS fragments flanking an `insertion` share a `group_id` attribute. This feature type is only predicted with `--error_model SI`.
+- `uncertain_region`: Marks ambiguous nucleotide positions between CDS fragments interrupted by a predicted insertion or deletion error, where the exact indel position cannot be directly determined. CDS fragments flanking an `uncertain_region` share a `group_id` attribute. This feature type is only predicted with `--error_model SI`.
 
 #### Attribute information
-Attributes are provided as a list of tag-value pairs. Each are separated by a semicolon. 
+Attributes are provided as a list of tag-value pairs. Each pair is separated by a semicolon. 
 - `ID`: Unique ID for annotation. 
 - `start`: the state that the given feature started in, for example `start_codon` or `internal_region`. 
 - `end`: the state that the given feature ended in, for example `stop_codon` or `internal_region`. 
@@ -86,7 +86,7 @@ Attributes are provided as a list of tag-value pairs. Each are separated by a se
 Fasta file containing the predicted CDS sequences. In cases where a deletion error has been predicted, the missing region in the merged CDS sequence is represented as an "NNN" codon.  
 
 ### .faa notes
-Fasta file containing the translated CDS sequences (using the standard prokaryotic translation table; NCBI genetic code 11). In cases where a deletion error has been predicted, the missing region in the merged CDS sequence is represented as ab "NNN" codon that is translated as "X". Furthermore, all codons with one or more unknown nucleotide positions are translated "X", and stop codons are denoted as "*".
+Fasta file containing the translated CDS sequences (using the standard prokaryotic translation table; NCBI genetic code 11). In cases where a deletion error has been predicted, the missing region in the merged CDS sequence is represented as an "NNN" codon that is translated as "X". Furthermore, all codons with one or more unknown nucleotide positions are translated as "X", and stop codons are denoted as "*".
 
 
 # Noter og TODO til mig selv 
@@ -95,14 +95,9 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
     - [ ] None
     - [ ] S -> KØRER
     - [ ] SI -> KØRER
-- [ ] Predict på codon encoding only modeller (typical error datasæt)
+- [ ] Predict på codon encoding only modeller (typical error datasæt + art_modern?)
 - [ ] Resultatplot for codon encoding
-- [ ] Implementering til inference (GitHub) (se to do features under)
-    - [x] Implementering af script
-    - [x] Dokumentation i github; input beskrivelse 
-    - [ ] Dokumentation i github; output beskrivelse 
-    - [x] Installation guideline og requirements
-    - [x] Implementer Ole's feedback
+- [x] Implementering til inference (GitHub)
 - [ ] HealthTech server implementering?
 - [ ] Skriv cover letter
 - [ ] Opdater kommentarer mm. i scripts
