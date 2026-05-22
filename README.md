@@ -41,7 +41,7 @@ DeepCDS can be run to predict on your own data using the general command:
 python ./predict_with_deepcds.py -in INPUT_FASTA -error_model ERROR_MODEL [optional arguments]
 ```
 
-For a quick overview of all arguments, see [Input](#input) below or run
+For a quick overview of all arguments, see [Input Arguments](#input-arguments) below or run
 ```python ./predict_with_deepcds.py --help```.
 
 Please note that the DeepCDS prediction program uses the information stored in the /src, /models, and /configs directories. 
@@ -162,36 +162,3 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 - [ ] 3. INDEL SCRIPT
 - [ ] 3. PLOT_METRICS_VS_ERROR_RATE SCRIPT
 
-
-## Info
-
-Eksempler: 
-Deletion: 
-GCF_000007365.1_simulated_reads_template706|+|NC_004061.1|[[1,	DeepCDS	CDS	1	204	.	+	0	start=internal_region;end=indel_stop;group_id=group_1.0;indel_type=deletion
-GCF_000007365.1_simulated_reads_template706|+|NC_004061.1|[[1,	DeepCDS	CDS	207	299	.	+	2	start=indel_start;end=internal_region;group_id=group_1.1;indel_type=deletion
-GCF_000007365.1_simulated_reads_template706|+|NC_004061.1|[[1,	DeepCDS	uncertain_region	205	206	.	+	.	Note=Uncertain region: Frameshift gap between RF0 and RF2;overlapping_frames=0,2
-
-Insertion:
-GCF_000007365.1_simulated_reads_template528|+|NC_004061.1|[[2,	DeepCDS	CDS	2	220	.	+	1	start=internal_region;end=indel_stop;group_id=group_1.0;indel_type=insertion
-GCF_000007365.1_simulated_reads_template528|+|NC_004061.1|[[2,	DeepCDS	CDS	222	299	.	+	2	start=indel_start;end=internal_region;group_id=group_1.1;indel_type=insertion
-GCF_000007365.1_simulated_reads_template528|+|NC_004061.1|[[2,	DeepCDS	insertion	221	221	.	+	.	ID=insertion_GCF_000007365.1_simulated_reads_template528|+|NC_004061.1|[[2,_0
-
-Start codon: 
-
-Stop codon: 
-
-CDS-eksempler uden interruptions:
-GCF_000007365.1_simulated_reads_template498|+|NC_004061.1|[[1,	DeepCDS	CDS	1	300	.	+	0	start=internal_region;end=internal_region
-GCF_000007365.1_simulated_reads_template500|+|NC_004061.1|[[3,	DeepCDS	CDS	3	98	.	+	2	start=internal_region;end=stop_codon
-GCF_000007365.1_simulated_reads_template456|+|NC_004061.1|[[1,	DeepCDS	CDS	154	300	.	+	0	start=start_codon;end=internal_region
-
-
-
-Deletion: 
-- AAAGGNAAA (nukleotid; N deleted) og AXA (ukendt aminosyre i midten)
-
-Insertion:
-- Fjern inserted position, ret nemt
-
-
-CCTCAATTCGAACTAGAGCAGCATATGGAACCAAAGATTAGAAGATCCTCAATAAGGAATTGCAAAGACAAAGAGATGGA...
