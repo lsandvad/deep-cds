@@ -90,7 +90,7 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 
 
 # Noter og TODO til mig selv 
-### TO DO opdateret 21. Maj
+### TO DO opdateret 22. Maj
 - [ ] Træn codon encoding-only modeller
     - [ ] None
     - [ ] S -> KØRER
@@ -101,16 +101,7 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 - [ ] HealthTech server implementering?
 - [ ] Skriv cover letter
 - [ ] Opdater kommentarer mm. i scripts
-- [ ] Find ud af om overlap script matcher med originalt script
-
-### Implementering af script til prediction
-- [x] Output fasta filer
-- [x] Sorter GFF filer så start og stop codons ikke placeres i bunden
-- [x] Complement streng
-- [x] Implementér bruger-option til at sætte threshold for minimum CDS længde de vil have rapport om (minimum: 30 - eller i hvert fald anbefaler vi ikke at gå længere ned!)
-- [x] Tillad input af gzipped input fasta
-- [x] Option for output fastafiler gzipped eller ej 
-- [x] Til aller sidst: opdater "Supplementary Note X" kommentarer i prediction script. 
+- [ ] Supplementary Tables i Excel: saml, giv et navn etc.
 
 ### Scripts (clean-written: check boxes)
 #### Data preprocessing
