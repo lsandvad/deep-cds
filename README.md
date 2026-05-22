@@ -63,45 +63,50 @@ DeepCDS requires an input fasta file with the sequences to be predicted on, as w
 
 ## Output formats
 The output is provided as three files: a .gff file with the CDS annotations (including start codon and stop codon psoitons), a .fna file with the predicted CDS sequences, and a .faa file with the predicted CDS sequences translated into the corresponding amino acid sequence. 
-*forsæt her; Skriv hvad output er, særlige noter osv.! Forventer at vi outputter: GFF fil, 2x fasta filer med CDS på DNA-niveau og translaterede sekvenser*
+
+### .gff notes
+#### Featutre types
+- `CDS`: A coding sequence region annotation. 
+- `start_codon`: Start codon annotation. Please note that the beginning of a CDS annotation in short sequence fragments not necessarily equals a start codon position, as DeepCDS can predict CDS regions that are only internal regions of a protein, only the start of a protein, or the end of a protein. 
+- `stop_codon`: Stop codon annotation. Please note that the end of a CDS annotation in short sequence fragments not necessarily equals a stop codon position, as DeepCDS can predict CDS regions that are only internal regions of a protein, only the start of a protein, or the end of a protein. 
+- `insertion`: Insertion annotation arising from a predicted sequencing error. An insertion annotation will break the CDS into two CDS annotations that are connected by sharing a `group_id` attribute. This feature type is only predicted with `--error_model SI`.
+- `uncertain_region`: Marks ambiguous nucleotide positions between CDS fragments that have been interrupted due to an insertion or deletion error, if any. Such CDS annotations share a `group_id` attribute.  If an inserted position is directly predicted, the position is marked by an `insertion` feature instead. This feature type is only predicted with `--error_model SI`.
+
+#### Attribute information
+Attributes are provided as a list of tag-value pairs. Each are separated by a semicolon. 
+- `ID`: Unique ID for annotation. 
+- `start`: the state that the given feature started in, for example `start_codon` or `internal_region`. 
+- `end`: the state that the given feature ended in, for example `stop_codon` or `internal_region`. 
+- `group_id`: CDS regions interrupted by an insertion or deletion error are split into two or more CDS feature annotations, and share a common `group_id` attribute in order to connect CDS fragments that belong to the same coding sequence. This attribute is only provided with `--error_model SI`.
+- `indel_type`: Provided together with `group_id`. Marks the kind of sequencing error predicted (either `insertion` or `deletion`). This attribute is only provided with `--error_model SI`.
+- `overlapping_frames`: Marks which reading frames the two CDS fragments flanking a `type=uncertain_region` are placed in. This attribute is only provided with `--error_model SI`.
+- `Note`: Any additional notes related to the given annotation. 
+
+### .fna notes
+Write about deletions encoded as NNN.
+
+### .faa notes
+Write about deletions encoded as X, stop codons denoted as *. 
 
 
 # Noter og TODO til mig selv 
-### TO DO opdateret 20. Maj
-- [x] MOVE FGS AND METAPRODIGAL RAW PREDICTIONS!!! 
-- [x] MOVE FGS AND METAPRODIGAL PROCESSED PREDICTIONS!!! 
-- [x] Predict ART simulated reads with FGS og MetaProdigal
-- [x] Postprocess ART simulated reads with FGS og MetaProdigal 
-- [x] Push nye modeller til github før forsæt med implementering
-- [x] Producer plot med fejlrater for art_modern simulerede reads
-- [x] Skriv et "Supplementary Note" afsnit i overleaf om outputs (gff og fastaformater)
-- [x] Gentræn alle 8M modeller "all_genomes"
-- [x] Få alle re-predictions ud "all_genomes"
-- [x] Postprocessing af alle re-predictions "all_genomes"
-- [x] opdater alle resultater
-- [x] Genlæs resultatsektion med nye predictions
-- [x] Tilføj ART simuleret read resultater
-- [x] Gentræn DeepCDS S+I (Full) på mindre datasæt 
-- [x] Få alle re-predictions ud "{100,200,400}_genomes"
-- [x] Postprocesser 100,200,400...
-- [x] Plot med træningsdata størrelse ablation
+### TO DO opdateret 21. Maj
 - [ ] Træn codon encoding-only modeller
     - [ ] None
     - [ ] S -> KØRER
     - [ ] SI -> KØRER
 - [ ] Predict på codon encoding only modeller (typical error datasæt)
 - [ ] Resultatplot for codon encoding
-- [x] Ret manuscript til efter Ole's feedback
-- [x] p-værdier script og rapportering
-- [x] Fix bug i overlap-kriterie målinger!
 - [ ] Implementering til inference (GitHub) (se to do features under)
     - [x] Implementering af script
     - [x] Dokumentation i github; input beskrivelse 
     - [ ] Dokumentation i github; output beskrivelse 
     - [x] Installation guideline og requirements
     - [x] Implementer Ole's feedback
-- [x] Skriv diskussion
-- [x] Skriv abstract 
+- [ ] HealthTech server implementering?
+- [ ] Skriv cover letter
+- [ ] Opdater kommentarer mm. i scripts
+- [ ] Find ud af om overlap script matcher med originalt script
 
 ### Implementering af script til prediction
 - [x] Output fasta filer
@@ -149,7 +154,6 @@ The output is provided as three files: a .gff file with the CDS annotations (inc
 - [ ] 2. /postprocess_preds/postprocess_model_predictions.py (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_prodigal_predictions.ipynb (Postprocess testset)
-
 
 - [x] 3. /eval/without_errors/start_stop_coodn_evaluation.ipynb (start and stop cdon identification performance; test sets without erros)
 - [x] 3. /eval/without_errors/codon_level_read_length.ipynb (codon-level performance; measured as MCC; test sets without errors)
