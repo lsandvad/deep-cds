@@ -92,17 +92,27 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 # Noter og TODO til mig selv 
 ### TO DO opdateret 22. Maj
 - [ ] Træn codon encoding-only modeller
-    - [ ] None
-    - [ ] S -> KØRER
+    - [ ] None -> Kører
+    - [x] S
     - [ ] SI -> KØRER
-- [ ] Predict på codon encoding only modeller (typical error datasæt + art_modern?)
-- [ ] Træn pLM udgaver på samme hyperparametre? 
+- [ ] Gentræn pLM på samme hyperparametre? 
+    - [ ] None -> Kører
+    - [ ] S -> Kører
+    - [ ] SI -> KØRER
+- [ ] Predict på codon encoding only modeller
+    - [ ] None
+    - [ ] S -> KØRER (150, 300 done)
+    - [ ] SI
+- [ ] Re-predict på pLM modeller?
+    - [ ] None
+    - [ ] S
+    - [ ] SI
 - [ ] Fjern pLM fra resultater og tilføj codon encoding til indel plots
-- [ ] Resultatplot for codon encoding
+- [ ] Resultat plots for codon encoding + pLM
 - [ ] HealthTech server implementering?
 - [ ] Skriv cover letter
 - [ ] Opdater kommentarer mm. i scripts
-- [ ] Supplementary Tables i Excel: saml, giv et navn etc.; FORSÆT HER!
+- [x] Supplementary Tables i Excel: saml, giv et navn etc.
 
 ### Scripts (clean-written: check boxes)
 #### Data preprocessing
