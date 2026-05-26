@@ -133,7 +133,7 @@ print(f"Device: {device}", flush=True)
 print(f"DataLoader workers: {num_workers_cpu}, pin_memory: {pin_memory}")
 
 if args.esm_model == "8M":
-    model_name_ckpt = f"full_model_{args.model}_seed_42_trained_final.pth"
+    model_name_ckpt = f"full_model_{args.model}_seed_42_trained_final_8m_no_dropout.pth"
     esm2_model_name = "facebook/esm2_t6_8M_UR50D"
 elif args.esm_model == "35M":
     model_name_ckpt = f"full_model_{args.model}_seed_42_trained_final_35M.pth"

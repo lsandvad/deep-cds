@@ -385,7 +385,7 @@ if __name__ == "__main__":
     ### Get plots of sequence error distributions ###
 
     #Test sets generated with Mason
-    results = analyze_all_csv_files()
+    #results = analyze_all_csv_files()
 
     #Test sets generated with art_modern
     analyze_art_modern_testsets()

@@ -9,7 +9,7 @@ import pandas as pd
 from sklearn.metrics import matthews_corrcoef
 from tqdm import tqdm
 
-project_root = "/tmp/nrt204/FragmentPredictor" #local "../.."
+project_root = "../../.." #"/tmp/nrt204/FragmentPredictor" #local "../.."../
 
 test_accessions = open(f"{project_root}/data/processed_data/genome_partitions/test_partition_accessions.txt").read().splitlines()
 
@@ -280,7 +280,6 @@ def process_model_preds(test_accession, model_type, testset_type, model_preds_pa
     }
 
     return model_dict, model_dict_30
-
 
 
 ##########################################################################################################################################

@@ -80,7 +80,7 @@ else:
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 
 if args.healthtech_cluster:
-    input_data_dir_path = f"/home/projects/DeepCDStmp/data/processed_data/model_data/{model_dir_path_suffix}"
+    input_data_dir_path = f"/net/well/pool/projects2/lisani/DeepCDS/FragmentPredictor3/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"
     num_workers_cpu = 2
     pin_memory = True
     # Use argparse values
@@ -1371,13 +1371,14 @@ print("Processing data from CSV files", flush=True)
 train_data, val_data, sequence_types, seq_type_desc_fracs = load_and_process_data(max_len, dataset_size)
 
 # Load the optimized hyperparameters
-cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/esm2_8m_hyperparameters.yaml")
+#cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/esm2_8m_hyperparameters.yaml")
+cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/full_model_hyperparameters.yaml")
 
 # Access them
 act_function = cfg.hyperparameters.act_function
 depth_transformer_encoder_blocks = cfg.hyperparameters.depth_transformer_encoder_blocks
-dropout_rate_1 = cfg.hyperparameters.dropout_rate_1
-dropout_rate_2 = cfg.hyperparameters.dropout_rate_2
+dropout_rate_1 = 0 #cfg.hyperparameters.dropout_rate_1
+dropout_rate_2 = 0 #cfg.hyperparameters.dropout_rate_2
 lr_esm2 = cfg.hyperparameters.lr_esm2
 lr_scratch = cfg.hyperparameters.lr_scratch
 n_attention_heads = cfg.hyperparameters.n_attention_heads

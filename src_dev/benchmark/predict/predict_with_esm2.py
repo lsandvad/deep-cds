@@ -100,8 +100,8 @@ else:
 ################################################################################################################################
 
 if args.healthtech_cluster:
-    base_data_path = "/home/projects/DeepCDStmp/data/processed_data"
-    input_data_dir_path = f"{base_data_path}/model_data/{model_dir_path_suffix}"
+    base_data_path = "/net/well/pool/projects2/lisani/DeepCDS/FragmentPredictor/data/processed_data"
+    input_data_dir_path = f"{base_data_path}/model_data/shared_crf/{model_dir_path_suffix}"
     num_workers_cpu = 2
     pin_memory = True
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -317,7 +317,8 @@ class CDSPredictorESM2(nn.Module):
             num_labels=label_classes,
         )
 
-        # Linear layer to combine outputs from the 3 reading frames
+        # LayerNorm and linear layer to combine outputs from the 3 reading frames
+        self.pre_crf_norm = nn.LayerNorm(3 * label_classes)
         self.linear_transform = nn.Linear(3 * label_classes, num_encoded_labels)
 
         # CRF layer for structured prediction
@@ -352,7 +353,7 @@ class CDSPredictorESM2(nn.Module):
         combined_embeddings = torch.cat([logits_rf0, logits_rf1, logits_rf2], dim=-1)
 
         # Map combined frame representations to encoded label space
-        logits_encoded_labels = self.linear_transform(combined_embeddings)
+        logits_encoded_labels = self.linear_transform(self.pre_crf_norm(combined_embeddings))
 
         # Apply CRF for structured decoding or training
         output = self.CRF(
@@ -390,7 +391,8 @@ def load_esm2_model(model_name_ckpt, input_data_dir_path, device, esm2_model, la
     print(f"Number of encoded label classes: {num_encoded_labels}")
 
     # Load hyperparameters for ESM2 model
-    cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/esm2_8m_hyperparameters.yaml")
+    #cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/esm2_8m_hyperparameters.yaml")
+    cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/full_model_hyperparameters.yaml")
 
     act_function = cfg.hyperparameters.act_function
     num_layers = cfg.hyperparameters.depth_transformer_encoder_blocks
