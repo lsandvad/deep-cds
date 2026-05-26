@@ -97,22 +97,28 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
     - [ ] SI -> KØRER
 - [ ] Gentræn pLM på samme hyperparametre? 
     - [ ] None -> Kører
-    - [ ] S -> Kører
+    - [x] S
     - [ ] SI -> KØRER
 - [ ] Predict på codon encoding only modeller
     - [ ] None
-    - [ ] S -> KØRER (150, 300 done)
+    - [ ] S -> KØRER
     - [ ] SI
 - [ ] Re-predict på pLM modeller?
     - [ ] None
-    - [ ] S
+    - [ ] S -> KØRER (60, 75; 100,150, 300 mangler)
     - [ ] SI
-- [ ] Fjern pLM fra resultater og tilføj codon encoding til indel plots
+- [x] Fjern pLM fra resultater 
+- [ ] tilføj codon encoding + ny pLM til indel plots?
 - [ ] Resultat plots for codon encoding + pLM
 - [ ] HealthTech server implementering?
 - [ ] Skriv cover letter
 - [ ] Opdater kommentarer mm. i scripts
 - [x] Supplementary Tables i Excel: saml, giv et navn etc.
+- [x] Omskriv metode til også at inkludere træning af codon encoding modeller 
+- [ ] Skriv på hver tabel hvad "bold" markerer
+- [ ] Fjern (Full); denne hedder "bare" DeepCDS nu
+    - [x] Plots og Tabeller
+    - [ ] Tekst
 
 ### Scripts (clean-written: check boxes)
 #### Data preprocessing
