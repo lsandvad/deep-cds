@@ -105,12 +105,12 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
     - [ ] SI
 - [ ] Re-predict på pLM modeller?
     - [ ] None
-    - [ ] S -> KØRER (60, 75; 100, 150, 300)
+    - [ ] S -> (60, 75 done; 100, 150, 300 kører)
     - [ ] SI
 - [x] Fjern pLM fra resultater 
 - [ ] tilføj codon encoding + ny pLM til indel plots?
 - [ ] Resultat plots for codon encoding + pLM
-- [ ] HealthTech server implementering?
+- [ ] HealthTech server implementering
 - [ ] Skriv cover letter
 - [ ] Opdater kommentarer mm. i scripts
 - [x] Supplementary Tables i Excel: saml, giv et navn etc.
@@ -120,7 +120,6 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
     - [x] Plots og Tabeller
     - [ ] Tekst
 - [ ] Omskriv resultater så de udelukkende sammenligner FGS, MetaProdigal og DeepCDS - vent med ablation sammenligninger
-- [ ] Fix hyperparameter settings for S+I på erda og github og lokalt; og i scripts; og i supplementary
 
 ### Scripts (clean-written: check boxes)
 #### Data preprocessing

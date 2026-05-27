@@ -1,6 +1,9 @@
 ###Ignore private readme
 README.txt
 
+###Ignore server version of prediction script
+predict_with_deepcds_server.py
+
 ###Ignore requirements for all dev
 requirements_dev.txt
 
