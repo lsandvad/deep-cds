@@ -1,7 +1,7 @@
 hyperparameters:
-  act_function: 'gelu'
+  act_function: relu
   depth_transformer_encoder_blocks: 6
-  lr_esm2: 1.617e-7
-  lr_scratch: 0.00001516
+  lr_esm2: 1.3702749747587823e-07
+  lr_scratch: 5.879074611368646e-06
   n_attention_heads: 4
-  transition_weight: -3.131
+  transition_weight: -3.4220895857621074

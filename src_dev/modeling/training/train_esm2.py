@@ -42,6 +42,11 @@ parser.add_argument(
     choices=["indel_substitution", "substitution", "none"],
     help="Type of data errors to include (default: indel_substitution)",
 )
+parser.add_argument(
+    "--debug",
+    action="store_true",
+    help="Enable debug mode with smaller dataset and more frequent validation",
+)
 args = parser.parse_args()
 
 # Set variables based on error type
@@ -1377,8 +1382,8 @@ cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/full_model_h
 # Access them
 act_function = cfg.hyperparameters.act_function
 depth_transformer_encoder_blocks = cfg.hyperparameters.depth_transformer_encoder_blocks
-dropout_rate_1 = 0 #cfg.hyperparameters.dropout_rate_1
-dropout_rate_2 = 0 #cfg.hyperparameters.dropout_rate_2
+dropout_rate_1 = cfg.hyperparameters.dropout_rate_1
+dropout_rate_2 = cfg.hyperparameters.dropout_rate_2
 lr_esm2 = cfg.hyperparameters.lr_esm2
 lr_scratch = cfg.hyperparameters.lr_scratch
 n_attention_heads = cfg.hyperparameters.n_attention_heads
@@ -1696,6 +1701,7 @@ for epoch in range(epochs):
             if val_times_counter == freeze_esm_validations:
                 # Unfreeze ESM-2 layers and set up warmup
                 esm2_param_group_idx = model.sequence_encoder.unfreeze_top_layers(lr_esm2=lr_esm2, optimizer=optimizer, warmup_factor=0.1)  # Start at 10% of lr_esm2
+                scheduler.min_lrs.append(scheduler.min_lrs[0])
 
                 # Initialize warmup state that will be used in training_iteration
                 warmup_state = {
