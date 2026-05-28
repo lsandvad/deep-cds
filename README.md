@@ -90,9 +90,9 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 
 
 # Noter og TODO til mig selv 
-### TO DO opdateret 22. Maj
+### TO DO opdateret 28. Maj
 - [ ] Træn codon encoding-only modeller
-    - [ ] None -> Kører
+    - [x] None
     - [x] S
     - [ ] SI -> KØRER
 - [ ] Gentræn pLM på samme hyperparametre? 
@@ -100,17 +100,24 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
     - [x] S
     - [ ] SI -> KØRER
 - [ ] Predict på codon encoding only modeller
-    - [ ] None
+    - [ ] None -> KØRER (error-free data og error-prone data enkeltvis)
     - [x] S
     - [ ] SI
 - [ ] Re-predict på pLM modeller?
     - [ ] None
-    - [ ] S -> (60, 75 done; 100, 150, 300 kører)
+    - [x] S
     - [ ] SI
 - [x] Fjern pLM fra resultater 
 - [ ] tilføj codon encoding + ny pLM til indel plots?
 - [ ] Resultat plots for codon encoding + pLM
 - [ ] HealthTech server implementering
+    - [x] Backend og front end kommunikerer
+    - [x] Download output gff, fna og faa
+    - [x] input settings sat op (testet; virker!)
+    - [x] Input fasta eksempel 
+    - [ ] Opsætning af andre faner end "submission"
+    - [ ] Placering af datasæt? 
+    - [ ] Output side: tabel med annoteringer?
 - [ ] Skriv cover letter
 - [ ] Opdater kommentarer mm. i scripts
 - [x] Supplementary Tables i Excel: saml, giv et navn etc.
@@ -118,8 +125,9 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 - [ ] Skriv på hver tabel hvad "bold" markerer
 - [ ] Fjern (Full); denne hedder "bare" DeepCDS nu
     - [x] Plots og Tabeller
-    - [ ] Tekst
+    - [ ] Tekst; gjort for 2.1-2.4
 - [ ] Omskriv resultater så de udelukkende sammenligner FGS, MetaProdigal og DeepCDS - vent med ablation sammenligninger
+- [ ] Licens på github repo (samme som netstart 2?)
 
 ### Scripts (clean-written: check boxes)
 #### Data preprocessing
