@@ -201,7 +201,7 @@ def one_hot_encode(sequence):
 
     #For 'N', we do nothing, so the corresponding column remains all zeros
 
-    return torch.tensor(encoding)
+    return encoding
 
 
 def process_nt_sequences_to_codons(nt_sequences, max_aa_len):
@@ -384,7 +384,7 @@ def encode_data(processed_samples_df, max_len, tokenizer=None, max_aa_len=max_aa
     return dataset, list(set(seq_descriptions))
 
 
-def load_and_process_data(max_len, esm2_model = esm2_model):
+def load_and_process_data(max_len):
     """
     Main function that loads and processes all data efficiently.
 
@@ -427,7 +427,7 @@ def load_and_process_data(max_len, esm2_model = esm2_model):
 
     #Create tokenizer once and reuse
     tokenizer = AutoTokenizer.from_pretrained(
-        esm2_model,
+        "facebook/esm2_t6_8M_UR50D",
         do_lower_case=False)
 
     #Process training data
@@ -439,7 +439,7 @@ def load_and_process_data(max_len, esm2_model = esm2_model):
     return train_data, val_data, sequence_types, seq_type_desc_fracs
 
 
-def load_full_validation_set(max_len, esm2_model = esm2_model):
+def load_full_validation_set(max_len):
     """ 
     Load full validation set for final validation. 
 
@@ -465,7 +465,7 @@ def load_full_validation_set(max_len, esm2_model = esm2_model):
 
     #Create tokenizer once and reuse
     tokenizer = AutoTokenizer.from_pretrained(
-        esm2_model,
+        "facebook/esm2_t6_8M_UR50D",
         do_lower_case=False,
     )
 
@@ -734,7 +734,6 @@ class LinearChainCRF(nn.Module):
 
         self.crf = CRF(num_tags=num_encoded_labels, batch_first=True)
 
-        # In LinearChainCRF.__init__, add label_classes parameter and use it:
         if label_classes == 6:
             self.legal_transitions = {
                 0: {0, 2, 4}, 1: {1, 3, 5}, 2: {1, 5}, 
@@ -1037,7 +1036,6 @@ def initialize_model(device, num_layers, n_attention_heads, dropout_rate_1, drop
         print(f"Memory Allocated after loading model: {torch.cuda.memory_allocated(device) / 1024**3} GB", flush = True)
 
     count_parameters(model)
-    #print_model_dimensions(model)
 
     return model, mapping_dict_to_class
 
@@ -1142,7 +1140,7 @@ def calculate_sequence_accuracy_metrics(true_labels_list, predictions_list, sequ
     all_true_labels = np.array(all_true_labels)
     all_predictions = np.array(all_predictions)
 
-    # alculate overall MCC efficiently
+    # Calculate overall MCC efficiently
     try:
         overall_mcc = matthews_corrcoef(all_true_labels, all_predictions) #Multi-class MCC
         if np.isnan(overall_mcc):
@@ -1262,7 +1260,6 @@ def log_evaluation_metrics(epoch, train_avg_loss, val_avg_loss, best_val_loss, t
         val_avg_loss (float): Average validation loss for this epoch.
         best_val_loss (float): Best validation loss seen so far.
         tracker (object): Object providing access to per-sequence-type validation loss metrics via tracker.get_metrics().
-        sequence_metrics (dict): Dictionary containing overall and type-specific sequence metrics, such as MCC, accuracy, fraction of perfect/high-accuracy sequences.
         val_times_counter (int): Counter tracking how many validation runs have been performed.
         sequence_types (list[str]): List of sequence types (e.g., categories) to include in type-specific metrics.
 
@@ -1422,7 +1419,6 @@ def show_examples(v_labels, padding_mask, logits, seq_descs_batch, mapping_dict_
     Show hard examples as demonstration per validation loop
 
     Args:
-        counter: batch counter
         v_labels: encoded labels
         padding_mask: padding mask
         logits: model logits (not predictions)
@@ -1705,7 +1701,7 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
                 #Early stopping check
                 if val_avg_loss < best_val_loss:
                     best_val_loss = val_avg_loss
-                    torch.save(model.state_dict(), f"{input_data_dir_path}/models_optuna/trial{trial.number}_trained.pth") #modify
+                    torch.save(model.state_dict(), f"{input_data_dir_path}/models_optuna/trial{trial.number}_trained.pth")
                     counter_patience = 0
                 else:
                     counter_patience += 1
@@ -1863,6 +1859,7 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
         wandb_log[f"full_val_loss_{seq_type}"] = tracker.get_metrics().get(seq_type, 0)
 
     #Log to wandb
+    wandb.log(wandb_log)
     wandb.finish()
 
     return best_val_loss

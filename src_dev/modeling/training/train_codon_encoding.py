@@ -65,6 +65,11 @@ parser.add_argument(
     action="store_true",
     help="Enable debug mode with smaller dataset and more frequent validation",
 )
+parser.add_argument(
+    "--compute_sequence_metrics",
+    action="store_true",
+    help="Compute per-sequence accuracy metrics (MCC, perfect sequences) during validation. Disabled by default as it is time-consuming.",
+)
 
 args = parser.parse_args()
 
@@ -91,6 +96,7 @@ if args.debug:
     steps_between_vals = 100
     frac_train = 0.05
     frac_val = 0.01
+    model_checkpoint_extension = "_debug"
     wandb_project_name = "debug"
 else:
     frac_train = 1.0
@@ -1070,6 +1076,14 @@ for epoch in range(epochs):
 
                     val_losses.append(v_loss.item())
 
+                    if args.compute_sequence_metrics:
+                        predictions = model.CRF.crf.decode(v_outputs["logits"], mask=valid_mask)
+                        for seq_i, preds in enumerate(predictions):
+                            true_seq = v_encoded_labels[seq_i][valid_mask[seq_i]].cpu().numpy()
+                            all_val_true_sequences.append(true_seq)
+                            all_val_pred_sequences.append(np.array(preds))
+                        all_val_sequence_types.extend(list(val_batch["seq_desc"]))
+
                     seq_descs_batch = val_batch["seq_desc"]
 
                     for desc in tracker.categories:
@@ -1093,7 +1107,7 @@ for epoch in range(epochs):
             val_avg_loss = sum(val_losses) / len(val_losses) if val_losses else float("inf")
             sequence_metrics = (
                 calculate_sequence_accuracy_metrics(all_val_true_sequences, all_val_pred_sequences, all_val_sequence_types)
-                if all_val_true_sequences and all_val_pred_sequences
+                if args.compute_sequence_metrics and all_val_true_sequences and all_val_pred_sequences
                 else {}
             )
             train_avg_loss = sum(train_losses) / len(train_losses) if train_losses else float("inf")

@@ -1,7 +1,7 @@
 # DeepCDS: *FINAL TITLE*
-DeepCDS is a deep learning-based model that predicts coding sequences (CDSs) in short prokaryotic DNA sequences. It also predicts start codon and stop codon positions. It can be used for prediction in both clean sequences, and sequences with sequencing errors. 
+DeepCDS is a deep learning-based model that predicts coding sequences (CDSs) in short prokaryotic DNA sequences, including start codon and stop codon positions. It can be used for prediction in both clean sequences, and sequences with sequencing errors. 
 
-The model was developed based on 300bp long sequences, but tested on sequences in the length range from 60-1000bp. 
+The model was developed based on 300bp long sequences, but tested on sequences in the sequence length range from 60-1000bp. 
 
 # Webserver 
 For smaller datasets, the DeepCDS 1.0 prediction server is available for use [here](https://services.healthtech.dtu.dk/services/DeepCDS-1.0/).
@@ -91,7 +91,8 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 
 # Noter og TODO til mig selv 
 ### TO DO opdateret 1. Juni
-- [ ] tilføj codon encoding + ny pLM til indel plots?
+- [x] Rengør indel plots og opdater tekst i resultater
+- [ ] Rengør 30bp plots og opdater tekst i resultater
 - [ ] Resultat plots for codon encoding + pLM
 - [ ] HealthTech server implementering
     - [x] Backend og front end kommunikerer
@@ -114,13 +115,18 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 - [ ] Fjern (Full); denne hedder "bare" DeepCDS nu
     - [x] Plots og Tabeller
     - [ ] Tekst; gjort for 2.1-2.4
+    - [ ] Gennemtjek til sidst at (Full) ikke fremgår nogen steder!
 - [ ] Licens på github repo (samme som netstart 2?)
 - [ ] gør repo public og test link fra Health tech server!
 - [x] Skriv et sted hvor store DeepCDS modellerne er og træningstider (12.8, 12.8, 15.5 hhv)
+- [ ] Repredict and postprocess no errors model, stress error test sets!!!
+- [ ] Overfør codon encoding processed data -> I GANG
+- [ ] Overfør plm processed data
 
 Vedr. submission: 
 - [ ] Placer suppl. efter hvornår i tekst de nævnes.
 - [ ] Lav abbreviations korrekt
+- [ ] Decide where to tell that MetaProdigal predicts until 60bp, FGS until 61 bp. 
 
 ### Scripts (clean-written: check boxes)
 #### Data preprocessing
@@ -141,15 +147,20 @@ Vedr. submission:
 
 #### Data analysis
 - [x] 1. /data_analysis/generate_taxonomical_trees.ipynb (Generate taxonomical trees in newick format along with partition annotations)
-- [x] 1. /data_analysis/plot_genome_statistics.ipynb (plot different genome statistics based on RefSeq annotations and genomes, for each data partition)
+- [x] 1. /data_analysis/plot_genome_statistics.py (plot different genome statistics based on RefSeq annotations and genomes, for each data partition)
 - [x] 1. /data_analysis/get_testset_statistics.ipynb (get statistics for test set)
 - [x] 1. /data_analysis/check_testset_error_distributions.py (check error rates for each test set and check they are correct)
 
 #### Modeling scripts
-- [ ] 1. /modeling/hyperparameter_tuning/hyperparameter_tuning_esm2.py
-- [ ] 1. /modeling/hyperparameter_tuning/hyperparameter_tuning_full_model.py
-- [ ] 2. /modeling/training/train_esm2.py
-- [ ] 2. /modeling/training/train_full_model.py
+- [x] 1. /modeling/hyperparameter_tuning/hyperparameter_tuning_full_model.py
+- [x] 2. /modeling/training/train_esm2.py
+- [x] 2. /modeling/training/train_codon_encoding.py
+- [x] 2. /modeling/training/train_full_model.py
+
+- [x] /modeling/deepcds_dataset.py (dataset class, data encoding/preprocessing functions, and nucleotide-to-amino-acid translation used at inference time)
+- [x] /modeling/deepcds_model.py (neural network model classes: SequenceEncoder, TransformerEncoderBlock, LinearChainCRF, and CDSPredictor)
+- [x] /modeling/sliding_window.py (sliding window inference for sequences longer than the training window; averages pre-CRF logits in overlapping regions before a single CRF pass)
+
 
 #### Performance and benchmark
 - [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
