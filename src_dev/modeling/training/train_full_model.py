@@ -96,7 +96,7 @@ else:
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 if args.healthtech_cluster:
-    input_data_dir_path = f"/home/projects/DeepCDStmp/data/processed_data/model_data/{model_dir_path_suffix}"
+    input_data_dir_path = f"/net/well/pool/projects2/lisani/DeepCDS/FragmentPredictor/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"
     num_workers_cpu = 2
     pin_memory = True
     # Use argparse values

@@ -4,7 +4,7 @@ DeepCDS is a deep learning-based model that predicts coding sequences (CDSs) in 
 The model was developed based on 300bp long sequences, but tested on sequences in the length range from 60-1000bp. 
 
 # Webserver 
-*Link to and describe health tech server (if it will be hosted there)*
+*Link to and describe health tech server*
 
 # Instructions for local use
 ## Setup
@@ -90,24 +90,7 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 
 
 # Noter og TODO til mig selv 
-### TO DO opdateret 28. Maj
-- [ ] Træn codon encoding-only modeller
-    - [x] None
-    - [x] S
-    - [ ] SI -> KØRER
-- [ ] Gentræn pLM på samme hyperparametre? 
-    - [ ] None -> Kører
-    - [x] S
-    - [ ] SI -> KØRER
-- [ ] Predict på codon encoding only modeller
-    - [ ] None -> KØRER (error-free data og error-prone data enkeltvis)
-    - [x] S
-    - [ ] SI
-- [ ] Re-predict på pLM modeller?
-    - [ ] None
-    - [x] S
-    - [ ] SI
-- [x] Fjern pLM fra resultater 
+### TO DO opdateret 1. Juni
 - [ ] tilføj codon encoding + ny pLM til indel plots?
 - [ ] Resultat plots for codon encoding + pLM
 - [ ] HealthTech server implementering
@@ -115,19 +98,29 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
     - [x] Download output gff, fna og faa
     - [x] input settings sat op (testet; virker!)
     - [x] Input fasta eksempel 
-    - [ ] Opsætning af andre faner end "submission"
-    - [ ] Placering af datasæt? 
-    - [ ] Output side: tabel med annoteringer?
+    - [ ] Opsætning af andre faner
+        - [x] submission, instructions, output format, downloads
+        - [ ] data
+        - [ ] abstract
+    - [ ] Placering af datasæt
+        - Lav mappe med al data der skal kunne downloades (data/deepcds1.0_server_datasets...)
+            - [x] træning og val
+            - [x] testsæt
+            - [x] Overfør til health tech of skriv til peter
+            - [ ] Dokumentation på server site
+    - [x] Output side: tabel med annoteringer
 - [ ] Skriv cover letter
 - [ ] Opdater kommentarer mm. i scripts
-- [x] Supplementary Tables i Excel: saml, giv et navn etc.
-- [x] Omskriv metode til også at inkludere træning af codon encoding modeller 
-- [ ] Skriv på hver tabel hvad "bold" markerer
 - [ ] Fjern (Full); denne hedder "bare" DeepCDS nu
     - [x] Plots og Tabeller
     - [ ] Tekst; gjort for 2.1-2.4
-- [ ] Omskriv resultater så de udelukkende sammenligner FGS, MetaProdigal og DeepCDS - vent med ablation sammenligninger
 - [ ] Licens på github repo (samme som netstart 2?)
+- [ ] gør repo public og test link fra Health tech server!
+- [x] Skriv et sted hvor store DeepCDS modellerne er og træningstider (12.8, 12.8, 15.5 hhv)
+
+Vedr. submission: 
+- [ ] Placer suppl. efter hvornår i tekst de nævnes.
+- [ ] Lav abbreviations korrekt
 
 ### Scripts (clean-written: check boxes)
 #### Data preprocessing
@@ -144,6 +137,7 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 - [x] 6. /data_preprocessing/postprocess_testset.py (Postprocess testset)
 - [x] 6. /data_preprocessing/get_label_encodings.py (map class labels to 3d vectors; use for model that processes all 3 reading frames)
 - [x] 7. /data_preprocessing/prepare_model_datasets.py (creates datasets specific for model input for each of the train and val splits)
+- [x] 8. /data_preprocessing/prepare_datasets_for_server.py (place datasets in a distinct location and cleaned format for upload to server in one shared folder)
 
 #### Data analysis
 - [x] 1. /data_analysis/generate_taxonomical_trees.ipynb (Generate taxonomical trees in newick format along with partition annotations)

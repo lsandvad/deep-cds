@@ -3,6 +3,7 @@ README.txt
 
 ###Ignore server version of prediction script
 predict_with_deepcds_server.py
+/src_dev/data_preprocessing/prepare_datasets_for_server.py
 
 ###Ignore requirements for all dev
 requirements_dev.txt

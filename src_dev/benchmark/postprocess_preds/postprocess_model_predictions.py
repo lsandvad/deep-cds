@@ -359,7 +359,7 @@ for testset_type in testset_types:
 
 #Navigate to DeepCDS without sequencing errors predictions directory
 model_type = "DeepCDS_A1/model_without_errors"
-model_preds_paths = ["esm2_8m_all_genomes_seed_42_trained_final_8M_no_dropout"]
+model_preds_paths = ["esm2_8m_all_genomes_seed_42_trained_final_no_dropout"]
 
 #Process preds for model trained on all genomes 
 testset_types = ["without_errors_60bp",
@@ -388,6 +388,41 @@ for testset_type in testset_types:
             with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
                 pickle.dump(model_preds_dict_30, processed_preds_file)
 
+
+##########################################################################################################################################
+#################################Process preds for data without sequencing errors (DeepCDS (Codon))#######################################
+##########################################################################################################################################
+
+#Navigate to DeepCDS without sequencing errors predictions directory
+model_type = "DeepCDS_codon_only/model_without_errors"
+model_preds_paths = ["codon_only_model_all_genomes_d332_seed_42_final"]
+
+#Process preds for model trained on all genomes 
+testset_types = ["without_errors_60bp",
+                "without_errors_75bp",
+                "without_errors_100bp",
+                "without_errors_150bp",
+                "without_errors_300bp",
+                "without_errors_700bp",
+                "without_errors_1000bp"]
+
+
+for testset_type in testset_types:
+    print(testset_type)
+
+    seq_len = int(testset_type.split("_")[-1].strip("bp"))
+
+    for model_preds_path in tqdm(model_preds_paths, desc="Processing predictions for model type..."):
+        for test_accession in test_accessions:
+            os.makedirs(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
+            
+            model_preds_dict, model_preds_dict_30 = process_model_preds(test_accession, model_type, testset_type, model_preds_path, seq_len)
+
+            with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
+                pickle.dump(model_preds_dict, processed_preds_file)
+
+            with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
+                pickle.dump(model_preds_dict_30, processed_preds_file)
 
 
 ##########################################################################################################################################
@@ -509,7 +544,60 @@ testset_types = ["with_errors_1.25e-05i_0.01s_60bp",
                  "MiSeq_v3_300bp",          #Simulated with modern_art
                  "NextSeq500_150bp"]        #Simulated with modern_art
 
-model_preds_paths = ["esm2_8m_all_genomes_seed_42_trained_final_8M_no_dropout"]
+model_preds_paths = ["esm2_8m_all_genomes_seed_42_trained_final_no_dropout"]
+
+for testset_type in testset_types:
+    print(testset_type)
+    
+    seq_len = int(testset_type.split("_")[-1].strip("bp"))
+
+    for model_type in model_types:
+        
+        for model_preds_path in model_preds_paths:
+            try:
+                for test_accession in test_accessions:
+                    os.makedirs(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}", exist_ok=True)
+                    
+                    model_preds_dict, model_preds_dict_30 = process_model_preds(test_accession, model_type, testset_type, model_preds_path, seq_len)
+
+                    with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict.pkl", "wb") as processed_preds_file:
+                        pickle.dump(model_preds_dict, processed_preds_file)
+
+                    with open(f"{project_root}/data/processed_data/predictions/processed_predictions/{model_type}/{testset_type}/{model_preds_path}/{test_accession}/model_preds_dict_30.pkl", "wb") as processed_preds_file:
+                        pickle.dump(model_preds_dict_30, processed_preds_file)
+            
+            except FileNotFoundError:
+                print("Not found!")
+                continue
+
+
+##########################################################################################################################################
+################Process preds for data with sequencing errors (DeepCDS (Codon), DeepCDS S (Codon), DeepCDS S+I (Codon)####################
+##########################################################################################################################################
+model_types = ["DeepCDS_codon_only/model_with_errors", 
+               "DeepCDS_codon_only/model_with_substitution_errors", 
+               "DeepCDS_codon_only/model_without_errors"]
+
+testset_types = ["with_errors_1.25e-05i_0.01s_60bp",
+                 "with_errors_1.25e-05i_0.01s_75bp",
+                 "with_errors_1.25e-05i_0.01s_100bp",
+                 "with_errors_1.25e-05i_0.01s_150bp",
+                 "with_errors_1.25e-05i_0.01s_300bp",
+                 "with_errors_5e-06i_0.004s_60bp",
+                 "with_errors_5e-06i_0.004s_75bp",
+                 "with_errors_5e-06i_0.004s_100bp",
+                 "with_errors_5e-06i_0.004s_150bp",
+                 "with_errors_5e-06i_0.004s_300bp",
+                 "with_errors_3.75e-05i_0.03s_60bp",
+                 "with_errors_3.75e-05i_0.03s_75bp",
+                 "with_errors_3.75e-05i_0.03s_100bp",
+                 "with_errors_3.75e-05i_0.03s_150bp",
+                 "with_errors_3.75e-05i_0.03s_300bp",
+                 "HiSeq2500_150bp",         #Simulated with modern_art
+                 "MiSeq_v3_300bp",          #Simulated with modern_art
+                 "NextSeq500_150bp"]        #Simulated with modern_art
+
+model_preds_paths = ["codon_only_model_all_genomes_d332_seed_42_final"]
 
 for testset_type in testset_types:
     print(testset_type)
