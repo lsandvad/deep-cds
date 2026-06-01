@@ -5,7 +5,6 @@ The model was developed based on 300bp long sequences, but tested on sequences i
 
 # Webserver 
 For smaller datasets, the DeepCDS 1.0 prediction server is available for use [here](https://services.healthtech.dtu.dk/services/DeepCDS-1.0/).
-*Link to and describe health tech server*
 
 # Instructions for local use
 ## Setup
