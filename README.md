@@ -90,10 +90,10 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 
 
 # Noter og TODO til mig selv 
-### TO DO opdateret 1. Juni
+### TO DO opdateret 2. Juni
 - [x] Rengør indel plots og opdater tekst i resultater
-- [ ] Rengør 30bp plots og opdater tekst i resultater
-- [ ] Resultat plots for codon encoding + pLM
+- [x] Rengør 30bp plots og opdater tekst i resultater
+- [x] Resultat plots for codon encoding + pLM
 - [ ] HealthTech server implementering
     - [x] Backend og front end kommunikerer
     - [x] Download output gff, fna og faa
@@ -112,16 +112,13 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
     - [x] Output side: tabel med annoteringer
 - [ ] Skriv cover letter
 - [ ] Opdater kommentarer mm. i scripts
-- [ ] Fjern (Full); denne hedder "bare" DeepCDS nu
+- [x] Fjern (Full); denne hedder "bare" DeepCDS nu
     - [x] Plots og Tabeller
-    - [ ] Tekst; gjort for 2.1-2.5
+    - [x] Tekst
     - [ ] Gennemtjek til sidst at (Full) ikke fremgår nogen steder!
-- [ ] Licens på github repo (samme som netstart 2?)
+- [x] Licens på github repo (CC BY-NC-SA 4.0)
 - [ ] gør repo public og test link fra Health tech server!
-- [x] Skriv et sted hvor store DeepCDS modellerne er og træningstider (12.8, 12.8, 15.5 hhv)
-- [x] Repredict and postprocess no errors model, stress error test sets!!!
-- [x] Overfør codon encoding processed data
-- [x] Overfør plm processed data
+- [ ] Kør tests med 2000 permutationer
 
 Vedr. submission: 
 - [ ] Placer suppl. efter hvornår i tekst de nævnes.
