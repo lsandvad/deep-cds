@@ -114,19 +114,20 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 - [ ] Opdater kommentarer mm. i scripts
 - [ ] Fjern (Full); denne hedder "bare" DeepCDS nu
     - [x] Plots og Tabeller
-    - [ ] Tekst; gjort for 2.1-2.4
+    - [ ] Tekst; gjort for 2.1-2.5
     - [ ] Gennemtjek til sidst at (Full) ikke fremgår nogen steder!
 - [ ] Licens på github repo (samme som netstart 2?)
 - [ ] gør repo public og test link fra Health tech server!
 - [x] Skriv et sted hvor store DeepCDS modellerne er og træningstider (12.8, 12.8, 15.5 hhv)
-- [ ] Repredict and postprocess no errors model, stress error test sets!!!
-- [ ] Overfør codon encoding processed data -> I GANG
-- [ ] Overfør plm processed data
+- [x] Repredict and postprocess no errors model, stress error test sets!!!
+- [x] Overfør codon encoding processed data
+- [x] Overfør plm processed data
 
 Vedr. submission: 
 - [ ] Placer suppl. efter hvornår i tekst de nævnes.
 - [ ] Lav abbreviations korrekt
 - [ ] Decide where to tell that MetaProdigal predicts until 60bp, FGS until 61 bp. 
+- [ ] Skriv final title både på repo, server, cover letter, suppl og main!
 
 ### Scripts (clean-written: check boxes)
 #### Data preprocessing
@@ -153,22 +154,22 @@ Vedr. submission:
 
 #### Modeling scripts
 - [x] 1. /modeling/hyperparameter_tuning/hyperparameter_tuning_full_model.py
-- [x] 2. /modeling/training/train_esm2.py
-- [x] 2. /modeling/training/train_codon_encoding.py
-- [x] 2. /modeling/training/train_full_model.py
+- [x] 2. /modeling/training/train_deepcds_codon.py
+- [x] 2. /modeling/training/train_deepcds_plm.py
+- [x] 2. /modeling/training/train_deepcds_full_model.py
 
 - [x] /modeling/deepcds_dataset.py (dataset class, data encoding/preprocessing functions, and nucleotide-to-amino-acid translation used at inference time)
 - [x] /modeling/deepcds_model.py (neural network model classes: SequenceEncoder, TransformerEncoderBlock, LinearChainCRF, and CDSPredictor)
 - [x] /modeling/sliding_window.py (sliding window inference for sequences longer than the training window; averages pre-CRF logits in overlapping regions before a single CRF pass)
 
-
 #### Performance and benchmark
 - [x] 1. /benchmark/predict/predict_with_fgs.ipynb (Predict with FGS)
 - [x] 1. /benchmark/predict/predict_with_prodigal.ipynb (Predict with prodigal) 
 - [x] 1. /benchmark/predict/predict_with_DeepCDS.py (Predict with DeepCDS)
-- [x] 1. /benchmark/predict/predict_with_ESM2.py
+- [x] 1. /benchmark/predict/predict_with_DeepCDS_pLM.py (Predict with DeepCDS (pLM))
+- [x] 1. /benchmark/predict/predict_with_DeepCDS_codon.py (predict with DeepCDS (Codon))
 
-- [ ] 2. /postprocess_preds/postprocess_model_predictions.py (Postprocess testset)
+- [ ] 2. /postprocess_preds/postprocess_DeepCDS_predictions.py (Postprocess DeepCDS and DeepCDS ablation predictions)
 - [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
 - [ ] 2. /postprocess_preds/postprocess_prodigal_predictions.ipynb (Postprocess testset)
 
@@ -176,11 +177,19 @@ Vedr. submission:
 - [x] 3. /eval/without_errors/codon_level_read_length.ipynb (codon-level performance; measured as MCC; test sets without errors)
 - [ ] 3. /eval/without_errors/organisms_families_gc_content.ipynb (different analyses measured on different phylogenetic groups and across GC content intervals; test sets without errors)
 - [ ] 3. /eval/without_errors/cds_level_read_length.ipynb (CDS-level performance across all test set read lengths; test sets without errors)
+- [ ] 3. /eval/without_errors/statistical_significance_testing.ipynb (Tests if performance difference between eahc pair of models is significant)
 
 - [x] 3. /eval/with_errors/start_stop_codon_evaluation.ipynb (start and stop cdon identification performance; test sets with errors)
 - [x] 3. /eval/with_errors/codon_level_read_length.ipynb (codon-level performance; measured as MCC; test sets with errors)
 - [ ] 3. /eval/with_errors/organisms_families_gc_content.ipynb (different analyses measured on different phylogenetic groups and across GC content intervals; test sets with errors)
 - [ ] 3. /eval/with_errors/cds_level_read_length.ipynb (CDS-level performance across all test set read lengths; test sets with errors)
-- [ ] 3. INDEL SCRIPT
-- [ ] 3. PLOT_METRICS_VS_ERROR_RATE SCRIPT
+- [ ] 3. /eval/with_errors/cds_level_read_length_IoU_thresholds.ipynb (CDS-level performance across all test set read lengths with less strict CDS identification criteria (lower IoU thresholds than 100% CDS coordinate identification); test sets with errors)
+- [ ] 3. /eval/with_errors/indel_reads_mae.ipynb (get indel detection performance metrics)
+- [ ] 3. eval/with_errors/plot_metrics_vs_error_rate.ipynb (*SKRIV HER*)
+- [ ] 3. eval/with_errors/plot_f1_vs_model_size.ipynb (Visualize DeepCDS training set size performances)
+- [ ] 3. /eval/with_errors/statistical_significance_testing.ipynb (Tests if performance difference between eahc pair of models is significant)
+- [ ] ABLATION MODELS CDS
+- [ ] ABLAITON MODELS START AND STOP
 
+- [ ] 3. /eval/art_modern/cds_and_codon_level_performance.ipynb
+- [ ] 3. /eval/art_modern/start_stop_codon_evaluation.ipynb
