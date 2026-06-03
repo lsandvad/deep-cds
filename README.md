@@ -1,4 +1,4 @@
-# DeepCDS: *FINAL TITLE*
+# DeepCDS: *Ab initio* coding sequence prediction in prokaryotic short reads
 DeepCDS is a deep learning-based model that predicts coding sequences (CDSs) in short prokaryotic DNA sequences, including start codon and stop codon positions. It can be used for prediction in both clean sequences, and sequences with sequencing errors. 
 
 The model was developed based on 300bp long sequences, but tested on sequences in the sequence length range from 60-1000bp. 
@@ -91,14 +91,7 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 
 # Noter og TODO til mig selv 
 ### TO DO opdateret 2. Juni
-- [x] Rengør indel plots og opdater tekst i resultater
-- [x] Rengør 30bp plots og opdater tekst i resultater
-- [x] Resultat plots for codon encoding + pLM
 - [ ] HealthTech server implementering
-    - [x] Backend og front end kommunikerer
-    - [x] Download output gff, fna og faa
-    - [x] input settings sat op (testet; virker!)
-    - [x] Input fasta eksempel 
     - [ ] Opsætning af andre faner
         - [x] submission, instructions, output format, downloads
         - [ ] data
@@ -119,6 +112,8 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 - [x] Licens på github repo (CC BY-NC-SA 4.0)
 - [ ] gør repo public og test link fra Health tech server!
 - [ ] Kør tests med 2000 permutationer
+- [ ] Omskriv så "To assess" ikke er begyndelsen på hvert afsnit
+- [ ] Skriv et opsummerende afsnit resultatafsnit mellem 2.1 og 2.2. 
 
 Vedr. submission: 
 - [ ] Placer suppl. efter hvornår i tekst de nævnes.
