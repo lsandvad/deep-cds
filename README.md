@@ -105,15 +105,11 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
     - [x] Output side: tabel med annoteringer
 - [ ] Skriv cover letter
 - [ ] Opdater kommentarer mm. i scripts
-- [x] Fjern (Full); denne hedder "bare" DeepCDS nu
-    - [x] Plots og Tabeller
-    - [x] Tekst
-    - [ ] Gennemtjek til sidst at (Full) ikke fremgår nogen steder!
 - [x] Licens på github repo (CC BY-NC-SA 4.0)
 - [ ] gør repo public og test link fra Health tech server!
-- [ ] Kør tests med 2000 permutationer
-- [ ] Omskriv så "To assess" ikke er begyndelsen på hvert afsnit
-- [ ] Skriv et opsummerende afsnit resultatafsnit mellem 2.1 og 2.2. 
+- [x] Kør tests med 2000 permutationer
+- [x] Omskriv så "To assess" ikke er begyndelsen på hvert afsnit
+- [x] Skriv et opsummerende afsnit resultatafsnit mellem 2.1 og 2.2. 
 
 Vedr. submission: 
 - [ ] Placer suppl. efter hvornår i tekst de nævnes.
