@@ -90,32 +90,25 @@ Fasta file containing the translated CDS sequences (using the standard prokaryot
 
 
 # Noter og TODO til mig selv 
-### TO DO opdateret 2. Juni
-- [ ] HealthTech server implementering
-    - [ ] Opsætning af andre faner
-        - [x] submission, instructions, output format, downloads
-        - [ ] data
-        - [ ] abstract
-    - [ ] Placering af datasæt
-        - Lav mappe med al data der skal kunne downloades (data/deepcds1.0_server_datasets...)
-            - [x] træning og val
-            - [x] testsæt
-            - [x] Overfør til health tech of skriv til peter
-            - [ ] Dokumentation på server site
-    - [x] Output side: tabel med annoteringer
-- [ ] Skriv cover letter
+### TO DO opdateret 9. Juni
+- HealthTech server implementering:
+    - [ ] abstract
+- [x] Skriv udkast til cover letter
 - [ ] Opdater kommentarer mm. i scripts
-- [x] Licens på github repo (CC BY-NC-SA 4.0)
 - [ ] gør repo public og test link fra Health tech server!
-- [x] Kør tests med 2000 permutationer
-- [x] Omskriv så "To assess" ikke er begyndelsen på hvert afsnit
-- [x] Skriv et opsummerende afsnit resultatafsnit mellem 2.1 og 2.2. 
 
 Vedr. submission: 
-- [ ] Placer suppl. efter hvornår i tekst de nævnes.
+- [x] Placer suppl. efter hvornår i tekst de nævnes.
 - [ ] Lav abbreviations korrekt
 - [ ] Decide where to tell that MetaProdigal predicts until 60bp, FGS until 61 bp. 
 - [ ] Skriv final title både på repo, server, cover letter, suppl og main!
+
+
+KOZAK:
+- [x] Saml alle supplementary tables of supplementary figures enkeltvis
+- [ ] Tjek om der er noget .csv filer eller lignende der skal uploades som supplementary
+- [ ] Saml scripts fra Anders hvis dette skal uploades
+- [ ] Data; skal vi oploade noget eller blot henvise til de rå datasæt? 
 
 ### Scripts (clean-written: check boxes)
 #### Data preprocessing
@@ -157,9 +150,9 @@ Vedr. submission:
 - [x] 1. /benchmark/predict/predict_with_DeepCDS_pLM.py (Predict with DeepCDS (pLM))
 - [x] 1. /benchmark/predict/predict_with_DeepCDS_codon.py (predict with DeepCDS (Codon))
 
-- [ ] 2. /postprocess_preds/postprocess_DeepCDS_predictions.py (Postprocess DeepCDS and DeepCDS ablation predictions)
-- [ ] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
-- [ ] 2. /postprocess_preds/postprocess_prodigal_predictions.ipynb (Postprocess testset)
+- [x] 2. /postprocess_preds/postprocess_DeepCDS_predictions.py (Postprocess DeepCDS and DeepCDS ablation predictions)
+- [x] 2. /postprocess_preds/postprocess_fgs_predictions.ipynb (Postprocess testset)
+- [x] 2. /postprocess_preds/postprocess_prodigal_predictions.ipynb (Postprocess testset)
 
 - [x] 3. /eval/without_errors/start_stop_coodn_evaluation.ipynb (start and stop cdon identification performance; test sets without erros)
 - [x] 3. /eval/without_errors/codon_level_read_length.ipynb (codon-level performance; measured as MCC; test sets without errors)

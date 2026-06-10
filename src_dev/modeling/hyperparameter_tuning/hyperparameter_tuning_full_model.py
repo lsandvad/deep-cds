@@ -1,6 +1,6 @@
+import argparse
 import gc
 import json
-import math
 import os
 import pickle
 import random
@@ -20,8 +20,6 @@ from transformers import AutoModel, AutoTokenizer
 
 torch.cuda.empty_cache() #Clear the GPU memory cache
 pd.options.mode.chained_assignment = None
-
-import argparse
 
 # Add argument parser at the beginning
 parser = argparse.ArgumentParser(description="Hyperparameter Tuning for DeepCDS Model")
@@ -85,17 +83,14 @@ else:
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
 
 if args.healthtech_cluster:
-    input_data_dir_path = f"/home/projects/DeepCDStmp/data/processed_data/model_data/{model_dir_path_suffix}"
+    input_data_dir_path = f"/net/well/pool/projects2/lisani/DeepCDS/FragmentPredictor/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"
     num_workers_cpu = 2
     pin_memory = True
-    # Use argparse values
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     device_type = device.type  # "cuda", "mps", or "cpu"
 
     print("Device: ", device, flush=True)
-
     assert device == torch.device("cuda"), "HealthTech cluster run should be on a CUDA GPU."
-    print(f"Device type: {device_type}, GPU: {args.gpu if device_type == 'cuda' else 'N/A'}", flush=True)
 
 elif args.scarb_cluster:
     input_data_dir_path = f"/tmp/nrt204/FragmentPredictor/data/processed_data/model_data/shared_crf/{model_dir_path_suffix}"  # SCARB cluster
@@ -314,7 +309,7 @@ def encode_data(processed_samples_df, max_len, tokenizer=None, max_aa_len=max_aa
 
     if tokenizer is None:
         tokenizer = AutoTokenizer.from_pretrained(
-            "facebook/esm2_t6_8M_UR50D",
+            esm2_model,
             do_lower_case=False,
         )
 
@@ -427,7 +422,7 @@ def load_and_process_data(max_len):
 
     #Create tokenizer once and reuse
     tokenizer = AutoTokenizer.from_pretrained(
-        "facebook/esm2_t6_8M_UR50D",
+        esm2_model,
         do_lower_case=False)
 
     #Process training data
@@ -465,7 +460,7 @@ def load_full_validation_set(max_len):
 
     #Create tokenizer once and reuse
     tokenizer = AutoTokenizer.from_pretrained(
-        "facebook/esm2_t6_8M_UR50D",
+        esm2_model,
         do_lower_case=False,
     )
 
@@ -888,9 +883,9 @@ class CDSPredictor(nn.Module):
 
     Attributes:
         sequence_encoder (SequenceEncoder): Module that extracts amino acid embeddings from the pretrained ESM-2 model.
-        TransformerEncoderBlock (TransformerEncoderBlock): Transformer encoder applied independently to each reading frame.
+        transformer_encoder (TransformerEncoderBlock): Transformer encoder applied independently to each reading frame.
         linear_transform (nn.Linear): Linear projection layer mapping concatenated RF outputs (3*num_labels) to num_encoded_labels.
-        CRF (LinearChainCRF): Conditional Random Field layer enforcing structured transitions between predicted RF combinations.
+        crf (LinearChainCRF): Conditional Random Field layer enforcing structured transitions between predicted RF combinations.
     """
 
     def __init__(self,
@@ -914,7 +909,7 @@ class CDSPredictor(nn.Module):
             use_gradient_checkpointing)
 
         #Transformer encoder block applied separately to each reading frame
-        self.TransformerEncoderBlock = TransformerEncoderBlock(
+        self.transformer_encoder = TransformerEncoderBlock(
             hidden_size=self.sequence_encoder.pretrained_model_aa.config.hidden_size,
             num_layers=num_layers,
             n_attention_heads=n_attention_heads,
@@ -927,7 +922,7 @@ class CDSPredictor(nn.Module):
         self.linear_transform = nn.Linear(3*label_classes, num_encoded_labels)
 
         #CRF layer for structured prediction with transition constraints
-        self.CRF = LinearChainCRF(mapping_dict_to_class = encoded_labels_mapping,
+        self.crf = LinearChainCRF(mapping_dict_to_class = encoded_labels_mapping,
                                   transition_weight=transition_weight, 
                                   num_encoded_labels=num_encoded_labels,
                                   label_classes=label_classes)
@@ -960,9 +955,9 @@ class CDSPredictor(nn.Module):
         encoded_embeddings_aa_rf2, trimmed_attention_mask_rf2 = self.sequence_encoder(x_aa_rf2, attention_mask_aa_rf2)
 
         #Process each RF through its transformer encoder blocks
-        logits_rf0 = self.TransformerEncoderBlock(encoded_seqs_nt=encoded_seqs_nt_rf0, encoded_embeddings_aa=encoded_embeddings_aa_rf0, trimmed_attention_mask=trimmed_attention_mask_rf0)
-        logits_rf1 = self.TransformerEncoderBlock(encoded_seqs_nt=encoded_seqs_nt_rf1, encoded_embeddings_aa=encoded_embeddings_aa_rf1, trimmed_attention_mask=trimmed_attention_mask_rf1)
-        logits_rf2 = self.TransformerEncoderBlock(encoded_seqs_nt=encoded_seqs_nt_rf2, encoded_embeddings_aa=encoded_embeddings_aa_rf2, trimmed_attention_mask=trimmed_attention_mask_rf2) #output: [codon_seq_len, C]
+        logits_rf0 = self.transformer_encoder(encoded_seqs_nt=encoded_seqs_nt_rf0, encoded_embeddings_aa=encoded_embeddings_aa_rf0, trimmed_attention_mask=trimmed_attention_mask_rf0)
+        logits_rf1 = self.transformer_encoder(encoded_seqs_nt=encoded_seqs_nt_rf1, encoded_embeddings_aa=encoded_embeddings_aa_rf1, trimmed_attention_mask=trimmed_attention_mask_rf1)
+        logits_rf2 = self.transformer_encoder(encoded_seqs_nt=encoded_seqs_nt_rf2, encoded_embeddings_aa=encoded_embeddings_aa_rf2, trimmed_attention_mask=trimmed_attention_mask_rf2) #output: [codon_seq_len, C]
 
         #Concatenate logits from all reading frames along the feature (class logit) dimension
         combined_codon_and_aa_embeddings = torch.cat([logits_rf0, logits_rf1, logits_rf2], dim=-1) #output: [codon_seq_len, 3*C]
@@ -971,7 +966,7 @@ class CDSPredictor(nn.Module):
         logits_encoded_labels = self.linear_transform(self.pre_crf_norm(combined_codon_and_aa_embeddings)) #output: [codon_seq_len, num_encoded_labels]
 
         #Apply CRF for structured decoding or training (same attention mask applies to all RFs)
-        output = self.CRF(
+        output = self.crf(
             logits=logits_encoded_labels,
             attention_mask=trimmed_attention_mask_rf0, #Input any trimmed attention mask; applies to same positions as before
             labels=labels)
@@ -1402,7 +1397,7 @@ def training_iteration(i, batch, scaler, model, optimizer, device, epoch_losses,
     #Print transition matrix for checkpoint
     if i % 10000 == 0:
         print("CRF transition matrix sample (first 5x5):")
-        print(model.CRF.crf.transitions[:5, :5])
+        print(model.crf.crf.transitions[:5, :5])
 
     if i % 1000 == 0:
         #Cleanup every 1000th batch to prevent memory leaks
@@ -1414,73 +1409,7 @@ def training_iteration(i, batch, scaler, model, optimizer, device, epoch_losses,
 
     return epoch_losses, warmup_state
 
-def show_examples(v_labels, padding_mask, logits, seq_descs_batch, mapping_dict_to_class, model, device, valid_mask):
-    """
-    Show hard examples as demonstration per validation loop
-
-    Args:
-        v_labels: encoded labels
-        padding_mask: padding mask
-        logits: model logits (not predictions)
-        seq_descs_batch: sequence descriptions
-        mapping_dict_to_class: label mapping
-        model: model object (to access CRF)
-        device: device
-        valid_mask: valid positions mask
-    """
-
-    num_to_show = min(32, v_labels.shape[0])  #Show examples
-    list_seq_types = ["none"]
-
-    for seq_i in range(num_to_show):
-        mask = ~padding_mask[seq_i]
-
-        if seq_descs_batch[seq_i] not in list_seq_types:
-            print("Sequence type:", seq_descs_batch[seq_i])
-
-            #Get labels for this sequence
-            labels_masked = v_labels[seq_i][mask].cpu().numpy().astype(int)
-
-            #Decode prediction for sequence
-            seq_logits = logits[seq_i:seq_i+1]  # [1, seq_len, num_classes]
-            seq_valid_mask = valid_mask[seq_i:seq_i+1]  # [1, seq_len]
-
-            pred_decoded = model.CRF.crf.decode(seq_logits, mask=seq_valid_mask)
-            preds_masked = torch.tensor(pred_decoded[0], dtype=torch.long, device=device).cpu().numpy().astype(int)
-
-            #Convert labels to RF vectors
-            labels_rf = [mapping_dict_to_class[label] for label in labels_masked]
-
-            #Convert predictions to RF vectors
-            preds_rf = [mapping_dict_to_class[pred] for pred in preds_masked]
-
-            #Extract individual RF sequences
-            labels_rf0 = [rf[0] for rf in labels_rf]
-            labels_rf1 = [rf[1] for rf in labels_rf]
-            labels_rf2 = [rf[2] for rf in labels_rf]
-            preds_rf0 = [rf[0] for rf in preds_rf]
-            preds_rf1 = [rf[1] for rf in preds_rf]
-            preds_rf2 = [rf[2] for rf in preds_rf]
-
-            print("Encoded labels and preds:")
-            print(v_labels[seq_i][mask].cpu().numpy().astype(float))
-            print(preds_masked.astype(float))
-            print()
-            print("Labels RF0:", labels_rf0)
-            print("Labels RF1:", labels_rf1)
-            print("Labels RF2:", labels_rf2)
-            print()
-            print("Predictions RF0:", preds_rf0)
-            print("Predictions RF1:", preds_rf1)
-            print("Predictions RF2:", preds_rf2)
-            print("\n")
-
-        if seq_i == 3:
-            #Only show a few of "easy-to-classify" samples
-            list_seq_types = ["non-coding", "coding", "coding_with_substitutions"]
-
-
-def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_type_desc_fracs, label_classes):
+def objective(trial, train_data, val_data, val_loader_full, sequence_types, label_classes):
     """ 
     Perform the entire hyperparameter tuning. 
     """
@@ -1564,10 +1493,10 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
 
     # Initialize optimizer - NO ESM-2 parameters at all initially
     optimizer = torch.optim.AdamW([
-        {'params': model.TransformerEncoderBlock.parameters(), 'lr': lr_scratch},
+        {'params': model.transformer_encoder.parameters(), 'lr': lr_scratch},
         {'params': model.pre_crf_norm.parameters(), 'lr': lr_scratch},
         {'params': model.linear_transform.parameters(), 'lr': lr_scratch},
-        {'params': model.CRF.parameters(), 'lr': lr_scratch}
+        {'params': model.crf.parameters(), 'lr': lr_scratch}
     ])
 
     # Initialize learning rate scheduler - reduces LR when validation loss plateaus
@@ -1664,7 +1593,7 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
                                 desc_labels_original = v_encoded_labels[desc_mask]
                                 desc_valid_mask = valid_mask[desc_mask]
 
-                                desc_crf_loss = -model.CRF.crf(desc_logits, desc_labels_original, 
+                                desc_crf_loss = -model.crf.crf(desc_logits, desc_labels_original, 
                                                             mask=desc_valid_mask, reduction='mean')
 
                                 tracker.update(desc, desc_crf_loss)
@@ -1826,7 +1755,7 @@ def objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_
                     desc_valid_mask = valid_mask[desc_mask]                #Valid positions mask
 
                     #Calculate sequence type-specific loss
-                    desc_crf_loss = -model.CRF.crf(desc_logits, desc_labels_original, 
+                    desc_crf_loss = -model.crf.crf(desc_logits, desc_labels_original, 
                                                 mask=desc_valid_mask, reduction='mean')
 
                     tracker.update(desc, desc_crf_loss)
@@ -1881,7 +1810,7 @@ val_loader_full = load_full_validation_set(max_len)
 study = optuna.create_study(direction='minimize',   #Minimize loss
                             pruner=optuna.pruners.HyperbandPruner())
 study.optimize(
-    lambda trial: objective(trial, train_data, val_data, val_loader_full, sequence_types, seq_type_desc_fracs, label_classes), 
+    lambda trial: objective(trial, train_data, val_data, val_loader_full, sequence_types, label_classes),
     n_trials=30)
 
 model_config = {

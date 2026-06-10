@@ -1,16 +1,9 @@
-import ast
-import math
 import os
 import pickle
-import re
 
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-from sklearn.metrics import matthews_corrcoef
 from tqdm import tqdm
 
-project_root = "/tmp/nrt204/FragmentPredictor" #local "../.."
+project_root = "../../.."
 
 test_accessions = open(f"{project_root}/data/processed_data/genome_partitions/test_partition_accessions.txt").read().splitlines()
 
@@ -204,17 +197,19 @@ def remap_and_process_fgs_preds(test_accession, error_model, seq_len):
                 
 
 
-#Process preds without sequencing erros 
-pred_dirs = os.listdir(f"{project_root}/data/processed_data/predictions/raw_predictions/fgs_preds/")
-pred_dirs = [dir for dir in pred_dirs if dir != ".DS_Store"]
-pred_dirs = [dir for dir in pred_dirs if dir != "archive"]
+if __name__ == "__main__":
 
-for pred_data in tqdm(pred_dirs):
-    os.makedirs(f"{project_root}/data/processed_data/predictions/processed_predictions/fgs_preds/{pred_data}", exist_ok=True)
-    print(pred_data)
-    seq_len = int(pred_data.split("bp_")[0].split("_")[-1])
-    for test_accession in test_accessions:
-        read_preds_fgs_dict = remap_and_process_fgs_preds(test_accession, pred_data, seq_len)  # Test with the first accession
+    #Process preds without sequencing errors
+    pred_dirs = os.listdir(f"{project_root}/data/processed_data/predictions/raw_predictions/fgs_preds/")
+    pred_dirs = [dir for dir in pred_dirs if dir != ".DS_Store"]
+    pred_dirs = [dir for dir in pred_dirs if dir != "archive"]
 
-        with open(f'{project_root}/data/processed_data/predictions/processed_predictions/fgs_preds/{pred_data}/{test_accession}.pkl', "wb") as processed_preds_file:
-            pickle.dump(read_preds_fgs_dict, processed_preds_file)
+    for pred_data in tqdm(pred_dirs):
+        os.makedirs(f"{project_root}/data/processed_data/predictions/processed_predictions/fgs_preds/{pred_data}", exist_ok=True)
+        print(pred_data)
+        seq_len = int(pred_data.split("bp_")[0].split("_")[-1])
+        for test_accession in test_accessions:
+            read_preds_fgs_dict = remap_and_process_fgs_preds(test_accession, pred_data, seq_len)
+
+            with open(f'{project_root}/data/processed_data/predictions/processed_predictions/fgs_preds/{pred_data}/{test_accession}.pkl', "wb") as processed_preds_file:
+                pickle.dump(read_preds_fgs_dict, processed_preds_file)

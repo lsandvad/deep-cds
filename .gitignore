@@ -1,14 +1,14 @@
 ###Ignore private readme
 README.txt
 
-###Ignore server version of prediction script
+###Ignore server implementation version of prediction script
 predict_with_deepcds_server.py
 /src_dev/data_preprocessing/prepare_datasets_for_server.py
 
 ###Ignore requirements for all dev
 requirements_dev.txt
 
-###Ignore pyproject.tomal for now
+###Ignore pyproject.toml for now
 ##pyproject.toml
 
 ###Ignore all datafiles
@@ -39,8 +39,7 @@ requirements_dev.txt
 /src_dev/**/*.fasta*
 #ignore archive directories
 /**/archive
-#ignore jobscripts to run all data
-/src_dev/data_preprocessing/process_all_model_datasets_to_npy.sh
+#ignore plotting scripts for now
 /src_dev/benchmark/eval/**
 
 #Ignore dir with archived/old models
