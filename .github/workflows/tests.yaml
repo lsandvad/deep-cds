@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -35,6 +37,20 @@ jobs:
       - name: Install dependencies
         run: pip install pytest biopython pandas transformers==4.36.0 omegaconf==2.3.0 pytorch-crf==0.7.2 tqdm numpy
 
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-esm2-t6-8m
+
+      - name: Pre-download ESM2 tokenizer and model
+        run: |
+          python - <<'EOF'
+          from transformers import AutoTokenizer, AutoModel
+          AutoTokenizer.from_pretrained("facebook/esm2_t6_8M_UR50D")
+          AutoModel.from_pretrained("facebook/esm2_t6_8M_UR50D")
+          EOF
+
       - name: Run tests
         run: pytest tests/ -v
 
@@ -49,6 +65,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -60,6 +78,20 @@ jobs:
 
       - name: Install dependencies
         run: pip install pytest biopython pandas transformers==4.36.0 omegaconf==2.3.0 pytorch-crf==0.7.2 tqdm numpy
+
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-esm2-t6-8m
+
+      - name: Pre-download ESM2 tokenizer and model
+        run: |
+          python - <<'EOF'
+          from transformers import AutoTokenizer, AutoModel
+          AutoTokenizer.from_pretrained("facebook/esm2_t6_8M_UR50D")
+          AutoModel.from_pretrained("facebook/esm2_t6_8M_UR50D")
+          EOF
 
       - name: Run tests
         run: pytest tests/ -v
