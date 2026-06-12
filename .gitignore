@@ -39,8 +39,6 @@ requirements_dev.txt
 /src_dev/**/*.fasta*
 #ignore archive directories
 /**/archive
-#ignore plotting scripts for now
-/src_dev/benchmark/eval/**
 
 #Ignore dir with archived/old models
 /models/old_versions_archive/**
