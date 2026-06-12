@@ -44,12 +44,11 @@ jobs:
           key: hf-esm2-t6-8m
 
       - name: Pre-download ESM2 tokenizer and model
+        shell: python
         run: |
-          python - <<'EOF'
           from transformers import AutoTokenizer, AutoModel
           AutoTokenizer.from_pretrained("facebook/esm2_t6_8M_UR50D")
           AutoModel.from_pretrained("facebook/esm2_t6_8M_UR50D")
-          EOF
 
       - name: Run tests
         run: pytest tests/ -v
@@ -86,12 +85,11 @@ jobs:
           key: hf-esm2-t6-8m
 
       - name: Pre-download ESM2 tokenizer and model
+        shell: python
         run: |
-          python - <<'EOF'
           from transformers import AutoTokenizer, AutoModel
           AutoTokenizer.from_pretrained("facebook/esm2_t6_8M_UR50D")
           AutoModel.from_pretrained("facebook/esm2_t6_8M_UR50D")
-          EOF
 
       - name: Run tests
         run: pytest tests/ -v
