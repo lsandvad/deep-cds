@@ -18,6 +18,9 @@ requirements_dev.txt
 ###Ignore all illustrations
 /illustrations/**
 
+#Ignore the files for manuscript submission
+/deepcds_submission_files
+
 ###Ignore dir with supplementary material to upload
 /supplementary_information/**
 

@@ -3,6 +3,8 @@ DeepCDS is a deep learning-based model that predicts coding sequences (CDSs) in 
 
 The model was developed based on 300bp long sequences, but tested on sequences in the sequence length range from 60-1000bp. 
 
+The preprint can be accessed [here](https://www.biorxiv.org/content/10.64898/2026.06.17.732633v1).
+
 # Webserver 
 For smaller datasets, the DeepCDS 1.0 prediction server is available for use [here](https://services.healthtech.dtu.dk/services/DeepCDS-1.0/).
 
