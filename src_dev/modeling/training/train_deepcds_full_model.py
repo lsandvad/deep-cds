@@ -1600,7 +1600,10 @@ print(f"Training sequences (encoded): {len(train_data):,}", flush=True)
 print(f"Validation sequences (encoded): {len(val_data):,}", flush=True)
 
 # Load the optimized hyperparameters
-cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/full_model_hyperparameters.yaml")
+if args.esm_model == "650M":
+    cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/full_model_hyperparameters_650M.yaml")
+else:
+    cfg = OmegaConf.load(f"{input_data_dir_path}/hyperparameter_configs/full_model_hyperparameters.yaml")
 
 # Access them
 act_function = cfg.hyperparameters.act_function
@@ -1888,7 +1891,7 @@ for epoch in range(epochs):
             # Early stopping check
             if val_avg_loss < best_val_loss:
                 best_val_loss = val_avg_loss
-                torch.save(model.state_dict(), f"{models_output_dir_path}/full_model_{dataset_size}_seed_{args.seed}_trained{model_checkpoint_extension}_{args.esm_model}_no_dropout.pth")
+                torch.save(model.state_dict(), f"{models_output_dir_path}/full_model_{dataset_size}_seed_{args.seed}_trained{model_checkpoint_extension}_{args.esm_model}.pth")
                 counter_patience = 0
             else:
                 counter_patience += 1
