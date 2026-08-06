@@ -655,7 +655,7 @@ def run_direct_inference(model, df, mapping_dict_to_class, max_aa_len,
     - mapping_dict_to_class: Dict mapping model output indices to class labels
     - max_aa_len: Maximum amino acid length for padding sequences in this group
     - device: Computation device (CPU, CUDA, etc.)
-    - dtype: Data type for model inputs (e.g. torch.float16)
+    - dtype: Data type for model inputs (torch.float32)
     - batch_size: Batch size for inference
     - num_workers_cpu: Number of CPU workers for data loading
     - pin_memory: Whether to use pinned memory for DataLoader
@@ -757,8 +757,6 @@ def run_sliding_window_single(model, name, seq, mapping_dict_to_class,
         all_logits, window_starts, window_size_aa, full_aa_len, num_labels, device
     )
 
-    if dtype == torch.float16:
-        merged_logits = merged_logits.half()
     merged_mask = merged_mask.bool()
 
     # CRF decoding
@@ -825,7 +823,6 @@ def main():
     num_workers_cpu = 2 if device.type == "cuda" else 0
     pin_memory      = device.type == "cuda"
 
-    device_type = device.type
     print(f"Running on device: {device}")
 
     # ── Parse FASTA ─────────────────────────────────────────────────────────
@@ -872,14 +869,10 @@ def main():
         esm2_model=esm2_model_name,
         label_classes=label_classes)
 
-    # Half precision for GPU/MPS
-    use_half = device_type in ("cuda", "mps")
-    if use_half:
-        model = model.half()
-        dtype = torch.float16
-        print(f"Using half precision (FP16) on {device_type}")
-    else:
-        dtype = torch.float32
+    # Always run inference in FP32. FP16 was found to measurably degrade
+    # prediction quality (particularly on long, sliding-window sequences),
+    # while the model checkpoints are themselves FP32-native.
+    dtype = torch.float32
 
     # ── Split sequences into short vs long ──────────────────────────────────
     trained_window_nt = 300
