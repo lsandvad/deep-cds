@@ -42,6 +42,7 @@ requirements_dev.txt
 /src_dev/**/*.fasta*
 #ignore archive directories
 /**/archive
-
 #Ignore dir with archived/old models
 /models/old_versions_archive/**
+###Ignore ad hoc FP16 vs FP32 precision comparison script
+/src_dev/benchmark/eval/compare_precision_fp16_fp32.py
