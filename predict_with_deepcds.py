@@ -29,6 +29,14 @@ from dataclasses import dataclass
 from typing import List, Optional
 import csv
 
+__version__ = "1.0.0"
+
+# Handle --version before the heavy ML imports below, so it doesn't require
+# torch/transformers/pandas to be installed just to print a version string.
+if "--version" in sys.argv:
+    print(f"DeepCDS v{__version__}")
+    sys.exit(0)
+
 # Suppress noisy third-party library warnings (must run before transformers import)
 warnings.filterwarnings("ignore", category=FutureWarning, module="transformers")
 warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub")
@@ -63,7 +71,7 @@ logging.getLogger("transformers").setLevel(logging.ERROR)
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Predict coding sequences (CDS) in nucleotide FASTA sequences using DeepCDS.",
+        description=f"Predict coding sequences (CDS) in nucleotide FASTA sequences using DeepCDS (v{__version__}).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -71,6 +79,11 @@ Examples:
   python predict_with_deepcds.py --input_fasta reads.fasta --error_model S --output my_predictions
   python predict_with_deepcds.py --input_fasta reads.fasta --error_model SI --batch_size 128
         """,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
     parser.add_argument(
         "-in", "--input_fasta",
