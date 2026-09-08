@@ -49,17 +49,18 @@ from tqdm import tqdm
 # Add project root to path for imports
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-from src import (
-    TRAINED_WINDOW_SIZE_AA,
+# Imported from the submodules rather than through the package's re-export list, so
+# this script does not depend on which names a given checkout's src/__init__.py happens
+# to export - only on the modules themselves.
+from src.deepcds_model import load_model
+from src.fast_inference import (
     build_label_lut,
     codon_one_hot_from_codes,
     encode_reads_fast,
-    extract_cds_from_gff,
-    load_model,
-    reverse_complement,
     viterbi_decode_fast,
 )
-from src.sliding_window import get_window_positions
+from src.postprocessing import extract_cds_from_gff, reverse_complement
+from src.sliding_window import TRAINED_WINDOW_SIZE_AA, get_window_positions
 
 logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
