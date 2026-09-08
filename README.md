@@ -62,6 +62,7 @@ DeepCDS requires an input fasta file with the sequences to be predicted on, as w
 |`--stride_aa` | Optional: The sliding window stride (measured in codons) for long sequences (i.e., how many codons the prediction window advances between each inference step). Smaller stride gives larger overlap between consecutive windows and may improve accuracy, but increases computation time. Default value: `50`.|
 |`--gzip_output`| Optional: Specifies whether the output files should be gzipped (.gff.gz, .fna.gz, .faa.gz). Default value: `False`.|
 |`--suppress_output_files`| Optional: Comma-separated list of output formats to suppress. Options: `gff`, `fna`, `faa`. For example, `--suppress_output_files fna,faa` will omit writing the CDS sequences to both nucleotide-level and amino acid-level fasta files and only write the annotations to a .gff file. See [Output formats](#output-formats) for a description of the output files. Default: `None` (writes all output files).|
+|`--chunk_size`| Optional: Number of sequences to read from the input FASTA and process at a time, writing output incrementally. Use this for large input files (many and/or long sequences) to limit peak memory usage. Default: `None` (the entire file is processed as a single chunk).|
 
 ## Output formats
 The output is provided as three files: a .gff file with the CDS annotations (including start codon and stop codon positions), a .fna file with the predicted CDS sequences, and a .faa file with the predicted CDS sequences translated into the corresponding amino acid sequence. 
