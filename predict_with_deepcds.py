@@ -43,23 +43,23 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hu
 warnings.filterwarnings("ignore", message="enable_nested_tensor", category=UserWarning)
 
 import numpy as np
-import pandas as pd
 import torch
-from torch.utils.data import DataLoader
 from tqdm import tqdm
-from transformers import AutoTokenizer
 
 # Add project root to path for imports
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-from src import TRAINED_WINDOW_SIZE_AA, encode_data, load_model, extract_cds_from_gff, reverse_complement
-from src.sliding_window import (
-    _create_windowed_dataframe,
-    _decode_predictions,
-    _merge_window_logits,
-    _run_model_on_windows,
-    get_window_positions,
+from src import (
+    TRAINED_WINDOW_SIZE_AA,
+    build_label_lut,
+    codon_one_hot_from_codes,
+    encode_reads_fast,
+    extract_cds_from_gff,
+    load_model,
+    reverse_complement,
+    viterbi_decode_fast,
 )
+from src.sliding_window import get_window_positions
 
 logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
@@ -229,49 +229,59 @@ def clear_memory(sync=False):
     gc.collect()
 
 
-_cached_tokenizer = None
+def _frames_to_device(encoded, begin, stop, device, dtype):
+    """Move one slice of an encode_reads_fast() result onto the device.
 
-def get_tokenizer():
-    """Get cached ESM-2 tokenizer."""
-    global _cached_tokenizer
-    if _cached_tokenizer is None:
-        _cached_tokenizer = AutoTokenizer.from_pretrained(
-            "facebook/esm2_t6_8M_UR50D",
-            do_lower_case=False,
+    Token ids and masks cross the bus as int16/int8 and are widened on the device;
+    nucleotides cross as one byte per base and are expanded into the (L, 12) codon
+    one-hot there, which is ~48x less traffic than shipping the float one-hot that
+    the old DataLoader collated on the host.
+    """
+    aa_frames, mask_frames, nt_frames = [], [], []
+    for rf in range(3):
+        aa_frames.append(
+            torch.from_numpy(encoded["input_ids"][rf, begin:stop]).to(device).long()
         )
-    return _cached_tokenizer
+        mask_frames.append(
+            torch.from_numpy(encoded["attention_mask"][rf, begin:stop]).to(device).long()
+        )
+        codes = torch.from_numpy(encoded["nt_codes"][rf, begin:stop]).to(device)
+        nt_frames.append(codon_one_hot_from_codes(codes, dtype=dtype))
+    return nt_frames, aa_frames, mask_frames
 
 
-def sequences_to_dataframe(names, seqs):
-    """Convert sequence names and sequences into a DataFrame matching encode_data's expected format."""
-    return pd.DataFrame({
-        "read": seqs,
-        "read_name": names,
-        "cds_coords": ["NA"] * len(names),
-        "indel_positions": ["NA"] * len(names),
-    })
+def _decode_to_rf_labels(model, label_lut, logits, combined_mask, trim_lengths):
+    """CRF-decode a batch and split it into per-reading-frame label lists.
 
+    Replaces three separate slow steps: torchcrf's Viterbi backtrace (which reads one
+    value off the GPU per token per sequence, each read forcing a full device
+    synchronisation), the per-token dict lookup into mapping_dict_to_class, and
+    trim_predictions_by_eos (which located the EOS token with a GPU op per sequence).
+    All three now cost one host transfer and two vectorised NumPy operations.
 
-def get_actual_sequence_length(input_ids, eos_token_id=2):
-    """Find actual sequence length by locating EOS token."""
-    actual_lengths = []
-    for seq in input_ids:
-        eos_positions = (seq == eos_token_id).nonzero(as_tuple=True)[0]
-        if len(eos_positions) > 0:
-            actual_length = eos_positions[0].item() - 1
-        else:
-            actual_length = len(seq) - 1
-        actual_lengths.append(max(1, actual_length))
-    return actual_lengths
+    Args:
+        trim_lengths: (3, batch) array of per-frame lengths to cut each prediction to,
+            i.e. what trim_predictions_by_eos derived from the EOS position.
 
+    Returns:
+        (preds_rf0, preds_rf1, preds_rf2), each a list of per-sequence int lists.
+    """
+    tags, lengths = viterbi_decode_fast(model.CRF.crf, logits.float(), combined_mask.bool())
 
-def trim_predictions_by_eos(predictions, input_ids):
-    """Trim predictions to actual sequence length based on EOS token."""
-    actual_lengths = get_actual_sequence_length(input_ids, eos_token_id=2)
-    trimmed = []
-    for pred_seq, length in zip(predictions, actual_lengths):
-        trimmed.append(pred_seq[:length])
-    return trimmed
+    tags_np = tags.cpu().numpy()        # the single host sync for the whole batch
+    lengths_np = lengths.cpu().numpy()
+
+    # (3, B, L) per-frame labels in one fancy-index plus one .tolist()
+    rf_labels = np.ascontiguousarray(label_lut[tags_np].transpose(2, 0, 1))
+    preds_rf0, preds_rf1, preds_rf2 = rf_labels.tolist()
+
+    # The CRF only decoded `lengths` positions; each frame is then cut to its own end.
+    trims = np.minimum(trim_lengths, lengths_np[None, :])
+    for rf, preds in enumerate((preds_rf0, preds_rf1, preds_rf2)):
+        trim_rf = trims[rf]
+        for i in range(len(preds)):
+            preds[i] = preds[i][:trim_rf[i]]
+    return preds_rf0, preds_rf1, preds_rf2
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -656,75 +666,63 @@ def process_predictions(predictions_rf0, predictions_rf1, predictions_rf2,
 # Inference — Short Sequences: 300 nt or shorter (direct)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_direct_inference(model, df, mapping_dict_to_class, max_aa_len,
-                         device, dtype, batch_size, num_workers_cpu, pin_memory, gff_buffers,
-                         min_cds_length, strand="+", seq_lengths=None):
+def run_direct_inference(model, names, seqs, label_lut, device, dtype, batch_size,
+                         gff_buffers, min_cds_length, strand="+", seq_lengths=None,
+                         desc="Predicting on the short sequences..."):
     """
     Run direct (non-sliding-window) inference on sequences that fit within the trained window.
-    
-    Args: 
-    - model: Loaded DeepCDS model
-    - df: DataFrame containing sequences and metadata for the short sequence group
-    - mapping_dict_to_class: Dict mapping model output indices to class labels
-    - max_aa_len: Maximum amino acid length for padding sequences in this group
-    - device: Computation device (CPU, CUDA, etc.)
-    - dtype: Data type for model inputs (torch.float32)
-    - batch_size: Batch size for inference
-    - num_workers_cpu: Number of CPU workers for data loading
-    - pin_memory: Whether to use pinned memory for DataLoader
-    - gff_buffers: Dictionary of GFF buffers for each read
-    """
 
-    tokenizer = get_tokenizer()
-    dataset = encode_data(df, max_aa_len, tokenizer)
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
-                        num_workers=num_workers_cpu, pin_memory=pin_memory)
+    Two changes from the original beyond the shared fast decode path:
+
+    * Sequences are batched in length order, and each batch is padded only to its own
+      longest member instead of to the longest sequence in the whole file. A file mixing
+      60 nt and 300 nt sequences previously padded every one of them to 300 nt and paid
+      up to 5x the necessary compute. Padding beyond a sequence's own length is masked
+      out of ESM-2 attention, the transformer encoder and the CRF, so this changes no
+      prediction - the one thing that must hold is that every sequence keeps at least one
+      codon of padding, which the +3 buffer below guarantees, because that is what keeps
+      each frame's EOS token inside the trimmed attention window.
+    * encode_reads_fast replaces encode_data + DataLoader, dropping the per-sequence ESM
+      tokenizer walk (a pure-Python character Trie) and the per-sequence tensor
+      allocations.
+
+    Output is unaffected by the batching order: GFF lines go into per-sequence buffers
+    and are written out in the original FASTA order by the caller.
+    """
+    if not seqs:
+        return
+
+    order = sorted(range(len(seqs)), key=lambda i: len(seqs[i]))
+    n_batches = (len(order) + batch_size - 1) // batch_size
 
     with torch.inference_mode():
         model.eval()
-        for batch in tqdm(loader, desc="Predicting on the short sequences...", file=sys.stdout):
-            aa_rf0 = batch['aa_encodings_rf0']['input_ids'].to(device)
-            mask_rf0 = batch['aa_encodings_rf0']['attention_mask'].to(device)
-            aa_rf1 = batch['aa_encodings_rf1']['input_ids'].to(device)
-            mask_rf1 = batch['aa_encodings_rf1']['attention_mask'].to(device)
-            aa_rf2 = batch['aa_encodings_rf2']['input_ids'].to(device)
-            mask_rf2 = batch['aa_encodings_rf2']['attention_mask'].to(device)
+        for begin in tqdm(range(0, len(order), batch_size), total=n_batches,
+                          desc=desc, file=sys.stdout):
+            idx = order[begin:begin + batch_size]
+            batch_seqs = [seqs[i] for i in idx]
+            batch_names = [names[i] for i in idx]
 
-            nt_rf0 = batch['nt_encodings_rf0'].to(device, dtype=dtype)
-            nt_rf1 = batch['nt_encodings_rf1'].to(device, dtype=dtype)
-            nt_rf2 = batch['nt_encodings_rf2'].to(device, dtype=dtype)
+            batch_max_len = max(len(x) for x in batch_seqs)
+            # Same formula the original applied globally, now per batch. See
+            # "Supplementary Note X. Inference on sequence ends".
+            max_aa_len = int(np.ceil(batch_max_len / 3)) + 3
 
-            read_names = batch['read_name']
+            encoded = encode_reads_fast(batch_seqs, max_aa_len, read_len=batch_max_len)
+            nt_frames, aa_frames, mask_frames = _frames_to_device(
+                encoded, 0, len(batch_seqs), device, dtype
+            )
 
-            # Model outputs shared label class sequence 
-            outputs = model(
-                nt_rf0, aa_rf0, mask_rf0,
-                nt_rf1, aa_rf1, mask_rf1,
-                nt_rf2, aa_rf2, mask_rf2)
+            # All three reading frames in one batched pass through the shared stack.
+            logits, combined_mask = model.predict_logits(nt_frames, aa_frames, mask_frames)
 
-            predictions_encoded = outputs["predictions"]
+            preds_rf0, preds_rf1, preds_rf2 = _decode_to_rf_labels(
+                model, label_lut, logits, combined_mask, encoded["trim_lengths"]
+            )
 
-            # Map shared label across RFs to class label and separate into per-RF predictions
-            preds_rf0, preds_rf1, preds_rf2 = [], [], []
-            for preds_sample in predictions_encoded:
-                preds = [mapping_dict_to_class[p] for p in preds_sample]
-                preds_rf0.append([rf[0] for rf in preds])
-                preds_rf1.append([rf[1] for rf in preds])
-                preds_rf2.append([rf[2] for rf in preds])
-
-            # Trim prediction sequences to actual sequence length based on EOS token in input_ids for each RF
-            preds_rf0 = trim_predictions_by_eos(preds_rf0, aa_rf0)
-            preds_rf1 = trim_predictions_by_eos(preds_rf1, aa_rf1)
-            preds_rf2 = trim_predictions_by_eos(preds_rf2, aa_rf2)
-
-            # Write CDS predictions to GFF buffers for each sequence in the batch
             process_predictions(preds_rf0, preds_rf1, preds_rf2,
-                                read_names, gff_buffers, len(read_names), min_cds_length,
+                                batch_names, gff_buffers, len(batch_names), min_cds_length,
                                 strand=strand, seq_lengths=seq_lengths)
-
-            # Cleanup to free memory after each batch
-            del aa_rf0, aa_rf1, aa_rf2, mask_rf0, mask_rf1, mask_rf2
-            del nt_rf0, nt_rf1, nt_rf2, outputs, predictions_encoded
 
     clear_memory(sync=True)
 
@@ -733,57 +731,127 @@ def run_direct_inference(model, df, mapping_dict_to_class, max_aa_len,
 # Inference — Long Sequences, longer than 300 nt (sliding window, variable length)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_sliding_window_single(model, name, seq, mapping_dict_to_class,
-                               device, dtype, batch_size, stride_aa,
-                               num_workers_cpu, pin_memory, gff_buffers,
-                               min_cds_length, strand="+"):
-    """Run sliding window inference on a single long sequence."""
-    tokenizer = get_tokenizer()
-    seq_len = len(seq)
+def _merge_windows_varlen(window_logits, seq_offsets, seq_window_starts, full_aa_lens,
+                          window_size_aa, num_labels, device):
+    """Average overlapping window logits back into per-sequence tracks.
+
+    Generalises sliding_window._merge_window_logits to a block of sequences that need
+    not share a length: each sequence writes into its own row of a padded tensor, and
+    the mask marks how far that row is real. Identical arithmetic - accumulate the
+    windows that cover each codon, then divide by the cover count.
+
+    Returns:
+        (merged_logits, merged_mask): (n_seq, max_aa_len, K) float32 and (n_seq, max_aa_len) bool.
+    """
+    n_seq = len(seq_offsets)
+    max_len = max(full_aa_lens)
+
+    merged = torch.zeros(n_seq, max_len, num_labels, dtype=torch.float32, device=device)
+    counts = torch.zeros(n_seq, max_len, 1, dtype=torch.float32, device=device)
+
+    for si in range(n_seq):
+        offset = seq_offsets[si]
+        full_aa_len = full_aa_lens[si]
+        for wi, start_nt in enumerate(seq_window_starts[si]):
+            start_aa = start_nt // 3
+            actual_len = min(window_size_aa, full_aa_len - start_aa)
+            merged[si, start_aa:start_aa + actual_len, :] += window_logits[offset + wi, :actual_len, :]
+            counts[si, start_aa:start_aa + actual_len, :] += 1
+
+    merged = merged / counts.clamp(min=1)
+    return merged, (counts.squeeze(-1) > 0)
+
+
+def run_sliding_window(model, names, seqs, label_lut, device, dtype, batch_size, stride_aa,
+                       gff_buffers, min_cds_length, strand="+", seq_lengths=None,
+                       desc="Long sequences"):
+    """Run sliding-window inference over all long sequences, batched across sequences.
+
+    The original processed one long sequence at a time, so each model call saw only that
+    sequence's handful of windows and each CRF decode covered a single sequence. Every
+    window is exactly the trained window size regardless of how long its parent sequence
+    is, so windows from different sequences - of different lengths - batch together
+    freely. Sequences are accumulated into blocks, all their windows go through the model
+    in full batches, the windows are then averaged back into per-sequence tracks, and the
+    CRF decodes the whole block at once over a ragged mask.
+    """
+    if not seqs:
+        return
+
     window_size_aa = TRAINED_WINDOW_SIZE_AA
     window_size_nt = window_size_aa * 3
     stride_nt = stride_aa * 3
-
-    window_starts = get_window_positions(seq_len, window_size_nt, stride_nt)
-    n_windows = len(window_starts)
-    full_aa_len = seq_len // 3
     num_labels = model.linear_transform.out_features
 
-    # Create single-row DataFrame for windowing
-    df = sequences_to_dataframe([name], [seq])
-    windowed_df = _create_windowed_dataframe(df, window_starts, window_size_nt)
-    window_dataset = encode_data(windowed_df, window_size_aa, tokenizer)
+    # Bound how much is in flight at once; always allow at least one sequence, however
+    # many windows it needs.
+    window_block = max(4 * batch_size, 512)
 
-    # Run model on all windows
-    all_logits = _run_model_on_windows(
-        model, window_dataset, n_windows, device, dtype,
-        batch_size=batch_size,
-        num_workers_cpu=num_workers_cpu,
-        pin_memory=pin_memory,
-    )
+    plans = []  # (name, seq, window_starts)
+    for name, seq in zip(names, seqs):
+        plans.append((name, seq, get_window_positions(len(seq), window_size_nt, stride_nt)))
 
-    # Reshape: (1, n_windows, window_size_aa, num_labels)
-    all_logits = all_logits.view(1, n_windows, window_size_aa, num_labels)
+    blocks, current, current_windows = [], [], 0
+    for plan in plans:
+        n_win = len(plan[2])
+        if current and current_windows + n_win > window_block:
+            blocks.append(current)
+            current, current_windows = [], 0
+        current.append(plan)
+        current_windows += n_win
+    if current:
+        blocks.append(current)
 
-    # Merge shared label space logits from overlapping window positions
-    merged_logits, merged_mask = _merge_window_logits(
-        all_logits, window_starts, window_size_aa, full_aa_len, num_labels, device
-    )
+    with torch.inference_mode():
+        model.eval()
+        for block in tqdm(blocks, desc=desc, file=sys.stdout):
+            block_names = [p[0] for p in block]
+            block_starts = [p[2] for p in block]
+            full_aa_lens = [len(p[1]) // 3 for p in block]
+            seq_lens = [len(p[1]) for p in block]
 
-    merged_mask = merged_mask.bool()
+            windows, seq_offsets = [], []
+            for _, seq, starts in block:
+                seq_offsets.append(len(windows))
+                windows.extend(seq[st:st + window_size_nt] for st in starts)
 
-    # CRF decoding
-    predictions_encoded = model.CRF.crf.decode(merged_logits, mask=merged_mask)
+            encoded = encode_reads_fast(windows, window_size_aa, read_len=window_size_nt)
 
-    # Decode per-RF predictions
-    preds_rf0, preds_rf1, preds_rf2 = _decode_predictions(
-        predictions_encoded, mapping_dict_to_class, seq_len
-    )
+            # Model forward over every window in the block, in full batches.
+            logits_parts = []
+            for begin in range(0, len(windows), batch_size):
+                stop = min(begin + batch_size, len(windows))
+                nt_frames, aa_frames, mask_frames = _frames_to_device(
+                    encoded, begin, stop, device, dtype
+                )
+                part, _ = model.predict_logits(nt_frames, aa_frames, mask_frames)
+                logits_parts.append(part.float())
+            window_logits = torch.cat(logits_parts, dim=0)  # (total_windows, window_size_aa, K)
 
-    process_predictions(preds_rf0, preds_rf1, preds_rf2, [name], gff_buffers, 1, min_cds_length,
-                        strand=strand, seq_lengths={name: seq_len})
+            merged_logits, merged_mask = _merge_windows_varlen(
+                window_logits, seq_offsets, block_starts, full_aa_lens,
+                window_size_aa, num_labels, device,
+            )
 
-    del all_logits, merged_logits, merged_mask, windowed_df, window_dataset
+            # Per-frame prediction lengths, as _decode_predictions derived them.
+            trim_lengths = np.array(
+                [[sl // 3 for sl in seq_lens],
+                 [(sl - 1) // 3 for sl in seq_lens],
+                 [(sl - 2) // 3 for sl in seq_lens]], dtype=np.int64,
+            )
+
+            preds_rf0, preds_rf1, preds_rf2 = _decode_to_rf_labels(
+                model, label_lut, merged_logits, merged_mask, trim_lengths
+            )
+
+            process_predictions(preds_rf0, preds_rf1, preds_rf2,
+                                block_names, gff_buffers, len(block_names), min_cds_length,
+                                strand=strand, seq_lengths=seq_lengths)
+
+            del window_logits, merged_logits, merged_mask, logits_parts
+
+    clear_memory(sync=True)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Main
@@ -833,8 +901,6 @@ def main():
         return torch.device("cpu")
 
     device = _resolve_device(args.compute_device)
-    num_workers_cpu = 2 if device.type == "cuda" else 0
-    pin_memory      = device.type == "cuda"
 
     print(f"Running on device: {device}")
 
@@ -907,45 +973,31 @@ def main():
     print(f"\nSequences: {len(short_names)} short (<={trained_window_nt} nt), "
           f"{len(long_names)} long (>{trained_window_nt} nt)")
 
+    # {encoded label -> (rf0, rf1, rf2)} as an array, so decoding a batch of predictions
+    # is one fancy-index rather than a Python dict lookup per token.
+    label_lut = build_label_lut(mapping_dict_to_class)
+
     # ── Run inference ───────────────────────────────────────────────────────
     # Collect GFF lines per sequence into buffers, then write in original order
     gff_buffers = {}  # name -> StringIO
+    for name, _ in sequences:
+        gff_buffers[name] = io.StringIO()
 
-    with torch.inference_mode():
-        model.eval()
+    if short_seqs:
+        print(f"\nProcessing {len(short_seqs)} short sequences...")
+        run_direct_inference(
+            model, short_names, short_seqs, label_lut,
+            device, dtype, args.batch_size, gff_buffers, args.min_cds_length,
+        )
 
-        # Process short sequences in a single batch (padded to max length in group)
-        if short_seqs:
-            print(f"\nProcessing {len(short_seqs)} short sequences...")
-
-            # Determine max sequence length in short sequence group for padding. 
-            max_seq_len = max(len(s) for s in short_seqs)
-            # Ensure that we pad enough to cover the longest sequence and allow for some extra padding to reach the next multiple of 3 codons for each reading frame. See "Supplementary Note X. Inference on sequence ends".
-            max_aa_len = int(np.ceil(max_seq_len / 3)) + 3 
-            df_short = sequences_to_dataframe(short_names, short_seqs)
-
-            # Create per-sequence buffers
-            for n in short_names:
-                gff_buffers[n] = io.StringIO()
-
-            run_direct_inference(
-                model, df_short, mapping_dict_to_class, max_aa_len,
-                device, dtype, args.batch_size, num_workers_cpu, pin_memory, gff_buffers, args.min_cds_length
-            )
-            del df_short
-            clear_memory()
-
-        # Process long sequences individually with sliding window: See "Supplementary Note X. Inference on longer sequences"
-        if long_seqs:
-            print(f"\nProcessing {len(long_seqs)} long sequences with sliding window...")
-            for name, seq in tqdm(zip(long_names, long_seqs), total=len(long_seqs), desc="Long sequences", file=sys.stdout):
-                gff_buffers[name] = io.StringIO()
-                run_sliding_window_single(
-                    model, name, seq, mapping_dict_to_class,
-                    device, dtype, args.batch_size, args.stride_aa,
-                    num_workers_cpu, pin_memory, gff_buffers, args.min_cds_length
-                )
-                clear_memory()
+    # See "Supplementary Note X. Inference on longer sequences"
+    if long_seqs:
+        print(f"\nProcessing {len(long_seqs)} long sequences with sliding window...")
+        run_sliding_window(
+            model, long_names, long_seqs, label_lut,
+            device, dtype, args.batch_size, args.stride_aa,
+            gff_buffers, args.min_cds_length,
+        )
 
     # ── Run inference on reverse complement sequences (complement strand) ─────────
     # seq_lengths maps each read name to its original length, needed to convert
@@ -963,35 +1015,24 @@ def main():
             rc_long_names.append(name)
             rc_long_seqs.append(rc_seq)
 
-    with torch.inference_mode():
-        model.eval()
+    if rc_short_seqs:
+        print(f"\nProcessing {len(rc_short_seqs)} short sequences (complement strand)...")
+        run_direct_inference(
+            model, rc_short_names, rc_short_seqs, label_lut,
+            device, dtype, args.batch_size, gff_buffers, args.min_cds_length,
+            strand="-", seq_lengths=seq_lengths,
+            desc="Predicting on the short sequences (complement strand)...",
+        )
 
-        if rc_short_seqs:
-            print(f"\nProcessing {len(rc_short_seqs)} short sequences (complement strand)...")
-            max_seq_len_rc = max(len(s) for s in rc_short_seqs)
-            max_aa_len_rc  = int(np.ceil(max_seq_len_rc / 3)) + 3
-            df_rc_short = sequences_to_dataframe(rc_short_names, rc_short_seqs)
-
-            run_direct_inference(
-                model, df_rc_short, mapping_dict_to_class, max_aa_len_rc,
-                device, dtype, args.batch_size, num_workers_cpu, pin_memory,
-                gff_buffers, args.min_cds_length,
-                strand="-", seq_lengths=seq_lengths
-            )
-            del df_rc_short
-            clear_memory()
-
-        if rc_long_seqs:
-            print(f"\nProcessing {len(rc_long_seqs)} long sequences with sliding window (complement strand)...")
-            for name, rc_seq in tqdm(zip(rc_long_names, rc_long_seqs),
-                                     total=len(rc_long_seqs), desc="Long sequences (complement strand)", file=sys.stdout):
-                run_sliding_window_single(
-                    model, name, rc_seq, mapping_dict_to_class,
-                    device, dtype, args.batch_size, args.stride_aa,
-                    num_workers_cpu, pin_memory, gff_buffers, args.min_cds_length,
-                    strand="-"
-                )
-                clear_memory()
+    if rc_long_seqs:
+        print(f"\nProcessing {len(rc_long_seqs)} long sequences with sliding window (complement strand)...")
+        run_sliding_window(
+            model, rc_long_names, rc_long_seqs, label_lut,
+            device, dtype, args.batch_size, args.stride_aa,
+            gff_buffers, args.min_cds_length,
+            strand="-", seq_lengths=seq_lengths,
+            desc="Long sequences (complement strand)",
+        )
 
     # Write GFF output in original FASTA order
     ext = ".gz" if args.gzip_output else ""
@@ -1046,3 +1087,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

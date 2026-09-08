@@ -1,9 +1,4 @@
-# DeepCDS production inference package
-from .postprocessing import (
-    reverse_complement,
-    translate_cds,
-    extract_cds_from_gff,
-)
+# DeepCDS modeling module
 from .deepcds_model import (
     CDSPredictor,
     LinearChainCRF,
@@ -19,6 +14,12 @@ from .deepcds_dataset import (
     process_nt_sequences_to_codons,
     translate_nucleotide_to_amino_acid,
 )
+from .fast_inference import (
+    build_label_lut,
+    codon_one_hot_from_codes,
+    encode_reads_fast,
+    viterbi_decode_fast,
+)
 from .sliding_window import (
     TRAINED_WINDOW_SIZE_AA,
     DEFAULT_STRIDE_AA,
@@ -28,10 +29,6 @@ from .sliding_window import (
 )
 
 __all__ = [
-    # Postprocessing
-    "reverse_complement",
-    "translate_cds",
-    "extract_cds_from_gff",
     # Model classes
     "CDSPredictor",
     "LinearChainCRF",
@@ -45,6 +42,11 @@ __all__ = [
     "one_hot_encode",
     "process_nt_sequences_to_codons",
     "translate_nucleotide_to_amino_acid",
+    # Fast inference helpers
+    "build_label_lut",
+    "codon_one_hot_from_codes",
+    "encode_reads_fast",
+    "viterbi_decode_fast",
     # Sliding window inference
     "TRAINED_WINDOW_SIZE_AA",
     "DEFAULT_STRIDE_AA",
@@ -52,3 +54,5 @@ __all__ = [
     "sliding_window_inference",
     "sliding_window_inference_esm2",
 ]
+
+
