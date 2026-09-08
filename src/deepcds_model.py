@@ -1,7 +1,7 @@
 """
 DeepCDS Model Classes
 
-This module contains the neural network model classes for the DeepCDS CDS prediction system:
+This module contains the neural network model classes for the DeepCDS CDS prediction system, specifically:
 - SequenceEncoder: ESM-2 based amino acid sequence encoder
 - TransformerEncoderBlock: Transformer encoder for combining one-hot encoded nucleotide and contextualized amino acid embeddings per frame
 - LinearChainCRF: Linear-chain Conditional Random Field layer for structured prediction

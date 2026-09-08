@@ -4,7 +4,7 @@ Fast inference helpers for DeepCDS.
 These are drop-in, numerically equivalent replacements for the slow parts of the
 prediction path. They exist because the per-read Python work (HuggingFace's
 character-Trie ESM tokenizer, per-sequence one-hot encoding) and the per-token
-GPU->CPU synchronisation inside ``torchcrf``'s Viterbi backtracking dominate
+GPU -> CPU synchronisation inside ``torchcrf``'s Viterbi backtracking dominate
 runtime once the read count reaches tens of millions.
 
 Contents

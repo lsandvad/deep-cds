@@ -1,7 +1,7 @@
 # DeepCDS: *Ab initio* coding sequence prediction in prokaryotic short reads
-DeepCDS is a deep learning-based model that predicts coding sequences (CDSs) in short prokaryotic DNA sequences, including start codon and stop codon positions. It can be used for prediction in both clean sequences, and sequences with sequencing errors. 
+DeepCDS is a deep learning-based model that predicts coding sequences (CDSs) in short prokaryotic DNA sequences, including start codon and stop codon positions. It can be used for prediction in both clean sequences, and sequences with sequencing errors.
 
-The model was developed based on 300bp long sequences, but tested on sequences in the sequence length range from 60-1000bp. 
+The model was developed based on 300bp long sequences, but tested on sequence lengths of 60, 75, 100, 150, 300, 700, and 1000 bp (700 and 1000 bp evaluated on error-free sequences only). 
 
 The preprint can be accessed [here](https://www.biorxiv.org/content/10.64898/2026.06.17.732633v1).
 
@@ -43,10 +43,12 @@ DeepCDS can be run to predict on your own data using the general command:
 python ./predict_with_deepcds.py -in INPUT_FASTA -error_model ERROR_MODEL [optional arguments]
 ```
 
+The model runs independently on the input read and its reverse complement sequence.
+
 For a quick overview of all arguments, see [Input Arguments](#input-arguments) below or run
 ```python ./predict_with_deepcds.py --help```.
 
-Please note that the DeepCDS prediction program uses the information stored in the /src, /models, and /configs directories. 
+Please note that the DeepCDS prediction program uses the information stored in the /src, /models, and /configs directories. The trained weights for each model variant (N, S, S+I), are placed in /models. 
 
 ## Input Arguments
 DeepCDS requires an input fasta file with the sequences to be predicted on, as well as which error model the user wants to use. Additionally, DeepCDS accepts a range of optional arguments:
@@ -84,6 +86,9 @@ Attributes are provided as a list of tag-value pairs. Each pair is separated by 
 - `indel_type`: Provided together with `group_id`. Marks the kind of sequencing error predicted (either `insertion` or `deletion`). This attribute is only provided with `--error_model SI`.
 - `overlapping_frames`: Marks which reading frames the two CDS fragments flanking a `type=uncertain_region` are placed in. This attribute is only provided with `--error_model SI`.
 - `Note`: Any additional notes related to the given annotation. 
+
+#### Strand orientation
+Coding sequences predicted on the read sequence are marked by '+', and coding sequences predicted on the reverse complement sequence are marked by '-'. 
 
 ### .fna notes
 Fasta file containing the predicted CDS sequences. In cases where a deletion error has been predicted, the missing region in the merged CDS sequence is represented as an "NNN" codon.  

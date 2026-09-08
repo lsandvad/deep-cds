@@ -138,6 +138,17 @@ Examples:
     )
     
     parser.add_argument(
+        "--chunk_size",
+        type=int,
+        default=100_000,
+        help="Number of sequences held in memory at a time. The file is streamed in "
+             "chunks of this size, so peak memory stays bounded regardless of input size "
+             "(roughly 1.3 kB per sequence held). Inputs smaller than one chunk are "
+             "processed exactly as before. Does not affect predictions or runtime, only "
+             "memory (default: 100000)",
+    )
+
+    parser.add_argument(
         "--gzip_output",
         action="store_true",
         help="Compress output files (.gff.gz, .fna.gz, .faa.gz) with gzip",
@@ -156,14 +167,13 @@ Examples:
 # FASTA Parsing
 # ══════════════════════════════════════════════════════════════════════════════
 
-def parse_fasta(fasta_path):
+def iter_fasta_records(fasta_path):
     """
-    Parse a FASTA file and return a list of (name, sequence) tuples.
+    Yield (name, sequence) tuples from a FASTA file one record at a time.
 
     Handles multi-line sequences and strips whitespace. Sequence names are
     taken from the first word of the header line (after '>').
     """
-    sequences = []
     current_name = None
     current_seq_parts = []
 
@@ -175,7 +185,7 @@ def parse_fasta(fasta_path):
                 continue
             if line.startswith(">"):
                 if current_name is not None:
-                    sequences.append((current_name, "".join(current_seq_parts).upper()))
+                    yield current_name, "".join(current_seq_parts).upper()
                 current_name = line[1:].split()[0]
                 current_seq_parts = []
             else:
@@ -183,9 +193,34 @@ def parse_fasta(fasta_path):
 
     # Don't forget the last sequence
     if current_name is not None:
-        sequences.append((current_name, "".join(current_seq_parts).upper()))
+        yield current_name, "".join(current_seq_parts).upper()
 
-    return sequences
+
+def iter_fasta_chunks(fasta_path, chunk_size):
+    """Yield lists of at most `chunk_size` (name, sequence) tuples.
+
+    Streaming in chunks is what keeps peak memory independent of input size: the
+    script holds each sequence, its reverse complement and a GFF buffer until that
+    sequence's output is written, which is roughly 1.3 kB per sequence. Bounding
+    how many are alive at once bounds the total.
+    """
+    chunk = []
+    for record in iter_fasta_records(fasta_path):
+        chunk.append(record)
+        if len(chunk) >= chunk_size:
+            yield chunk
+            chunk = []
+    if chunk:
+        yield chunk
+
+
+def parse_fasta(fasta_path):
+    """
+    Parse a FASTA file and return a list of (name, sequence) tuples.
+
+    Reads the whole file into memory; prefer iter_fasta_chunks() for large inputs.
+    """
+    return list(iter_fasta_records(fasta_path))
 
 
 def validate_sequences(sequences):
@@ -905,15 +940,16 @@ def main():
 
     print(f"Running on device: {device}")
 
-    # ── Parse FASTA ─────────────────────────────────────────────────────────
-    print(f"Reading FASTA: {args.input_fasta}")
-    sequences = parse_fasta(args.input_fasta)
-    print(f"  Parsed {len(sequences)} sequences")
-    sequences = validate_sequences(sequences)
-    if not sequences:
-        print("Error: No valid sequences found.")
-        sys.exit(1)
-    print(f"  {len(sequences)} valid sequences")
+    # ── Output paths ────────────────────────────────────────────────────────
+    ext = ".gz" if args.gzip_output else ""
+    want_gff = "gff" not in suppressed
+    want_fna = "fna" not in suppressed
+    want_faa = "faa" not in suppressed
+
+    gff_path = f"{args.output}.gff{ext}" if want_gff else None
+    fna_path = f"{args.output}.fna{ext}" if want_fna else None
+    faa_path = f"{args.output}.faa{ext}" if want_faa else None
+    open_fn = gzip.open if args.gzip_output else open
 
     # ── Load model ──────────────────────────────────────────────────────────
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -949,131 +985,141 @@ def main():
         esm2_model=esm2_model_name,
         label_classes=label_classes)
 
-    # Always run inference in FP32. FP16 was found to measurably degrade
-    # prediction quality (particularly on long, sliding-window sequences),
-    # while the model checkpoints are themselves FP32-native.
+    # Always run inference in FP32. Reduced precision was found to measurably degrade
+    # prediction quality - severely so on sequences outside the training distribution,
+    # whose CRF score margins are narrow enough for rounding to flip them - and the
+    # model checkpoints are themselves FP32-native.
     dtype = torch.float32
-
-    # ── Split sequences into short vs long ──────────────────────────────────
-    trained_window_nt = 300
-
-    # Preserve original FASTA order: record (name, seq, original_index, is_long)
-    input_order = []  # list of (name, original_index)
-    short_names, short_seqs = [], []
-    long_names, long_seqs = [], []
-
-    for idx, (name, seq) in enumerate(sequences):
-        input_order.append((name, idx))
-        if len(seq) <= trained_window_nt:
-            short_names.append(name)
-            short_seqs.append(seq)
-        else:
-            long_names.append(name)
-            long_seqs.append(seq)
-
-    print(f"\nSequences: {len(short_names)} short (<={trained_window_nt} nt), "
-          f"{len(long_names)} long (>{trained_window_nt} nt)")
 
     # {encoded label -> (rf0, rf1, rf2)} as an array, so decoding a batch of predictions
     # is one fancy-index rather than a Python dict lookup per token.
     label_lut = build_label_lut(mapping_dict_to_class)
 
-    # ── Run inference ───────────────────────────────────────────────────────
-    # Collect GFF lines per sequence into buffers, then write in original order
-    gff_buffers = {}  # name -> StringIO
-    for name, _ in sequences:
-        gff_buffers[name] = io.StringIO()
+    trained_window_nt = 300
 
-    if short_seqs:
-        print(f"\nProcessing {len(short_seqs)} short sequences...")
-        run_direct_inference(
-            model, short_names, short_seqs, label_lut,
-            device, dtype, args.batch_size, gff_buffers, args.min_cds_length,
-        )
+    # ── Stream the FASTA and predict chunk by chunk ─────────────────────────
+    # Each chunk is fully processed (both strands) and its GFF written before the next
+    # is read, so peak memory is set by --chunk_size rather than by the input size.
+    # Chunks are read, and written, in input order, so the output is byte-for-byte what
+    # processing the whole file at once produces.
+    print(f"Reading FASTA: {args.input_fasta}")
 
-    # See "Supplementary Note X. Inference on longer sequences"
-    if long_seqs:
-        print(f"\nProcessing {len(long_seqs)} long sequences with sliding window...")
-        run_sliding_window(
-            model, long_names, long_seqs, label_lut,
-            device, dtype, args.batch_size, args.stride_aa,
-            gff_buffers, args.min_cds_length,
-        )
+    n_parsed = n_valid = n_short_total = n_long_total = 0
+    gff_out = None
+    tmp_gff_path = None
 
-    # ── Run inference on reverse complement sequences (complement strand) ─────────
-    # seq_lengths maps each read name to its original length, needed to convert
-    # RC coordinates back to forward-strand GFF coordinates.
-    seq_lengths = {name: len(seq) for name, seq in sequences}
+    try:
+        for chunk in iter_fasta_chunks(args.input_fasta, args.chunk_size):
+            n_parsed += len(chunk)
+            sequences = validate_sequences(chunk)
+            if not sequences:
+                continue
+            n_valid += len(sequences)
 
-    rc_short_names, rc_short_seqs = [], []
-    rc_long_names,  rc_long_seqs  = [], []
-    for name, seq in sequences:
-        rc_seq = reverse_complement(seq)
-        if len(rc_seq) <= trained_window_nt:
-            rc_short_names.append(name)
-            rc_short_seqs.append(rc_seq)
-        else:
-            rc_long_names.append(name)
-            rc_long_seqs.append(rc_seq)
+            # Open output lazily, so an input with no valid sequences leaves no files
+            # behind, exactly as the non-streaming version did.
+            if gff_out is None:
+                if want_gff:
+                    gff_out = open_fn(gff_path, "wt")
+                else:
+                    import tempfile
+                    _tmp = tempfile.NamedTemporaryFile(mode="wt", suffix=".gff", delete=False)
+                    tmp_gff_path = _tmp.name
+                    gff_out = _tmp
+                gff_out.write("##gff-version 3\n")
 
-    if rc_short_seqs:
-        print(f"\nProcessing {len(rc_short_seqs)} short sequences (complement strand)...")
-        run_direct_inference(
-            model, rc_short_names, rc_short_seqs, label_lut,
-            device, dtype, args.batch_size, gff_buffers, args.min_cds_length,
-            strand="-", seq_lengths=seq_lengths,
-            desc="Predicting on the short sequences (complement strand)...",
-        )
+            short_names, short_seqs = [], []
+            long_names, long_seqs = [], []
+            for name, seq in sequences:
+                if len(seq) <= trained_window_nt:
+                    short_names.append(name)
+                    short_seqs.append(seq)
+                else:
+                    long_names.append(name)
+                    long_seqs.append(seq)
+            n_short_total += len(short_names)
+            n_long_total += len(long_names)
 
-    if rc_long_seqs:
-        print(f"\nProcessing {len(rc_long_seqs)} long sequences with sliding window (complement strand)...")
-        run_sliding_window(
-            model, rc_long_names, rc_long_seqs, label_lut,
-            device, dtype, args.batch_size, args.stride_aa,
-            gff_buffers, args.min_cds_length,
-            strand="-", seq_lengths=seq_lengths,
-            desc="Long sequences (complement strand)",
-        )
+            print(f"\nSequences in this chunk: {len(short_names)} short (<={trained_window_nt} nt), "
+                  f"{len(long_names)} long (>{trained_window_nt} nt)")
 
-    # Write GFF output in original FASTA order
-    ext = ".gz" if args.gzip_output else ""
-    want_gff = "gff" not in suppressed
-    want_fna = "fna" not in suppressed
-    want_faa = "faa" not in suppressed
+            gff_buffers = {name: io.StringIO() for name, _ in sequences}
+            seq_lengths = {name: len(seq) for name, seq in sequences}
 
-    gff_path = f"{args.output}.gff{ext}" if want_gff else None
-    fna_path = f"{args.output}.fna{ext}" if want_fna else None
-    faa_path = f"{args.output}.faa{ext}" if want_faa else None
+            # ── Forward strand ──────────────────────────────────────────────
+            if short_seqs:
+                run_direct_inference(
+                    model, short_names, short_seqs, label_lut,
+                    device, dtype, args.batch_size, gff_buffers, args.min_cds_length,
+                )
+            if long_seqs:
+                # See "Supplementary Note X. Inference on longer sequences"
+                run_sliding_window(
+                    model, long_names, long_seqs, label_lut,
+                    device, dtype, args.batch_size, args.stride_aa,
+                    gff_buffers, args.min_cds_length,
+                )
 
-    open_fn = gzip.open if args.gzip_output else open
+            # ── Complement strand ───────────────────────────────────────────
+            # Written after the forward strand for every sequence, so each sequence's
+            # GFF block keeps the same '+' then '-' ordering as before.
+            rc_short_names, rc_short_seqs = [], []
+            rc_long_names, rc_long_seqs = [], []
+            for name, seq in sequences:
+                rc_seq = reverse_complement(seq)
+                if len(rc_seq) <= trained_window_nt:
+                    rc_short_names.append(name)
+                    rc_short_seqs.append(rc_seq)
+                else:
+                    rc_long_names.append(name)
+                    rc_long_seqs.append(rc_seq)
 
-    # If GFF is suppressed but fna/faa are needed, write GFF to a temp file
-    _tmp_gff = None
-    if not want_gff and (want_fna or want_faa):
-        import tempfile
-        _tmp = tempfile.NamedTemporaryFile(mode="wt", suffix=".gff", delete=False)
-        _tmp.write("##gff-version 3\n")
-        for name, _ in input_order:
-            if name in gff_buffers:
-                _tmp.write(gff_buffers[name].getvalue())
-        _tmp.close()
-        _tmp_gff = _tmp.name
-    elif want_gff:
-        with open_fn(gff_path, "wt") as outfile_gff:
-            outfile_gff.write("##gff-version 3\n")
-            for name, _ in input_order:
-                if name in gff_buffers:
-                    outfile_gff.write(gff_buffers[name].getvalue())
+            if rc_short_seqs:
+                run_direct_inference(
+                    model, rc_short_names, rc_short_seqs, label_lut,
+                    device, dtype, args.batch_size, gff_buffers, args.min_cds_length,
+                    strand="-", seq_lengths=seq_lengths,
+                    desc="Predicting on the short sequences (complement strand)...",
+                )
+            if rc_long_seqs:
+                run_sliding_window(
+                    model, rc_long_names, rc_long_seqs, label_lut,
+                    device, dtype, args.batch_size, args.stride_aa,
+                    gff_buffers, args.min_cds_length,
+                    strand="-", seq_lengths=seq_lengths,
+                    desc="Long sequences (complement strand)",
+                )
+
+            # Flush this chunk in input order, then let it go.
+            for name, _ in sequences:
+                buf = gff_buffers.get(name)
+                if buf is not None:
+                    gff_out.write(buf.getvalue())
+
+            del gff_buffers, seq_lengths, sequences, chunk
+            del short_names, short_seqs, long_names, long_seqs
+            del rc_short_names, rc_short_seqs, rc_long_names, rc_long_seqs
+            clear_memory()
+    finally:
+        if gff_out is not None:
+            gff_out.close()
+
+    print(f"\n  Parsed {n_parsed} sequences")
+    print(f"  {n_valid} valid sequences ({n_short_total} short, {n_long_total} long)")
+
+    if n_valid == 0:
+        print("Error: No valid sequences found.")
+        sys.exit(1)
 
     if want_fna or want_faa:
         extract_cds_from_gff(
             args.input_fasta,
-            _tmp_gff if _tmp_gff else gff_path,
+            tmp_gff_path if tmp_gff_path else gff_path,
             fna_path,
             faa_path,
         )
-        if _tmp_gff:
-            os.remove(_tmp_gff)
+    if tmp_gff_path:
+        os.remove(tmp_gff_path)
 
     clear_memory(sync=True)
 
