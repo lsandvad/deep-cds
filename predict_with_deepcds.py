@@ -196,6 +196,28 @@ def iter_fasta_records(fasta_path):
         yield current_name, "".join(current_seq_parts).upper()
 
 
+def count_fasta_sequences(fasta_path):
+    """Count '>' records without parsing, for the progress bar's total.
+
+    One extra pass over the file, in 1 MB blocks, counting header lines. That is cheap
+    next to inference and is what lets the bar show a meaningful ETA from the first
+    batch rather than only a rate.
+    """
+    _open = gzip.open if fasta_path.endswith(".gz") else open
+    count = 0
+    at_line_start = True
+    with _open(fasta_path, "rb") as f:
+        while True:
+            block = f.read(1 << 20)
+            if not block:
+                break
+            if at_line_start and block.startswith(b">"):
+                count += 1
+            count += block.count(b"\n>")
+            at_line_start = block.endswith(b"\n")
+    return count
+
+
 def iter_fasta_chunks(fasta_path, chunk_size):
     """Yield lists of at most `chunk_size` (name, sequence) tuples.
 
@@ -704,7 +726,7 @@ def process_predictions(predictions_rf0, predictions_rf1, predictions_rf2,
 
 def run_direct_inference(model, names, seqs, label_lut, device, dtype, batch_size,
                          gff_buffers, min_cds_length, strand="+", seq_lengths=None,
-                         desc="Predicting on the short sequences..."):
+                         pbar=None):
     """
     Run direct (non-sliding-window) inference on sequences that fit within the trained window.
 
@@ -729,12 +751,10 @@ def run_direct_inference(model, names, seqs, label_lut, device, dtype, batch_siz
         return
 
     order = sorted(range(len(seqs)), key=lambda i: len(seqs[i]))
-    n_batches = (len(order) + batch_size - 1) // batch_size
 
     with torch.inference_mode():
         model.eval()
-        for begin in tqdm(range(0, len(order), batch_size), total=n_batches,
-                          desc=desc, file=sys.stdout):
+        for begin in range(0, len(order), batch_size):
             idx = order[begin:begin + batch_size]
             batch_seqs = [seqs[i] for i in idx]
             batch_names = [names[i] for i in idx]
@@ -759,6 +779,10 @@ def run_direct_inference(model, names, seqs, label_lut, device, dtype, batch_siz
             process_predictions(preds_rf0, preds_rf1, preds_rf2,
                                 batch_names, gff_buffers, len(batch_names), min_cds_length,
                                 strand=strand, seq_lengths=seq_lengths)
+
+            # Each sequence needs both strands, so one strand is half of its work.
+            if pbar is not None:
+                pbar.update(len(batch_names) / 2)
 
     clear_memory(sync=True)
 
@@ -800,7 +824,7 @@ def _merge_windows_varlen(window_logits, seq_offsets, seq_window_starts, full_aa
 
 def run_sliding_window(model, names, seqs, label_lut, device, dtype, batch_size, stride_aa,
                        gff_buffers, min_cds_length, strand="+", seq_lengths=None,
-                       desc="Long sequences"):
+                       pbar=None):
     """Run sliding-window inference over all long sequences, batched across sequences.
 
     The original processed one long sequence at a time, so each model call saw only that
@@ -840,7 +864,7 @@ def run_sliding_window(model, names, seqs, label_lut, device, dtype, batch_size,
 
     with torch.inference_mode():
         model.eval()
-        for block in tqdm(blocks, desc=desc, file=sys.stdout):
+        for block in blocks:
             block_names = [p[0] for p in block]
             block_starts = [p[2] for p in block]
             full_aa_lens = [len(p[1]) // 3 for p in block]
@@ -883,6 +907,9 @@ def run_sliding_window(model, names, seqs, label_lut, device, dtype, batch_size,
             process_predictions(preds_rf0, preds_rf1, preds_rf2,
                                 block_names, gff_buffers, len(block_names), min_cds_length,
                                 strand=strand, seq_lengths=seq_lengths)
+
+            if pbar is not None:
+                pbar.update(len(block_names) / 2)
 
             del window_logits, merged_logits, merged_mask, logits_parts
 
@@ -1003,15 +1030,28 @@ def main():
     # Chunks are read, and written, in input order, so the output is byte-for-byte what
     # processing the whole file at once produces.
     print(f"Reading FASTA: {args.input_fasta}")
+    print("  Counting sequences...", end="", flush=True)
+    n_total = count_fasta_sequences(args.input_fasta)
+    print(f" {n_total}")
 
     n_parsed = n_valid = n_short_total = n_long_total = 0
     gff_out = None
     tmp_gff_path = None
 
+    # One bar for the whole run, counting sequences. Each sequence is predicted on both
+    # strands, so a strand pass advances it by half - which keeps the unit "sequences"
+    # while still moving smoothly rather than jumping once per chunk.
+    pbar = tqdm(total=n_total, unit="seq", desc="Predicting", file=sys.stdout,
+                smoothing=0.05, bar_format="{l_bar}{bar}| {n:.0f}/{total_fmt} "
+                                           "[{elapsed}<{remaining}, {rate_fmt}]")
+
     try:
         for chunk in iter_fasta_chunks(args.input_fasta, args.chunk_size):
             n_parsed += len(chunk)
             sequences = validate_sequences(chunk)
+            # Sequences dropped by validation are never predicted on, so credit them
+            # now; otherwise the bar could not reach its total.
+            pbar.update(len(chunk) - len(sequences))
             if not sequences:
                 continue
             n_valid += len(sequences)
@@ -1040,9 +1080,6 @@ def main():
             n_short_total += len(short_names)
             n_long_total += len(long_names)
 
-            print(f"\nSequences in this chunk: {len(short_names)} short (<={trained_window_nt} nt), "
-                  f"{len(long_names)} long (>{trained_window_nt} nt)")
-
             gff_buffers = {name: io.StringIO() for name, _ in sequences}
             seq_lengths = {name: len(seq) for name, seq in sequences}
 
@@ -1051,13 +1088,14 @@ def main():
                 run_direct_inference(
                     model, short_names, short_seqs, label_lut,
                     device, dtype, args.batch_size, gff_buffers, args.min_cds_length,
+                    pbar=pbar,
                 )
             if long_seqs:
                 # See "Supplementary Note X. Inference on longer sequences"
                 run_sliding_window(
                     model, long_names, long_seqs, label_lut,
                     device, dtype, args.batch_size, args.stride_aa,
-                    gff_buffers, args.min_cds_length,
+                    gff_buffers, args.min_cds_length, pbar=pbar,
                 )
 
             # ── Complement strand ───────────────────────────────────────────
@@ -1078,16 +1116,14 @@ def main():
                 run_direct_inference(
                     model, rc_short_names, rc_short_seqs, label_lut,
                     device, dtype, args.batch_size, gff_buffers, args.min_cds_length,
-                    strand="-", seq_lengths=seq_lengths,
-                    desc="Predicting on the short sequences (complement strand)...",
+                    strand="-", seq_lengths=seq_lengths, pbar=pbar,
                 )
             if rc_long_seqs:
                 run_sliding_window(
                     model, rc_long_names, rc_long_seqs, label_lut,
                     device, dtype, args.batch_size, args.stride_aa,
                     gff_buffers, args.min_cds_length,
-                    strand="-", seq_lengths=seq_lengths,
-                    desc="Long sequences (complement strand)",
+                    strand="-", seq_lengths=seq_lengths, pbar=pbar,
                 )
 
             # Flush this chunk in input order, then let it go.
@@ -1101,6 +1137,7 @@ def main():
             del rc_short_names, rc_short_seqs, rc_long_names, rc_long_seqs
             clear_memory()
     finally:
+        pbar.close()
         if gff_out is not None:
             gff_out.close()
 
