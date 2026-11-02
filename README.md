@@ -1,7 +1,7 @@
 # DeepCDS: *Ab initio* coding sequence prediction in prokaryotic short reads
 DeepCDS is a deep learning-based model that predicts coding sequences (CDSs) in short prokaryotic DNA sequences, including start codon and stop codon positions. It can be used for prediction in both clean sequences, and sequences with sequencing errors.
 
-The model was developed based on 300bp long sequences, but tested on sequence lengths of 60, 75, 100, 150, 300, 700, and 1000 bp (700 and 1000 bp evaluated on error-free sequences only). 
+DeepCDS accepts arbitrary DNA sequences as input, but was developed for and evaluated on short sequences. It was trained on 300 bp sequences and evaluated on sequence lengths of 60, 75, 100, 150, 300, 700, and 1000 bp, both error-free and with simulated Illumina-like sequencing errors (700 and 1000 bp evaluated on error-free sequences only). Sequences longer than 300 bp are processed using a sliding window approach. Performance on longer sequences such as contigs or complete genomes has not been systematically evaluated.
 
 The preprint can be accessed [here](https://www.biorxiv.org/content/10.64898/2026.06.17.732633v1).
 
@@ -40,7 +40,7 @@ python ./predict_with_deepcds.py -in ./data_example/test.fasta --error_model S
 
 DeepCDS can be run to predict on your own data using the general command:
 ```
-python ./predict_with_deepcds.py -in INPUT_FASTA -error_model ERROR_MODEL [optional arguments]
+python ./predict_with_deepcds.py -in INPUT_FASTA --error_model ERROR_MODEL [optional arguments]
 ```
 
 The model runs independently on the input read and its reverse complement sequence.
@@ -56,7 +56,7 @@ DeepCDS requires an input fasta file with the sequences to be predicted on, as w
 | Input Argument                      | Description                                     |
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 |`-in`, `--input_fasta`       | Required: Input file in FASTA format. The allowed input alphabet is A, C, G, T, U, and N (unknown). All the other letters will be treated as N. T and U are treated as equivalent. The input file can also be provided in gzipped format with a .gz extension.                                                                        |
-|`--error_model` | Required: The type of sequence data DeepCDS was trained on based on presence of sequencing errors. Options are: `none` (DeepCDS N; trained on error-free data), `S` (DeepCDS S; trained on sequences with substitution errors), `SI` (DeepCDS S+I; trained on sequences with both substitution, insertion, and deletion errors). Please note that the choice of error model can notably influence your results. We recommend using `none` for complete genomic sequences without sequencing errors. |
+|`--error_model` | Required: The type of sequence data DeepCDS was trained on based on presence of sequencing errors. Options are: `none` (DeepCDS N; trained on error-free data), `S` (DeepCDS S; trained on sequences with substitution errors), `SI` (DeepCDS S+I; trained on sequences with both substitution, insertion, and deletion errors). Please note that the choice of error model can notably influence your results. We recommend using `none` for complete genomic sequences without sequencing errors (e.g., assembled sequences). |
 |`--output` | Optional: The output file path and name without file format extension. Default: `<input_fasta_stem>_deepcds_predictions` (written to the current working directory). |
 |`--compute_device` | Optional: Which hardware accelerator to use. Options are: `cuda` (NVIDIA GPU), `mps` (Apple Silicon), `cpu`, and `auto` (selects the best available device in order cuda &rarr; mps &rarr; cpu). The program will automatically fall back to CPU if the requested device is unavailable. Default: `auto`.|
 | `--batch_size`    | Optional: Specifies the number of samples to process together in a single pass during prediction. If you have limited memory, try a smaller batch size. Default value: `128`.                                     |
@@ -73,7 +73,7 @@ The output is provided as three files: a .gff file with the CDS annotations (inc
 #### Feature types
 - `CDS`: A coding sequence region annotation. 
 - `start_codon`: Start codon annotation. Please note that the beginning of a CDS annotation in short sequence fragments does not necessarily equal a start codon position, as DeepCDS can predict CDS regions that are only internal regions of a protein, only the start of a protein, or the end of a protein. 
-- `stop_codon`: Stop codon annotation. Please note that the end of a CDS annotation in short sequence fragments does not necessarily a stop codon position, as DeepCDS can predict CDS regions that are only internal regions of a protein, only the start of a protein, or the end of a protein. 
+- `stop_codon`: Stop codon annotation. Please note that the end of a CDS annotation in short sequence fragments does not necessarily equal a stop codon position, as DeepCDS can predict CDS regions that are only internal regions of a protein, only the start of a protein, or the end of a protein. 
 - `insertion`: A specific inserted nucleotide position that has been directly identified. This is a special case where the exact insertion site is known, in contrast to the `uncertain_region` feature which marks ambiguous positions when the exact site cannot be determined. CDS fragments flanking an `insertion` share a `group_id` attribute. This feature type is only predicted with `--error_model SI`.
 - `uncertain_region`: Marks ambiguous nucleotide positions between CDS fragments interrupted by a predicted insertion or deletion error, where the exact indel position cannot be directly determined. CDS fragments flanking an `uncertain_region` share a `group_id` attribute. This feature type is only predicted with `--error_model SI`.
 

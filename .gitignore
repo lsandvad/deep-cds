@@ -24,6 +24,9 @@ requirements_dev.txt
 ###Ignore dir with supplementary material to upload
 /supplementary_information/**
 
+###Ignore conference material
+/conferences/**
+
 ###Ignore logfiles created in src dirs###
 # Ignore wandb outputs
 /src_dev/**/*.wandb
