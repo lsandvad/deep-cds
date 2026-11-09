@@ -13,6 +13,8 @@ MODEL_COLORS = {
     "fgs_illumina_5":            "#EEBC4E",  # Orange           (Dark2)
     "fgs_illumina_10":           "#F0E442",  # Dark orange      (Dark2-derived)
     "prodigal":                  "#009E73",  # Teal             (Dark2)
+    "metagenemark":              "#999999",  # Grey             (Okabe & Ito)
+    "metagenemark2":             "#000000",  # Black            (Okabe & Ito)
 
     # DeepCDS A2 (codon only) — green family (light → dark)
     "deep_cds_a2":               "#488700",  # Blue             
@@ -38,6 +40,8 @@ MODEL_DISPLAY_NAMES = {
     "fgs_illumina_5":            r"FGS (0.5% error rate)",
     "fgs_illumina_10":           r"FGS (1.0% error rate)",
     "prodigal":                  "MetaProdigal",
+    "metagenemark":              "MetaGeneMark",
+    "metagenemark2":             "MetaGeneMark-2",
     "deep_cds_a2":               "DeepCDS N (Codon)",
     "deep_cds_a2_no_errors":     "DeepCDS N (Codon)",
     "deep_cds_a2_substitution":  "DeepCDS S (Codon)",
@@ -58,6 +62,8 @@ MODEL_MARKERS = {
     "fgs_illumina_5":            "v",
     "fgs_illumina_10":           "x",
     "prodigal":                  "^",
+    "metagenemark":              "h",
+    "metagenemark2":             "p",
     "deep_cds_a1":               "D",
     "deep_cds_a1_no_errors":     "D",
     "deep_cds_a1_substitution":  "D",
