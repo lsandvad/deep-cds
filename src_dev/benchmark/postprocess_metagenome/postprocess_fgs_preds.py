@@ -26,7 +26,7 @@ read whose ground truth we've decided not to trust.
 
 EXCLUDE_NO_CDS_CONTIG_READS (below) mirrors postprocess_metagenome_testset.py's toggle
 of the same name: when on, predictions on reads whose contig has zero CDS annotations
-at all (see load_no_cds_contigs / test_CAMI/cami_contigs_without_cds.py) are dropped too.
+at all (see load_no_cds_contigs / src_dev/benchmark/eval/metagenome/cami_sample_statistics/cami_contigs_without_cds.py) are dropped too.
 Independent of and composable with EXCLUDE_UNCERTAIN_REGION_READS.
 """
 import argparse
@@ -51,11 +51,11 @@ EXCLUDE_NO_CDS_CONTIG_READS = False
 
 def load_no_cds_contigs(sample, project_root=project_root):
     """Contig accessions with zero CDS features in their raw GFF3 at all, persisted by
-    test_CAMI/cami_contigs_without_cds.py."""
+    src_dev/benchmark/eval/metagenome/cami_sample_statistics/cami_contigs_without_cds.py."""
     contigs_path = Path(project_root) / "data" / "processed_data" / "CAMI_metagenome_no_cds_contigs" / f"{sample}_contigs_without_cds.txt"
     if not contigs_path.exists():
         raise FileNotFoundError(
-            f"{contigs_path} not found - run test_CAMI/cami_contigs_without_cds.py --sample {sample} first."
+            f"{contigs_path} not found - run src_dev/benchmark/eval/metagenome/cami_sample_statistics/cami_contigs_without_cds.py --sample {sample} first."
         )
     return set(contigs_path.read_text().split())
 

@@ -12,7 +12,7 @@
 # under /tmp/nrt204/FragmentPredictor, so nothing sample-specific needs to be passed here.
 #
 # The two *_no_cds_contigs variants additionally require cami_contigs_without_cds.py to
-# have already been run for the sample(s) in question (see test_CAMI/cami_contigs_without_cds.py)
+# have already been run for the sample(s) in question (see src_dev/benchmark/eval/metagenome/cami_sample_statistics/cami_contigs_without_cds.py)
 # - that step is NOT part of this script, since it hits the NCBI API and is a one-time,
 # long-running fetch. Those two combinations are skipped (with a warning) if it hasn't been.
 #
@@ -80,7 +80,7 @@ echo "Variants: ${#VARIANTS[@]} toggle combinations"
 if [ "$NO_CDS_CONTIGS_READY" = false ]; then
     echo "[warning] cami_contigs_without_cds.py output not found for: ${SAMPLES[*]}"
     echo "          -> *_no_cds_contigs variants will be skipped. Run"
-    echo "             test_CAMI/cami_contigs_without_cds.py --sample <sample> first to enable them."
+    echo "             src_dev/benchmark/eval/metagenome/cami_sample_statistics/cami_contigs_without_cds.py --sample <sample> first to enable them."
 fi
 echo "=============================================="
 echo ""
