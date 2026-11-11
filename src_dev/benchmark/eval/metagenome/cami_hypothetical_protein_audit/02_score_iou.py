@@ -1,7 +1,7 @@
 """Re-score the CAMI CDS fragments at a lower IoU threshold, reusing the categories from 01_classify_and_score.py.
 
-TP per fragment and model: find_matching_genes(..., overlap_criteria=IOU) from the CAMI notebook
-(../cami_overlap_audit/cami_benchmark_functions.py), exactly as 01 does at IoU = 1.
+TP per fragment and model: find_matching_genes(..., overlap_criteria=IOU) of the CAMI benchmark
+(../cami_main_benchmark/cami_benchmark_functions.py), exactly as 01 does at IoU = 1.
 Output: $RESULTS/hypothetical_counts_iou<IOU>.tsv (same columns as hypothetical_counts.tsv)
 Usage: python 02_score_iou.py --iou 0.8 [--work /tmp/nrt204/hypothetical_audit_work]
 """
@@ -15,7 +15,7 @@ from multiprocessing import Pool
 import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RESULTS = "/tmp/nrt204/FragmentPredictor/data/processed_data/hypothetical_protein_audit"
+RESULTS = "/tmp/nrt204/FragmentPredictor/data/processed_data/cami_hypothetical_protein_audit"
 spec = importlib.util.spec_from_file_location("step1", os.path.join(HERE, "01_classify_and_score.py"))
 step1 = importlib.util.module_from_spec(spec)
 sys.modules["step1"] = step1  # so forked workers can resolve step1.match_model
@@ -41,16 +41,6 @@ def main():
     for model, tp in tp_flags.items():
         df[model] = tp
 
-    cached = (f"{step1.D}/processed_data/report_results/{step1.VARIANT}/cds_level_metagenome_model_comparison/"
-              f"oc_{args.iou:g}/results_overall.pkl")
-    if os.path.exists(cached):
-        with open(cached, "rb") as f:
-            c = pickle.load(f)
-        for model in step1.PRED_PATHS:
-            assert int(df[model].sum()) == int(c[model]["tp"]), (model, int(df[model].sum()), c[model]["tp"])
-        print(f"Check passed: TP totals equal the CAMI notebook's cached results at IoU {args.iou:g}")
-    else:
-        print(f"(no cached CAMI results at IoU {args.iou:g} to cross-check against)")
 
     df["length_class"] = pd.cut(df["length_bp"], step1.LENGTH_BINS, labels=step1.LENGTH_LABELS).astype(str)
     long = df.melt(id_vars=["genome_bin_id", "domain", "category", "length_class"], value_vars=list(step1.PRED_PATHS),

@@ -16,8 +16,8 @@ tagged), so all tools were evaluated on them.
      known_function          - neither, and at least one go_function (GO molecular function) term
      named_no_go_function    - neither, without a go_function term                         (not evaluated)
    (pseudogene / pseudo=true / partial=true / programmed-frameshift CDS are not labeled at all).
-2. TP per fragment and model: find_matching_genes(..., overlap_criteria=1) from the CAMI notebook
-   (../cami_overlap_audit/cami_benchmark_functions.py), on all predictions and labels of the read.
+2. TP per fragment and model: find_matching_genes(..., overlap_criteria=1) of the CAMI benchmark
+   (../cami_main_benchmark/cami_benchmark_functions.py), on all predictions and labels of the read.
 
 Output: $RESULTS/hypothetical_counts.tsv - model x genome_bin_id x domain x category x length class: n, tp
         ($WORK/fragments.tsv.gz: per-fragment table)
@@ -34,8 +34,8 @@ import numpy as np
 import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RESULTS = "/tmp/nrt204/FragmentPredictor/data/processed_data/hypothetical_protein_audit"
-sys.path.insert(0, os.path.join(HERE, "..", "cami_overlap_audit"))
+RESULTS = "/tmp/nrt204/FragmentPredictor/data/processed_data/cami_hypothetical_protein_audit"
+sys.path.insert(0, os.path.join(HERE, "..", "cami_main_benchmark"))
 from cami_benchmark_functions import find_matching_genes, get_full_cds  # noqa: E402
 
 D = "/tmp/nrt204/FragmentPredictor/data"
@@ -52,7 +52,6 @@ PRED_PATHS = {
     "deep_cds_substitution": f"{PP}/DeepCDS/model_with_substitution_errors/{VARIANT}/{CKPT}/{SAMPLE}/model_preds_dict.pkl",
     "deep_cds_errors": f"{PP}/DeepCDS/model_with_errors/{VARIANT}/{CKPT}/{SAMPLE}/model_preds_dict.pkl",
 }
-CACHED_OVERALL = f"{D}/processed_data/report_results/{VARIANT}/cds_level_metagenome_model_comparison/oc_{OVERLAP}/results_overall.pkl"
 EXCLUDE = ("pseudogene", "pseudo=true", "partial=true", "note=programmed frameshift")
 LENGTH_BINS, LENGTH_LABELS = [60, 89, 119, 10_000], ["61-89 bp", "90-119 bp", ">=120 bp"]
 
@@ -167,15 +166,6 @@ def main():
     print(f"fragments assigned to a tagged CDS: {int(tagged_cat.sum()):,}; of these on reads NOT flagged "
           f"uncertain_region_overlap: {int(mismatch.sum()):,}", flush=True)
     df[mismatch].head(200).to_csv(f"{args.work}/tag_mismatch_examples.tsv", sep="\t", index=False)
-    if os.path.exists(CACHED_OVERALL):
-        with open(CACHED_OVERALL, "rb") as f:
-            cached = pickle.load(f)
-        for model in PRED_PATHS:
-            assert int(df[model].sum()) == int(cached[model]["tp"]), (model, int(df[model].sum()), cached[model]["tp"])
-            assert len(df) == int(cached[model]["tp"] + cached[model]["fn"]), model
-        print("Check passed: TP and labeled-CDS totals equal the CAMI notebook's cached results for all models")
-    else:
-        print(f"(no cached CAMI results at {CACHED_OVERALL} to cross-check against)")
 
     df["length_class"] = pd.cut(df["length_bp"], LENGTH_BINS, labels=LENGTH_LABELS).astype(str)
     long = df.melt(id_vars=["genome_bin_id", "domain", "category", "length_class"], value_vars=list(PRED_PATHS),

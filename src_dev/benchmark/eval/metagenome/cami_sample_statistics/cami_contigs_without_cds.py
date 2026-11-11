@@ -19,8 +19,8 @@ populated gff_cache/ from a labeling run and just want to check what's there.
 Output is written under <project-root>/data/processed_data/CAMI_metagenome_no_cds_contigs/
 (not the cwd), since this is meant to be kept for later assessment - the postprocess_metagenome
 pipeline's EXCLUDE_NO_CDS_CONTIG_READS toggle (see postprocess_metagenome_testset.py and the
-three postprocess_metagenome/postprocess_*_preds.py scripts) and src_dev/benchmark/eval/metagenome/cami_sample_statistics/cami_no_cds_contig_predictions.py
-both read the *_contigs_without_cds.txt file back from there.
+three postprocess_metagenome/postprocess_*_preds.py scripts) reads the *_contigs_without_cds.txt file
+back from there.
 
 Usage:
     python3 cami_contigs_without_cds.py --sample sample_0

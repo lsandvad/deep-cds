@@ -25,7 +25,7 @@ import pandas as pd
 import pysam
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RESULTS = "/tmp/nrt204/FragmentPredictor/data/processed_data/hypothetical_protein_audit"
+RESULTS = "/tmp/nrt204/FragmentPredictor/data/processed_data/cami_hypothetical_protein_audit"
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "data_preprocessing"))
 import process_and_map_CAMI_testset as P  # noqa: E402
 

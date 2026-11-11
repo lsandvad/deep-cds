@@ -1,5 +1,5 @@
 """CDS matching functions of the CAMI benchmark, shared by the steps in this folder and by
-../hypothetical_protein_audit.
+../cami_hypothetical_protein_audit.
 """
 
 def get_full_cds(reads_dict):

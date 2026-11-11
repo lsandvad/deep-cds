@@ -1,6 +1,10 @@
 ###Ignore private readme
 README.txt
 /src_dev/**/*.README.md
+/src_dev/**/**/*.README.md
+/src_dev/**/**/**/*.README.md
+/src_dev/**/**/**/**/*.README.md
+/src_dev/**/**/**/**/**/*.README.md
 ###Ignore server implementation version of prediction script
 predict_with_deepcds_server.py
 /src_dev/data_preprocessing/prepare_datasets_for_server.py
