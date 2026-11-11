@@ -24,7 +24,7 @@ second, stricter version of the test set under its own output directory - the
 default (flag off) output is untouched either way.
 
 EXCLUDE_NO_CDS_CONTIG_READS (below) optionally drops every read whose contig has ZERO
-CDS features in its raw GFF3 at all (see test_CAMI/cami_contigs_without_cds.py, whose
+CDS features in its raw GFF3 at all (see src_dev/benchmark/eval/metagenome/cami_sample_statistics/cami_contigs_without_cds.py, whose
 output this reads back in). Distinct from EXCLUDE_UNCERTAIN_REGION_READS: that toggle is
 about individual low-confidence annotations on an otherwise-annotated contig; this one is
 about contigs NCBI hasn't annotated at all, where every read is a non-coding "negative" by
@@ -62,11 +62,11 @@ EXCLUDE_NO_CDS_CONTIG_READS = False
 
 def load_no_cds_contigs(sample, project_root=project_root):
     """Contig accessions with zero CDS features in their raw GFF3 at all, persisted by
-    test_CAMI/cami_contigs_without_cds.py. Only used when EXCLUDE_NO_CDS_CONTIG_READS is on."""
+    src_dev/benchmark/eval/metagenome/cami_sample_statistics/cami_contigs_without_cds.py. Only used when EXCLUDE_NO_CDS_CONTIG_READS is on."""
     contigs_path = Path(project_root) / "data" / "processed_data" / "CAMI_metagenome_no_cds_contigs" / f"{sample}_contigs_without_cds.txt"
     if not contigs_path.exists():
         raise FileNotFoundError(
-            f"{contigs_path} not found - run test_CAMI/cami_contigs_without_cds.py --sample {sample} first."
+            f"{contigs_path} not found - run src_dev/benchmark/eval/metagenome/cami_sample_statistics/cami_contigs_without_cds.py --sample {sample} first."
         )
     return set(contigs_path.read_text().split())
 
