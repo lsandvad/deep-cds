@@ -1,5 +1,5 @@
 #!/bin/bash
-# Step 2 (SCARB): MetaProdigal and FragGeneScanRs on the reads >= 61 bp, with the benchmark commands
+# Step 4 (SCARB): MetaProdigal and FragGeneScanRs on the reads >= 61 bp, with the benchmark commands
 # (src_dev/benchmark/predict_metagenome/predict_with_prodigal.py / predict_with_fgs.py):
 #   prodigal -i <fa> -p meta -f gff -o <gff>
 #   FragGeneScanRs -s <fa> -t <complete|illumina_5|illumina_10> -w 0 -o <prefix>

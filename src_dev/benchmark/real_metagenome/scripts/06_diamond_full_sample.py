@@ -1,15 +1,15 @@
 """Step 6, full sample: every predicted CDS >= 61 bp on every read >= 61 bp is searched against UniRef90.
 
-Same CDS extraction, translation and DIAMOND settings as 11_diamond_all_cds.py (functions imported from it), but
-  * all reads >= 61 bp (the 128 chunks of WORK/chunks, as used for MetaProdigal / FGS), no mapping categories;
+CDS extraction, translation and DIAMOND settings from diamond_functions.py.
+  * all reads >= 61 bp (the 128 chunks of WORK/chunks, as used for MetaProdigal / FGS);
   * tools: DeepCDS N, S, S+I, MetaProdigal, FGS (Complete), FGS (Illumina 5), FGS (Illumina 10);
   * identical peptides are searched once per chunk (deduplicated within, not across, chunks);
   * control: ceil(--n_control / 128) random CDS per tool and chunk (seed 42 + chunk), residues shuffled.
-Overlap cell of each CDS = which of DeepCDS S / MetaProdigal / FGS (Complete) detect its read, as in step 11.
+Overlap cell of each CDS = which of DeepCDS S / MetaProdigal / FGS (Complete) detect its read.
 DIAMOND blastp --sensitive against UniRef90, E <= 1e-3, best hit per query.
 Phases (each skipped if its output exists): split DeepCDS GFFs by chunk -> translate per chunk -> DIAMOND -> summary
 Outputs: OUT/{split,chunks,hits.tsv,...} (default /dev/shm), RES/diamond_full_cds_{per_tool,per_cell}.tsv
-Usage: python 12_diamond_full_sample.py [--threads 192]
+Usage: python 06_diamond_full_sample.py [--threads 192]
 """
 import argparse
 import glob
@@ -28,7 +28,7 @@ import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-s11 = importlib.import_module("11_diamond_all_cds")
+dfn = importlib.import_module("diamond_functions")
 RES = "/tmp/nrt204/FragmentPredictor/real_metagenome_poc/results"
 DEEPCDS = {"DeepCDS N": "model_without_errors", "DeepCDS S": "model_with_substitution_errors",
            "DeepCDS S+I": "model_with_errors"}
@@ -70,21 +70,21 @@ def translate_chunk(task):
             else:
                 seqs[name] = line.rstrip()
     tables = {}
-    cds = {t: s11.deepcds_cds(f"{out}/split/{m}/chunk_{i:03d}.gff", seqs) for t, m in DEEPCDS.items()}
+    cds = {t: dfn.deepcds_cds(f"{out}/split/{m}/chunk_{i:03d}.gff", seqs) for t, m in DEEPCDS.items()}
     for t, d in OTHER.items():
-        cds[t] = s11.tool_gff_cds([f"{work}/preds/{d}/chunk_{i:03d}.gff.gz"], seqs,
+        cds[t] = dfn.tool_gff_cds([f"{work}/preds/{d}/chunk_{i:03d}.gff.gz"], seqs,
                                   tables if t == "MetaProdigal" else None)
     detected = {t: {r for r, _, _ in cds[t]} for t in ("DeepCDS S", "MetaProdigal", "FGS (Complete)")}
     rows, pep_id = [], {}
     for tool, items in cds.items():
         for read, segs, strand in items:
             table = 4 if tool == "MetaProdigal" and tables.get(read) == 4 else 11
-            aa = s11.peptide(seqs[read], segs, strand, s11.TABLE4 if table == 4 else s11.TABLE11)
+            aa = dfn.peptide(seqs[read], segs, strand, dfn.TABLE4 if table == 4 else dfn.TABLE11)
             stop = "*" in aa
             aa = aa.replace("*", "X")
             pid = pep_id.setdefault(aa, f"c{i:03d}_{len(pep_id)}")
             key = tuple(int(read in detected[t]) for t in ("DeepCDS S", "MetaProdigal", "FGS (Complete)"))
-            rows.append((tool, read, s11.CELL_NAMES[key], len(segs) > 1, stop, len(aa), pid))
+            rows.append((tool, read, dfn.CELL_NAMES[key], len(segs) > 1, stop, len(aa), pid))
     df = pd.DataFrame(rows, columns=["tool", "read_id", "cell", "indel_split", "in_frame_stop", "aa_len",
                                      "peptide_id"])
     with open(f"{out}/chunks/peptides_{i:03d}.faa", "w") as fh:
@@ -167,7 +167,7 @@ def main():
             subprocess.run(f"cat {out}/chunks/{q}_*.faa > {out}/{q}.faa", shell=True, check=True)
             n = int(subprocess.run(f"grep -c '>' {out}/{q}.faa", shell=True, capture_output=True, text=True).stdout)
             print(f"diamond blastp {q}.faa: {n:,} queries", flush=True)
-            subprocess.run([s11.DIAMOND, "blastp", "-q", f"{out}/{q}.faa", "-d", args.db, "-o", f"{out}/{o}.part",
+            subprocess.run([dfn.DIAMOND, "blastp", "-q", f"{out}/{q}.faa", "-d", args.db, "-o", f"{out}/{o}.part",
                             "--threads", str(args.threads), "--evalue", "1e-3", "--max-target-seqs", "1",
                             "--sensitive", "--outfmt", "6", *fmt, "--quiet"], check=True)
             os.rename(f"{out}/{o}.part", f"{out}/{o}")
@@ -199,7 +199,7 @@ def main():
     per_tool["control_hit_rate"] = ctrl_rate.reindex(TOOLS)
     per_cell = agg.groupby(["cell", "tool"]).apply(summarise)
     per_cell["reads"] = [cell_reads.get((t, c), 0) for c, t in per_cell.index]
-    per_cell = per_cell.reindex([(c, t) for c in s11.CELL_NAMES.values() for t in TOOLS]).dropna(how="all")
+    per_cell = per_cell.reindex([(c, t) for c in dfn.CELL_NAMES.values() for t in TOOLS]).dropna(how="all")
     per_tool.to_csv(f"{RES}/diamond_full_cds_per_tool.tsv", sep="\t")
     per_cell.to_csv(f"{RES}/diamond_full_cds_per_cell.tsv", sep="\t")
     pd.set_option("display.width", 220)

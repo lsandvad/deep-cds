@@ -1,10 +1,10 @@
-"""Step 9: length distributions of the reads >= 61 bp and of the predicted CDS >= 61 bp per tool.
+"""Step 10: length distributions of the reads >= 61 bp and of the predicted CDS >= 61 bp per tool.
 
 Read lengths: the 128 read chunks (WORK/chunks, all reads >= 61 bp). CDS lengths: the per-chunk CDS tables of
-12_diamond_full_sample.py, for the three FGS models those of 18_fgs_rf0_last_codon.py (last codon restored);
+06_diamond_full_sample.py, for the three FGS models those of 08_fgs_rf0_last_codon.py (last codon restored);
 aa_len = translated length without a terminal stop codon.
 Outputs: RES/length_distribution_{reads,cds}.tsv, FIG/length_distributions.{pdf,png}
-Usage: python 15_length_distributions.py [--procs 64]
+Usage: python 10_length_distributions.py [--procs 64]
 """
 import argparse
 import os
@@ -37,7 +37,7 @@ def read_lengths(path):
 
 
 def cds_lengths(paths):
-    """aa-length histogram per tool; FGS from the step-18 table (paths[1]), all others from step 12."""
+    """aa-length histogram per tool; FGS from the step-8 table (paths[1]), all others from step 6."""
     df = pd.read_csv(paths[0], sep="\t", usecols=["tool", "aa_len"])
     df = pd.concat([df[~df["tool"].str.startswith("FGS")], pd.read_csv(paths[1], sep="\t", usecols=["tool", "aa_len"])])
     return {t: np.bincount(np.minimum(g["aa_len"].to_numpy(), MAX_LEN), minlength=MAX_LEN + 1)

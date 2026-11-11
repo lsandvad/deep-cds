@@ -1,9 +1,9 @@
-"""Step 10: boxplots of the predicted CDS lengths per tool.
+"""Step 11: boxplots of the predicted CDS lengths per tool.
 
-From the aa-length histogram of 15_length_distributions.py (no re-read of the CDS tables). Boxes: quartiles; whiskers:
+From the aa-length histogram of 10_length_distributions.py (no re-read of the CDS tables). Boxes: quartiles; whiskers:
 the most extreme lengths within 1.5 x IQR of the box; points: each length outside the whiskers that occurs at all.
 Outputs: FIG/cds_length_boxplots.{pdf,png}, RES/cds_length_boxplot_stats.tsv
-Usage: python 17_cds_length_boxplots.py
+Usage: python 11_cds_length_boxplots.py
 """
 import os
 import sys

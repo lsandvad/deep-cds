@@ -1,4 +1,4 @@
-"""Step 11: FGS CDS with the last complete codon of the read restored, searched against UniRef90.
+"""Step 8: FGS CDS with the last complete codon of the read restored, searched against UniRef90.
 
 FGS never lets a CDS run to the last base of a read: its end is 1-3 bases short of the read end (0 bases in < 0.1%).
 With 1-2 bases left these are a partial codon, but with 3 left (the reading frame that starts at the read's first
@@ -8,16 +8,16 @@ those 3 bases, unless
   * it is on the + strand and already ends with a stop codon (a real 3' end), or
   * the added codon is a stop codon (on the CDS strand), or
   * FGS placed a deletion right after the reported end (Illumina modes; its N already takes the codon's place).
-FGS (Complete): CDS from the step-4 GFF as in step 12. FGS (Illumina 5 / 10): indel-corrected CDS as in step 16
-(.out files of step 16), extended at the read end before reverse-complementing - strand CDS.
-Every CDS that is not extended must match step 12 (Complete: read, length) or step 16 (Illumina: read, peptide), row
+FGS (Complete): CDS from the step-4 GFF as in step 6. FGS (Illumina 5 / 10): indel-corrected CDS as in step 7
+(.out files of step 7), extended at the read end before reverse-complementing - strand CDS.
+Every CDS that is not extended must match step 6 (Complete: read, length) or step 7 (Illumina: read, peptide), row
 by row; it keeps its peptide id and DIAMOND hit. Only the extended peptides are searched (ids f<chunk>_<n>), with the
-same DIAMOND command as step 16. Control: shuffled residues of 157 random CDS per FGS model and chunk (seed 42 + chunk).
-The FGS rows of RES/diamond_full_cds_{per_tool,per_cell}.tsv are replaced; the step-16 versions are kept as
+same DIAMOND command as step 7. Control: shuffled residues of 157 random CDS per FGS model and chunk (seed 42 + chunk).
+The FGS rows of RES/diamond_full_cds_{per_tool,per_cell}.tsv are replaced; the step-7 versions are kept as
 RES/diamond_full_cds_{per_tool,per_cell}_fgs_no_rf0_codon.tsv.
 Phases (each skipped if its output exists): rebuild + check + translate per chunk -> DIAMOND -> summary
 Outputs: OUT/{chunks,hits.tsv,hits_control.tsv} (default WORK/diamond_fgs_rf0)
-Usage: python 18_fgs_rf0_last_codon.py [--threads 192]
+Usage: python 08_fgs_rf0_last_codon.py [--threads 192]
 """
 import argparse
 import glob
@@ -36,9 +36,9 @@ import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-s11 = importlib.import_module("11_diamond_all_cds")
-s12 = importlib.import_module("12_diamond_full_sample")
-s16 = importlib.import_module("16_fgs_illumina_indel_corrected")
+dfn = importlib.import_module("diamond_functions")
+s06 = importlib.import_module("06_diamond_full_sample")
+s07 = importlib.import_module("07_fgs_illumina_indel_corrected")
 RES = "/tmp/nrt204/FragmentPredictor/real_metagenome_poc/results"
 MODELS = {"FGS (Complete)": "complete", "FGS (Illumina 5)": "illumina_5", "FGS (Illumina 10)": "illumina_10"}
 STOPS = {"TAA", "TAG", "TGA"}
@@ -46,7 +46,7 @@ N_CHUNKS = 128
 
 
 def read_out_gz(path):
-    """s16.read_out for a gzipped .out file."""
+    """s07.read_out for a gzipped .out file."""
     tmp = gzip.open(path, "rt").read()
     indels, read = {}, None
     for line in tmp.splitlines():
@@ -64,24 +64,24 @@ def extend(read, e, strand, fwd, dels):
     if len(read) - e != 3 or e + 1 in dels:
         return fwd, False
     add = read[e:e + 3]
-    if (strand == "+" and (fwd[-3:] in STOPS or add in STOPS)) or (strand == "-" and s11.rc(add) in STOPS):
+    if (strand == "+" and (fwd[-3:] in STOPS or add in STOPS)) or (strand == "-" and dfn.rc(add) in STOPS):
         return fwd, False
     return fwd + add, True
 
 
 def process_chunk(task):
     i, work, out, n_ctrl = task
-    seqs = s16.read_fasta(f"{work}/chunks/chunk_{i:03d}.fa")
+    seqs = s07.read_fasta(f"{work}/chunks/chunk_{i:03d}.fa")
     old12 = pd.read_csv(f"{work}/diamond_full/chunks/cds_{i:03d}.tsv.gz", sep="\t")
     old16 = pd.read_csv(f"{work}/diamond_fgs_indel/chunks/cds_{i:03d}.tsv.gz", sep="\t")
-    pep16 = s16.read_fasta(f"{work}/diamond_fgs_indel/chunks/peptides_{i:03d}.faa")
+    pep16 = s07.read_fasta(f"{work}/diamond_fgs_indel/chunks/peptides_{i:03d}.faa")
     cell = dict(old12[["read_id", "cell"]].drop_duplicates("read_id").itertuples(index=False))
     rows, pep_id, aa_of_row = [], {}, []
     n_ext = {}
     for tool, mode in MODELS.items():
         old = (old12 if mode == "complete" else old16).query("tool == @tool").reset_index(drop=True)
         indels = None if mode == "complete" else read_out_gz(f"{work}/diamond_fgs_indel/fgs/{mode}/chunk_{i:03d}.out.gz")
-        cds = s11.tool_gff_cds([f"{work}/preds/fgs_{mode}/chunk_{i:03d}.gff.gz"], seqs)
+        cds = dfn.tool_gff_cds([f"{work}/preds/fgs_{mode}/chunk_{i:03d}.gff.gz"], seqs)
         if len(cds) != len(old):
             raise RuntimeError(f"chunk {i:03d} {tool}: {len(cds)} CDS, previous step had {len(old)}")
         n_ext[tool] = 0
@@ -89,10 +89,10 @@ def process_chunk(task):
             s, e = segs[0]
             r = seqs[read]
             ins, dels = (set(), set()) if indels is None else indels[(read, s, e, strand)]
-            fwd = r[s - 1:e] if indels is None else s16.corrected_cds(r, s, e, "+", ins, dels)
+            fwd = r[s - 1:e] if indels is None else s07.corrected_cds(r, s, e, "+", ins, dels)
             nt, ext = extend(r, e, strand, fwd, dels)
-            nt = s11.rc(nt) if strand == "-" else nt
-            aa = s11.translate(nt, s11.TABLE11)
+            nt = dfn.rc(nt) if strand == "-" else nt
+            aa = dfn.translate(nt, dfn.TABLE11)
             stop = "*" in aa
             aa = aa.replace("*", "X")
             o = old.iloc[k]
@@ -153,29 +153,29 @@ def main():
     if args.chunks:
         return
 
-    # phase 2: DIAMOND (as step 16)
+    # phase 2: DIAMOND (as step 7)
     fmt = ["qseqid", "sseqid", "pident", "length", "qlen", "slen", "evalue", "bitscore"]
     for q, o in [("peptides", "hits.tsv"), ("control", "hits_control.tsv")]:
         if not os.path.exists(f"{out}/{o}"):
             subprocess.run(f"cat {out}/chunks/{q}_*.faa > {out}/{q}.faa", shell=True, check=True)
             n = int(subprocess.run(f"grep -c '>' {out}/{q}.faa", shell=True, capture_output=True, text=True).stdout)
             print(f"diamond blastp {q}.faa: {n:,} queries", flush=True)
-            subprocess.run([s11.DIAMOND, "blastp", "-q", f"{out}/{q}.faa", "-d", args.db, "-o", f"{out}/{o}.part",
+            subprocess.run([dfn.DIAMOND, "blastp", "-q", f"{out}/{q}.faa", "-d", args.db, "-o", f"{out}/{o}.part",
                             "--threads", str(args.threads), "--evalue", "1e-3", "--max-target-seqs", "1",
                             "--sensitive", "--tmpdir", args.tmpdir, "--outfmt", "6", *fmt, "--quiet"], check=True)
             os.rename(f"{out}/{o}.part", f"{out}/{o}")
 
-    # phase 3: summary (as step 16), FGS rows replaced in the results; hits of reused ids from steps 12 and 16
-    s12.G["hit"] = set(pd.concat(pd.read_csv(f"{d}/hits.tsv", sep="\t", header=None, usecols=[0])[0]
+    # phase 3: summary (as step 7), FGS rows replaced in the results; hits of reused ids from steps 6 and 7
+    s06.G["hit"] = set(pd.concat(pd.read_csv(f"{d}/hits.tsv", sep="\t", header=None, usecols=[0])[0]
                                  for d in (f"{args.work}/diamond_full", f"{args.work}/diamond_fgs_indel", out)))
-    print(f"{len(s12.G['hit']):,} peptides with a hit (steps 12, 16, 18)", flush=True)
+    print(f"{len(s06.G['hit']):,} peptides with a hit (steps 6, 7, 8)", flush=True)
     tools = list(MODELS)
     ctrl_q = pd.Series([l[1:].split("|")[1] for l in open(f"{out}/control.faa") if l[0] == ">"]).value_counts()
     ctrl_hits = pd.read_csv(f"{out}/hits_control.tsv", sep="\t", names=fmt, usecols=["qseqid"])["qseqid"]
     ctrl_rate = ctrl_hits.drop_duplicates().str.split("|").str[1].value_counts().reindex(tools, fill_value=0) / ctrl_q
     print(f"control: {ctrl_q.sum():,} queries, {ctrl_hits.nunique():,} with a hit", flush=True)
     with Pool(args.procs) as pool:
-        res = pool.map(s12.summarise_chunk, sorted(glob.glob(f"{out}/chunks/cds_*.tsv.gz")))
+        res = pool.map(s06.summarise_chunk, sorted(glob.glob(f"{out}/chunks/cds_*.tsv.gz")))
     agg = pd.DataFrame([r for rows, _, _ in res for r in rows],
                        columns=["tool", "cell", "in_frame_stop", "CDS", "with_hit", "hist"])
     reads = pd.DataFrame([d for _, d, _ in res]).sum()
@@ -188,7 +188,7 @@ def main():
                           "hit_rate": g["with_hit"].sum() / g["CDS"].sum(),
                           "CDS_in_frame_stop": stop["CDS"].sum(),
                           "hit_rate_in_frame_stop": stop["with_hit"].sum() / stop["CDS"].sum() if len(stop) else float("nan"),
-                          "median_aa": s12.median_from_hist(sum(g["hist"]))})
+                          "median_aa": s06.median_from_hist(sum(g["hist"]))})
 
     per_tool = agg.groupby("tool").apply(summarise).reindex(tools)
     per_tool["reads"] = reads.reindex(tools)
@@ -201,7 +201,7 @@ def main():
         if not os.path.exists(backup):
             shutil.copy(path, backup)
         old = pd.read_csv(backup, sep="\t", index_col=idx)
-        assert set(new.index) <= set(old.index), f"{name}: new rows not in the step-16 table"
+        assert set(new.index) <= set(old.index), f"{name}: new rows not in the step-7 table"
         merged = old.copy()
         merged.loc[new.index, new.columns] = new
         merged.to_csv(path, sep="\t")
@@ -212,5 +212,5 @@ def main():
 
 
 if __name__ == "__main__":
-    mp.set_start_method("fork")  # workers inherit s12.G (Python 3.14 defaults to forkserver)
+    mp.set_start_method("fork")  # workers inherit s06.G (Python 3.14 defaults to forkserver)
     main()

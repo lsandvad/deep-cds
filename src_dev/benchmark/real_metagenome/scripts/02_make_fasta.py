@@ -2,7 +2,7 @@
 
 Read IDs: <ENA spot name>_1 / _2, e.g. ERR321493.17_1.
 Outputs (in WORK/fasta/):
-  reads_ge61.fa.gz                    reads >= 61 bp - Prodigal, FGS, UHGG mapping
+  reads_ge61.fa.gz                    reads >= 61 bp - Prodigal, FGS
   reads_lt61.fa.gz                    reads < 61 bp (stored; DeepCDS only, postprocessing later)
   deepcds/reads_all_cds_labels.fasta.gz  DeepCDS input, ALL reads (any length) in read order: every read as <id>|+
                                          and its reverse complement as <id>_rc|-; split by length in postprocessing

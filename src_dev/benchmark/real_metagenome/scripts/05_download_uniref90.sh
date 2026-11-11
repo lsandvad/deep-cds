@@ -1,7 +1,7 @@
 #!/bin/bash
-# UniRef90 (UniProt release 2026_03) -> DIAMOND database, used by steps 10-12 and 16.
+# UniRef90 (UniProt release 2026_03) -> DIAMOND database, used by steps 6, 7 and 8.
 # The md5 is checked against UniProt's RELEASE.metalink (2026_03: 34a83a402720e61b713e95db93d0f956).
-# Usage: bash 10a_download_uniref90.sh [OUT]   (default /dev/shm/nrt204_uniref90; database: OUT/uniref90.dmnd)
+# Usage: bash 05_download_uniref90.sh [OUT]   (default /dev/shm/nrt204_uniref90; database: OUT/uniref90.dmnd)
 set -euo pipefail
 OUT=${1:-/dev/shm/nrt204_uniref90}
 URL=https://ftp.uniprot.org/pub/databases/uniprot/current_release/uniref/uniref90

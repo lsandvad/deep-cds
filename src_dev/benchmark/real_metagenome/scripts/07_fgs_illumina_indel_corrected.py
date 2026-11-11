@@ -1,18 +1,18 @@
-"""Step 10: FGS (Illumina 5 / Illumina 10) CDS with FGS's own indel corrections, searched against UniRef90.
+"""Step 7: FGS (Illumina 5 / Illumina 10) CDS with FGS's own indel corrections, searched against UniRef90.
 
 In the Illumina modes FragGeneScanRs predicts insertions and deletions in the CDS, but
-  * the GFF coordinates (used in step 12) do not include them, so step 12 translated the uncorrected read sequence;
+  * the GFF coordinates (used in step 6) do not include them, so step 6 translated the uncorrected read sequence;
   * the .faa / .ffn repeat the last codon of most CDS (98% on chunk 000), so they cannot be used as they are.
 Here FGS is rerun keeping the .out file (indel positions) and each CDS is rebuilt from the read: the base at each
 predicted insertion (I:p) is removed and an N is put before each predicted deletion (D:p); - strand CDS are then
 reverse-complemented. Every rebuilt CDS is checked against FGS's .ffn (identical, or identical after removing the
 repeated final codon); any mismatch stops the run. The coordinates are unchanged (the rerun GFF must be identical
 to the step-4 GFF), so the >= 61 bp filter, detection and read groups are as before.
-Translation (table 11), DIAMOND (same command as step 12), control (shuffled residues) and summary as in step 12.
+Translation (table 11), DIAMOND (same command as step 6), control (shuffled residues) and summary as in step 6.
 The FGS (Illumina 5) / (Illumina 10) rows of RES/diamond_full_cds_{per_tool,per_cell}.tsv are replaced;
-the step-12 versions are kept as RES/diamond_full_cds_{per_tool,per_cell}_fgs_uncorrected.tsv.
+the step-6 versions are kept as RES/diamond_full_cds_{per_tool,per_cell}_fgs_uncorrected.tsv.
 Phases (each skipped if its output exists): rerun FGS + rebuild + translate per chunk -> DIAMOND -> summary
-Usage: python 16_fgs_illumina_indel_corrected.py [--threads 192]
+Usage: python 07_fgs_illumina_indel_corrected.py [--threads 192]
 """
 import argparse
 import glob
@@ -31,8 +31,8 @@ import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-s11 = importlib.import_module("11_diamond_all_cds")
-s12 = importlib.import_module("12_diamond_full_sample")
+dfn = importlib.import_module("diamond_functions")
+s06 = importlib.import_module("06_diamond_full_sample")
 RES = "/tmp/nrt204/FragmentPredictor/real_metagenome_poc/results"
 FGS = os.path.expanduser("~/.conda/envs/gene_prediction_env/bin/FragGeneScanRs")
 MODES = {"FGS (Illumina 5)": "illumina_5", "FGS (Illumina 10)": "illumina_10"}
@@ -77,7 +77,7 @@ def corrected_cds(read, s, e, strand, ins, dels):
     if e + 1 in dels:  # FGS can place a deletion right after the reported end; its .ffn includes the N
         out.append("N")
     seq = "".join(out)
-    return s11.rc(seq) if strand == "-" else seq
+    return dfn.rc(seq) if strand == "-" else seq
 
 
 def process_chunk(task):
@@ -99,14 +99,14 @@ def process_chunk(task):
             raise RuntimeError(f"chunk {i:03d} {mode}: rerun GFF differs from the step-4 GFF")
         indels = read_out(f"{prefix}.out")
         ffn = read_fasta(f"{prefix}.ffn")
-        for read, segs, strand in s11.tool_gff_cds([f"{work}/preds/fgs_{mode}/chunk_{i:03d}.gff.gz"], seqs):
+        for read, segs, strand in dfn.tool_gff_cds([f"{work}/preds/fgs_{mode}/chunk_{i:03d}.gff.gz"], seqs):
             s, e = segs[0]
             ins, dels = indels[(read, s, e, strand)]
             nt = corrected_cds(seqs[read], s, e, strand, ins, dels)
             f = ffn[f"{read}_{s}_{e}_{strand}"]
             if nt != f and nt != (f[:-3] if strand == "+" else f[3:]):  # repeated codon is 3' of the CDS
                 raise RuntimeError(f"chunk {i:03d} {mode}: {read} {s}-{e} {strand} does not match the FGS .ffn")
-            aa = s11.translate(nt, s11.TABLE11)
+            aa = dfn.translate(nt, dfn.TABLE11)
             stop = "*" in aa
             aa = aa.replace("*", "X")
             pid = pep_id.setdefault(aa, f"g{i:03d}_{len(pep_id)}")
@@ -156,27 +156,27 @@ def main():
                 print(f"  chunk {i:03d}: {n_cds:,} CDS ({n_indel:,} with indels) all match the FGS .ffn, "
                       f"{n_pep:,} unique peptides", flush=True)
 
-    # phase 2: DIAMOND (as step 12)
+    # phase 2: DIAMOND (as step 6)
     fmt = ["qseqid", "sseqid", "pident", "length", "qlen", "slen", "evalue", "bitscore"]
     for q, o in [("peptides", "hits.tsv"), ("control", "hits_control.tsv")]:
         if not os.path.exists(f"{out}/{o}"):
             subprocess.run(f"cat {out}/chunks/{q}_*.faa > {out}/{q}.faa", shell=True, check=True)
             n = int(subprocess.run(f"grep -c '>' {out}/{q}.faa", shell=True, capture_output=True, text=True).stdout)
             print(f"diamond blastp {q}.faa: {n:,} queries", flush=True)
-            subprocess.run([s11.DIAMOND, "blastp", "-q", f"{out}/{q}.faa", "-d", args.db, "-o", f"{out}/{o}.part",
+            subprocess.run([dfn.DIAMOND, "blastp", "-q", f"{out}/{q}.faa", "-d", args.db, "-o", f"{out}/{o}.part",
                             "--threads", str(args.threads), "--evalue", "1e-3", "--max-target-seqs", "1",
                             "--sensitive", "--tmpdir", args.tmpdir, "--outfmt", "6", *fmt, "--quiet"], check=True)
             os.rename(f"{out}/{o}.part", f"{out}/{o}")
 
-    # phase 3: summary (as step 12), FGS Illumina rows replaced in the step-12 results
-    s12.G["hit"] = set(pd.read_csv(f"{out}/hits.tsv", sep="\t", names=fmt, usecols=["qseqid"])["qseqid"])
-    print(f"{len(s12.G['hit']):,} peptides with a hit", flush=True)
+    # phase 3: summary (as step 6), FGS Illumina rows replaced in the step-6 results
+    s06.G["hit"] = set(pd.read_csv(f"{out}/hits.tsv", sep="\t", names=fmt, usecols=["qseqid"])["qseqid"])
+    print(f"{len(s06.G['hit']):,} peptides with a hit", flush=True)
     tools = list(MODES)
     ctrl_q = pd.Series([l[1:].split("|")[1] for l in open(f"{out}/control.faa") if l[0] == ">"]).value_counts()
     ctrl_hits = pd.read_csv(f"{out}/hits_control.tsv", sep="\t", names=fmt, usecols=["qseqid"])["qseqid"]
     ctrl_rate = ctrl_hits.drop_duplicates().str.split("|").str[1].value_counts().reindex(tools, fill_value=0) / ctrl_q
     with Pool(args.procs) as pool:
-        res = pool.map(s12.summarise_chunk, sorted(glob.glob(f"{out}/chunks/cds_*.tsv.gz")))
+        res = pool.map(s06.summarise_chunk, sorted(glob.glob(f"{out}/chunks/cds_*.tsv.gz")))
     agg = pd.DataFrame([r for rows, _, _ in res for r in rows],
                        columns=["tool", "cell", "in_frame_stop", "CDS", "with_hit", "hist"])
     reads = pd.DataFrame([d for _, d, _ in res]).sum()
@@ -189,7 +189,7 @@ def main():
                           "hit_rate": g["with_hit"].sum() / g["CDS"].sum(),
                           "CDS_in_frame_stop": stop["CDS"].sum(),
                           "hit_rate_in_frame_stop": stop["with_hit"].sum() / stop["CDS"].sum() if len(stop) else float("nan"),
-                          "median_aa": s12.median_from_hist(sum(g["hist"]))})
+                          "median_aa": s06.median_from_hist(sum(g["hist"]))})
 
     per_tool = agg.groupby("tool").apply(summarise).reindex(tools)
     per_tool["reads"] = reads.reindex(tools)
@@ -202,7 +202,7 @@ def main():
         if not os.path.exists(backup):
             shutil.copy(path, backup)
         old = pd.read_csv(backup, sep="\t", index_col=idx)
-        assert set(new.index) <= set(old.index), f"{name}: new rows not in the step-12 table"
+        assert set(new.index) <= set(old.index), f"{name}: new rows not in the step-6 table"
         merged = old.copy()
         merged.loc[new.index, new.columns] = new
         merged.to_csv(path, sep="\t")
@@ -213,5 +213,5 @@ def main():
 
 
 if __name__ == "__main__":
-    mp.set_start_method("fork")  # workers inherit s12.G (Python 3.14 defaults to forkserver)
+    mp.set_start_method("fork")  # workers inherit s06.G (Python 3.14 defaults to forkserver)
     main()

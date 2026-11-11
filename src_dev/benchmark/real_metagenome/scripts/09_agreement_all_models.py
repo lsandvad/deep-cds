@@ -1,13 +1,13 @@
-"""Step 8: hit rates per read group, with the groups defined by all DeepCDS models (and all FGS models).
+"""Step 9: hit rates per read group, with the groups defined by all DeepCDS models (and all FGS models).
 
-Same CDS and DIAMOND hits as 12_diamond_full_sample.py (its per-chunk CDS tables and hits.tsv), and for the three FGS
-models the CDS of 18_fgs_rf0_last_codon.py (last codon restored; Illumina modes indel-corrected as in step 16), with
-the hits of steps 12, 16 and 18. The read group of a CDS is which
+Same CDS and DIAMOND hits as 06_diamond_full_sample.py (its per-chunk CDS tables and hits.tsv), and for the three FGS
+models the CDS of 08_fgs_rf0_last_codon.py (last codon restored; Illumina modes indel-corrected as in step 7), with
+the hits of steps 6, 7 and 8. The read group of a CDS is which
 tools predict a CDS >= 61 bp (>= 20 aa) on its read, for two tool sets:
   * all_models: DeepCDS N, S, S+I, MetaProdigal, FGS (Complete) (31 groups);
   * all_tools: the same plus FGS (Illumina 5) and FGS (Illumina 10) (127 groups).
 Outputs: RES/diamond_full_agreement_{all_models,all_tools}.tsv (one row per group and tool), printed summary.
-Usage: python 14_agreement_all_models.py [--procs 64]
+Usage: python 09_agreement_all_models.py [--procs 64]
 """
 import argparse
 import os
@@ -23,7 +23,7 @@ TOOL_SETS = {"all_models": (MODELS, ["N", "S", "S+I", "MP", "FGS"]),
              "all_tools": (MODELS + ["FGS (Illumina 5)", "FGS (Illumina 10)"],
                            ["N", "S", "S+I", "MP", "FGS", "FGS-0.5", "FGS-1.0"])}
 N_CHUNKS = 128
-G = {}  # chunk -> set of peptide ids with a hit (steps 12, 16 and 18), filled before forking
+G = {}  # chunk -> set of peptide ids with a hit (steps 6, 7 and 8), filled before forking
 
 
 def summarise_chunk(task):
@@ -53,7 +53,7 @@ def main():
     hits = pd.concat(pd.read_csv(f"{args.work}/{d}/hits.tsv", sep="\t", header=None, usecols=[0], names=["q"])["q"]
                      for d in ("diamond_full", "diamond_fgs_indel", "diamond_fgs_rf0")).drop_duplicates()
     G["hit"] = {}
-    for c, g in hits.groupby(hits.str.split("_", n=1).str[0]):  # c000_* (step 12), g000_* (step 16), f000_* (step 18)
+    for c, g in hits.groupby(hits.str.split("_", n=1).str[0]):  # c000_* (step 6), g000_* (step 7), f000_* (step 8)
         G["hit"].setdefault(int(c[1:]), set()).update(g)
     print(f"{len(hits):,} peptides with a hit", flush=True)
 

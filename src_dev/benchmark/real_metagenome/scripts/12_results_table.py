@@ -1,13 +1,14 @@
-"""Step 7: benchmark table from the full-sample DIAMOND check (12_diamond_full_sample.py).
+"""Step 12: benchmark table from the full-sample DIAMOND check (06_diamond_full_sample.py).
 
 Part A, per tool: reads >= 61 bp with >= 1 predicted CDS >= 61 bp, predicted CDS, CDS with a UniRef90 hit.
 Part B, per read group (which of DeepCDS S / MetaProdigal / FGS (Complete) predict a CDS on the read): reads, and
 the share of each of these three tools' CDS in the group with a UniRef90 hit.
 Also printed: hit rates without CDS containing an in-frame stop codon (table footnotes).
-Inputs: RES/{detection_rates.tsv, diamond_full_cds_per_tool.tsv, diamond_full_cds_per_cell.tsv}
+Inputs: WORK/fasta/read_counts.tsv (02_make_fasta.py), RES/{diamond_full_cds_per_tool.tsv, diamond_full_cds_per_cell.tsv}
 Outputs: RES/table_real_metagenome_{per_tool,per_group}.tsv, RES/table_real_metagenome.tex
-Usage: python 13_results_table.py
+Usage: python 12_results_table.py [--work /tmp/nrt204/real_metagenome_poc_work]
 """
+import argparse
 import os
 
 import pandas as pd
@@ -26,7 +27,11 @@ def pct(x, d=1):
 
 
 def main():
-    n_reads = int(pd.read_csv(f"{RES}/detection_rates.tsv", sep="\t").query("category == 'all'")["n_reads"].iloc[0])
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--work", default="/tmp/nrt204/real_metagenome_poc_work")
+    args = parser.parse_args()
+    counts = pd.read_csv(f"{args.work}/fasta/read_counts.tsv", sep="\t")
+    n_reads = int(counts.loc[counts["length_class"] == "ge61", "reads"].sum())   # reads >= 61 bp, R1 + R2
     tool = pd.read_csv(f"{RES}/diamond_full_cds_per_tool.tsv", sep="\t", index_col=0).loc[TOOLS]
     cell = pd.read_csv(f"{RES}/diamond_full_cds_per_cell.tsv", sep="\t").set_index(["cell", "tool"])
 
