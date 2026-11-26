@@ -94,6 +94,64 @@ def build_label_lut(mapping_dict_to_class):
     return lut
 
 
+# Batches whose padded length exceeds this many codons (~30 kb) are decoded by
+# _viterbi_decode_long. Reads (<= 1,000 bp, ~333 codons) never reach it. On MPS the
+# original path aborts with "Failed to allocate IOGPUDeviceShmem" somewhere between
+# 50k and 100k codons, so 10k leaves a wide margin.
+LONG_SEQUENCE_CODONS = 10_000
+
+
+@torch.no_grad()
+def _viterbi_decode_long(crf, emissions, mask):
+    """Viterbi decode for long batches; same algorithm and result as the short path.
+
+    Differs from ``viterbi_decode_fast``'s main path in two ways, both for memory:
+
+    * Backpointers go into one preallocated tensor instead of a list of
+      ``seq_len`` per-step tensors. On a whole genome (~1.5M codons) the list was
+      ~1.5M separate allocations (~24 GB of MPS buffers). uint8 is enough because the
+      tag count is <= 256 (33 for N/S, 69 for S+I).
+    * On MPS the loop runs on CPU. MPS queues every step without completing it and
+      aborts once that exhausts its shared memory; CPU is also faster for this loop
+      (2.9 s vs 13.6 s for 1 x 50k codons). Results are returned on the input device.
+    """
+    out_device = emissions.device
+    decode_device = torch.device("cpu") if out_device.type == "mps" else out_device
+    emissions = emissions.to(decode_device).transpose(0, 1)
+    mask = mask.to(decode_device).transpose(0, 1).bool()
+    start_transitions = crf.start_transitions.detach().to(decode_device)
+    transitions = crf.transitions.detach().to(decode_device)
+    end_transitions = crf.end_transitions.detach().to(decode_device)
+    seq_length, batch_size = mask.shape
+    num_tags = emissions.shape[2]
+
+    score = start_transitions + emissions[0]  # (B, T)
+    hist_dtype = torch.uint8 if num_tags <= 256 else torch.long
+    history = torch.empty((seq_length - 1, batch_size, num_tags),
+                          dtype=hist_dtype, device=decode_device)
+    for i in range(1, seq_length):
+        next_score = score.unsqueeze(2) + transitions + emissions[i].unsqueeze(1)
+        next_score, indices = next_score.max(dim=1)  # (B, T), (B, T)
+        score = torch.where(mask[i].unsqueeze(1), next_score, score)
+        history[i - 1] = indices
+
+    score = score + end_transitions
+
+    lengths = mask.long().sum(dim=0)          # (B,)
+    seq_ends = lengths - 1                    # (B,)
+    best_last = score.argmax(dim=1)           # (B,)
+
+    tags = torch.zeros(seq_length, batch_size, dtype=torch.long, device=decode_device)
+    current = best_last
+    for t in range(seq_length - 1, -1, -1):
+        current = torch.where(seq_ends == t, best_last, current)
+        tags[t] = current
+        if t > 0:
+            current = history[t - 1].gather(1, current.unsqueeze(1)).squeeze(1).long()
+
+    return tags.transpose(0, 1).contiguous().to(out_device), lengths.to(out_device)
+
+
 @torch.no_grad()
 def viterbi_decode_fast(crf, emissions, mask):
     """Batched Viterbi decode, equivalent to ``crf.decode(emissions, mask)``.
@@ -122,6 +180,11 @@ def viterbi_decode_fast(crf, emissions, mask):
     """
     if not crf.batch_first:
         raise ValueError("viterbi_decode_fast expects a batch_first CRF")
+
+    # Long batches (contigs, whole genomes) take a separate path; everything at or
+    # below the threshold, which includes all short-read inference, runs the code below.
+    if emissions.shape[1] > LONG_SEQUENCE_CODONS:
+        return _viterbi_decode_long(crf, emissions, mask)
 
     # torchcrf works in (seq_len, batch, ...) layout internally.
     emissions = emissions.transpose(0, 1)
